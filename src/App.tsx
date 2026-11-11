@@ -19,13 +19,13 @@ import { Settings } from "./pages/Settings";
 import { ReviewPack } from "./pages/ReviewPack";
 import { LecturePage } from "./pages/Lecture";
 import { Shared } from "./pages/Shared";
-
-function Placeholder({ name }: { name: string }) { return <div className="placeholder" data-page={name}>{name}</div>; }
+import { NewLecture } from "./pages/NewLecture";
+import { Live } from "./pages/Live";
 
 function page(a: string, b: string): ReactNode {
   return a === "home" ? <Home /> : a === "course" ? <Course id={b} /> : a === "courses" ? <Courses />
-    : a === "lecture" ? <LecturePage id={b} /> : a === "s" ? <Shared id={b} /> : a === "new" ? <Shell active="new"><Placeholder name="new" /></Shell>
-    : a === "live" ? <Shell active="new"><Placeholder name="live" /></Shell> : a === "pack" ? <ReviewPack id={b} /> : a === "settings" ? <Settings />
+    : a === "lecture" ? <LecturePage id={b} /> : a === "s" ? <Shared id={b} /> : a === "new" ? <NewLecture />
+    : a === "live" ? <Live /> : a === "pack" ? <ReviewPack id={b} /> : a === "settings" ? <Settings />
     : a === "signin" ? <SignIn /> : a === "" ? <Landing /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Sidenote." /></Shell>;
 }
 
