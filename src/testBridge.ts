@@ -11,6 +11,7 @@ import { route } from "./state/router";
 import { store } from "./lib/store";
 import { idb } from "./lib/idb";
 import { LANG, trs, t, setLang } from "./i18n";
+import { busy, modal, closeModal, toast } from "./state/overlay";
 import { ZH } from "./i18n/zh";
 import { pl } from "./features/player/player";
 import { live, rec } from "./features/recording/recorder";
@@ -20,7 +21,7 @@ declare global {
 }
 
 export function installTestBridge() {
-  const b: Record<string, unknown> = { CONFIG, api, DATA, mockDb, S, session, state, today, dayMon, route, store, idb, trs, t, setLang, ZH, pl, live, rec };
+  const b: Record<string, unknown> = { CONFIG, api, DATA, mockDb, S, session, state, today, dayMon, route, store, idb, trs, t, setLang, ZH, pl, live, rec, busy, modal, closeModal, toast };
   Object.defineProperties(b, {
     R: { get: () => R, enumerable: true },
     cur: { get: () => cur, enumerable: true },
