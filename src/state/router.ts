@@ -1,0 +1,35 @@
+/* ---------- router ----------
+   Hash routes, the same addresses as sidenote.html: #/, #/signin, #/home, #/courses, #/course/:id, #/lecture/:id,
+   #/s/:id, #/new, #/live, #/pack/:id, #/settings. route() keeps the original sign-in guard, data loading and
+   race handling: routeSeq makes sure only the newest navigation draws its result. */
+import { api } from "../api/api";
+import { bump } from "../lib/bus";
+import { plStop } from "../features/player/player";
+import { live } from "../features/recording/recorder";
+import { closeModal } from "./overlay";
+import { R, S, session, setPendingPos, pendingPos, state, view } from "./app";
+
+export const PUBLIC = ["", "s", "signin"];
+let routeSeq = 0;
+
+export async function route() {
+  closeModal();
+  const h = location.hash.replace(/^#\/?/, ""), parts = h.split("/"), a = parts[0] || "", b = parts[1] ? decodeURIComponent(parts[1]) : "";
+  if (!PUBLIC.includes(a) && !S.token) { S.next = location.hash; location.hash = "#/signin"; return; }
+  if (a === "signin" && S.token) { location.hash = "#/home"; return; }
+  if (a === "live" && !live.active) { location.hash = "#/new"; return; }
+  const changed = R.a !== a || R.b !== b; Object.assign(R, { a, b }); const seq = ++routeSeq; S.error = null;
+  if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [] }); setPendingPos(0); }
+  const needHome = !PUBLIC.includes(a) && !S.homeLoaded, needLec = a === "lecture" && !(b in S.detail), needSh = a === "s" && !S.shared[b], needPack = a === "pack" && !S.pack[b], needPlans = a === "settings" && !S.plans;
+  /* While loading: the app's shell with a skeleton, or Sid in the middle of an empty page. */
+  if (needHome || needLec || needSh || needPack || needPlans) { view.loader = S.homeLoaded && !PUBLIC.includes(a) ? "shell" : "center"; bump(); }
+  try {
+    if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault; }
+    if (needLec) { const r = await api.getLecture(b); S.detail[b] = r.detail; const i = S.lectures.findIndex(x => x.id === b); if (i < 0) S.lectures.unshift(r.lecture); else S.lectures[i] = r.lecture; }
+    if (needSh) S.shared[b] = await api.getShared(b);
+    if (needPack) S.pack[b] = await api.getReviewPack(b);
+    if (needPlans) S.plans = await api.getPlans().catch(() => ({ plans: [], current: null }));   // Settings still opens when the plans endpoint is not there yet
+    if (changed && a === "lecture" && S.detail[b] && S.detail[b]!.progress) state.known = new Set(S.detail[b]!.progress!.known || []);
+  } catch (e) { S.error = (e as Error).message || String(e); }
+  if (seq === routeSeq) { view.loader = null; bump(); }
+}

@@ -25,6 +25,16 @@ export function createChannel(): Channel {
 }
 
 const page = createChannel();
-export const bump = page.bump, subscribe = page.subscribe, getVersion = page.version;
-/* Redraw every channel at once, e.g. after the interface language changes. */
-export function bumpAll() { all.forEach(c => c.next()); flusher(() => all.forEach(c => c.listeners.forEach(l => l()))); }
+export const subscribe = page.subscribe, getVersion = page.version;
+
+/* bump() stands for render(): sidenote.html rebuilt all of #app, so whatever had keyboard focus inside it was
+   destroyed and focus went back to <body>. The flashcard and quiz keys depend on that (Space flips the card after
+   clicking Next), so after a bump() the app drops focus inside #app the same way (see App.tsx).
+   refresh() is for the places that patched one part of the page without render() (the search results, the live
+   transcript, the course picker): it redraws and leaves focus where it is. */
+let full = false;
+export function bump() { full = true; page.bump(); }
+export function refresh() { page.bump(); }
+export function takeFullRedraw() { const f = full; full = false; return f; }
+/* Redraw every channel at once, e.g. after the interface language changes. Counts as a full redraw. */
+export function bumpAll() { full = true; all.forEach(c => c.next()); flusher(() => all.forEach(c => c.listeners.forEach(l => l()))); }

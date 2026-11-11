@@ -1,18 +1,29 @@
 /* The check scripts in tests/ drive the page from outside and read some of its inner objects
    (S, route, trs, today, pl, live, rec, outbox, idb, DATA, notesMarkdown ...). sidenote.html had them
    as globals; here they are collected on window.__sidenote. Objects are shared by reference, so a
-   script that changes S.homeLoaded changes the app's own S. */
+   script that changes S.homeLoaded changes the app's own S. Values that get reassigned (R, cur, LANG)
+   are getters. */
 import { CONFIG } from "./config";
 import { api } from "./api/api";
 import { DATA, mockDb } from "./api/mock";
-import { S, session } from "./state/app";
+import { S, session, state, today, dayMon, R, cur } from "./state/app";
+import { route } from "./state/router";
 import { store } from "./lib/store";
 import { idb } from "./lib/idb";
+import { LANG, trs } from "./i18n";
+import { pl } from "./features/player/player";
+import { live, rec } from "./features/recording/recorder";
 
 declare global {
   interface Window { __sidenote?: Record<string, unknown> }
 }
 
 export function installTestBridge() {
-  window.__sidenote = { CONFIG, api, DATA, mockDb, S, session, store, idb };
+  const b: Record<string, unknown> = { CONFIG, api, DATA, mockDb, S, session, state, today, dayMon, route, store, idb, trs, pl, live, rec };
+  Object.defineProperties(b, {
+    R: { get: () => R, enumerable: true },
+    cur: { get: () => cur, enumerable: true },
+    LANG: { get: () => LANG, enumerable: true }
+  });
+  window.__sidenote = b;
 }
