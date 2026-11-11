@@ -3,8 +3,7 @@
 import type { Course, Detail, Lecture, Plans, ReviewPack, Settings, SharedReply, Source, Upcoming, Usage, User, Week } from "../types";
 import type { StoredChunk } from "../lib/idb";
 import { CONFIG } from "../config";
-import { mins, ymd } from "../lib/helpers";
-import { PALETTE } from "../lib/helpers";
+import { PALETTE, mins, ymd } from "../lib/helpers";
 import { LANG } from "../i18n";
 
 export interface Orphan { id: string; code: string; sec: number; chunks: StoredChunk[] }

@@ -2,8 +2,7 @@
 
 export type LectureStatus = "recording" | "processing" | "ready" | "failed";
 export type ZhScript = "hant" | "hans";
-export type Source = "record" | "tab" | "upload" | "link";
-export type ClassLanguage = "en" | "en-yue" | "en-zh" | "auto";
+export type Source = "record" | "tab" | "upload" | "link";   // language is "en" | "en-yue" | "en-zh" | "auto" (state/app.ts LANGS)
 
 /* 3.1 GET /home */
 export interface User { name: string }
