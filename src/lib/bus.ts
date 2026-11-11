@@ -27,14 +27,16 @@ export function createChannel(): Channel {
 const page = createChannel();
 export const subscribe = page.subscribe, getVersion = page.version;
 
-/* bump() stands for render(): sidenote.html rebuilt all of #app, so whatever had keyboard focus inside it was
-   destroyed and focus went back to <body>. The flashcard and quiz keys depend on that (Space flips the card after
-   clicking Next), so after a bump() the app drops focus inside #app the same way (see App.tsx).
-   refresh() is for the places that patched one part of the page without render() (the search results, the live
-   transcript, the course picker): it redraws and leaves focus where it is. */
-let full = false;
-export function bump() { full = true; page.bump(); }
+/* bump() stands for render(). sidenote.html rebuilt all of #app with innerHTML on every render(), and parts of its
+   behaviour depend on getting new elements each time: the next flashcard appears unflipped without a flip animation,
+   a jump moves the timeline head without sliding, keyboard focus inside #app is dropped (the flashcard and quiz keys
+   rely on that), and a form shows what the module objects hold (auth, nf, state). So a bump() gives the page new
+   elements too: App.tsx keys the page by `generation`.
+   refresh() is for the places that patched only one part of the page without render() (the lecture search, the
+   transcript search, the live transcript): React updates the page in place, so the search box keeps focus. */
+let generation = 0;
+export function bump() { generation++; page.bump(); }
 export function refresh() { page.bump(); }
-export function takeFullRedraw() { const f = full; full = false; return f; }
-/* Redraw every channel at once, e.g. after the interface language changes. Counts as a full redraw. */
-export function bumpAll() { full = true; all.forEach(c => c.next()); flusher(() => all.forEach(c => c.listeners.forEach(l => l()))); }
+export const getGeneration = () => generation;
+/* Redraw every channel at once, e.g. after the interface language changes. A full redraw of the page. */
+export function bumpAll() { generation++; all.forEach(c => c.next()); flusher(() => all.forEach(c => c.listeners.forEach(l => l()))); }

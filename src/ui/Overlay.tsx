@@ -24,7 +24,9 @@ function Waiting({ id, dur }: { id: string; dur: number }) {
 export function Overlay() {
   useStore(overlayChannel);
   const seq = overlay.seq;
-  useLayoutEffect(() => { const f = document.querySelector<HTMLElement>("#overlay input, #overlay textarea"); if (f) f.focus(); }, [seq]);
+  /* sidenote.html wrote a field's value as markup, so the focused field started with the caret at the beginning (a long
+     title shows its start). React sets the value as a property, which puts the caret at the end; move it back first. */
+  useLayoutEffect(() => { const f = document.querySelector<HTMLInputElement | HTMLTextAreaElement>("#overlay input, #overlay textarea"); if (f) { try { f.setSelectionRange(0, 0); } catch (e) {} f.focus(); } }, [seq]);
   const m = overlay.modal;
   if (!m) return null;
   const b = m.body;

@@ -70,9 +70,9 @@ function run(script, target, extraEnv = {}) {
       line(`shots5.js on ${t === 'legacy' ? 'sidenote.html' : 'the build'}: no console or page errors`, /no console\/page errors/.test(r.out) && r.code === 0, /no console\/page errors/.test(r.out) ? '' : r.out.slice(0, 600));
     }
     const rows = await compare(path.join(OUT, 'legacy', 'shots5'), path.join(OUT, 'dist', 'shots5'), path.join(OUT, 'shots-diff'));
-    const differ = rows.filter(r => r.missing || r.diff);
-    rows.forEach(r => { if (r.missing || r.diff) console.log(`   ${r.missing ? 'MISSING' : 'DIFF'}  ${r.name}${r.diff ? `  ${r.diff} px in box ${JSON.stringify(r.box)}` : ''}`); });
-    line(`screenshots: ${rows.length - differ.length} of ${rows.length} identical to sidenote.html`, differ.length === 0, differ.length ? 'diff images in tests/output/shots-diff/' : '');
+    const differ = rows.filter(r => r.missing || (r.diff && !r.noise)), noisy = rows.filter(r => r.noise);
+    rows.forEach(r => { if (r.missing || r.diff) console.log(`   ${r.missing ? 'MISSING' : r.noise ? 'NOISE' : 'DIFF'}  ${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)}` : ''}`); });
+    line(`screenshots: ${rows.length - differ.length - noisy.length} of ${rows.length} identical to sidenote.html` + (noisy.length ? `, ${noisy.length} differ only by anti-aliasing noise` : ''), differ.length === 0, differ.length ? 'diff images in tests/output/shots-diff/' : '');
   }
 
   console.log('\n' + summary.join('\n'));

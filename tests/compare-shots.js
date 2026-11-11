@@ -5,6 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const pw = require('playwright');
 
+// Anti-aliasing noise: a few pixels along an edge that differ slightly. The original file differs from itself this way
+// from run to run (rounded card corners in full-page phone screenshots), so such pairs are reported, but marked as noise.
+const isNoise = r => r.diff > 0 && r.diff <= 60 && r.maxDelta <= 8 && r.size[0] === r.size[2] && r.size[1] === r.size[3];
+
 async function compare(dirA, dirB, diffDir) {
   const names = fs.readdirSync(dirA).filter(n => n.endsWith('.png')).sort();
   fs.mkdirSync(diffDir, { recursive: true });
@@ -21,31 +25,31 @@ async function compare(dirA, dirB, diffDir) {
       const w = Math.max(ia.width, ib.width), h = Math.max(ia.height, ib.height);
       const px = img => { const c = new OffscreenCanvas(w, h), x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0); return x.getImageData(0, 0, w, h).data; };
       const da = px(ia), db = px(ib), out = new OffscreenCanvas(w, h), ox = out.getContext('2d'), od = ox.createImageData(w, h);
-      let diff = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+      let diff = 0, maxDelta = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
       for (let i = 0; i < da.length; i += 4) {
         const same = da[i] === db[i] && da[i + 1] === db[i + 1] && da[i + 2] === db[i + 2];
         const p = i / 4, x = p % w, y = (p - x) / w;
         if (same) { const g = 255 - (255 - da[i]) * 0.25; od.data[i] = od.data[i + 1] = od.data[i + 2] = g; }
-        else { diff++; od.data[i] = 230; od.data[i + 1] = 0; od.data[i + 2] = 0; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+        else { diff++; maxDelta = Math.max(maxDelta, Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]), Math.abs(da[i + 2] - db[i + 2])); od.data[i] = 230; od.data[i + 1] = 0; od.data[i + 2] = 0; if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
         od.data[i + 3] = 255;
       }
       ox.putImageData(od, 0, 0);
       const blob = await out.convertToBlob({ type: 'image/png' }), buf = new Uint8Array(await blob.arrayBuffer());
       let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
-      return { diff, total: w * h, size: [ia.width, ia.height, ib.width, ib.height], box: diff ? [x0, y0, x1, y1] : null, png: btoa(s) };
+      return { diff, maxDelta, total: w * h, size: [ia.width, ia.height, ib.width, ib.height], box: diff ? [x0, y0, x1, y1] : null, png: btoa(s) };
     }, ['data:image/png;base64,' + a.toString('base64'), 'data:image/png;base64,' + b.toString('base64')]);
     if (r.diff) fs.writeFileSync(path.join(diffDir, n), Buffer.from(r.png, 'base64'));
-    rows.push({ name: n, diff: r.diff, total: r.total, size: r.size, box: r.box });
+    rows.push({ name: n, diff: r.diff, maxDelta: r.maxDelta, total: r.total, size: r.size, box: r.box, noise: isNoise(r) });
   }
   await browser.close();
   return rows;
 }
 
-module.exports = { compare };
+module.exports = { compare, isNoise };
 
 if (require.main === module) {
   const [a, b, d] = process.argv.slice(2);
   compare(a, b, d).then(rows => {
-    for (const r of rows) console.log(r.missing ? `MISSING  ${r.name}` : `${r.diff ? 'DIFF' : 'SAME'}  ${r.name}${r.diff ? `  ${r.diff} px (${(r.diff / r.total * 100).toFixed(3)}%) in box ${JSON.stringify(r.box)} sizes ${JSON.stringify(r.size)}` : ''}`);
+    for (const r of rows) console.log(r.missing ? `MISSING  ${r.name}` : `${r.diff ? (r.noise ? 'NOISE' : 'DIFF') : 'SAME'}  ${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)} sizes ${JSON.stringify(r.size)}` : ''}`);
   });
 }

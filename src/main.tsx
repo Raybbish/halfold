@@ -14,6 +14,7 @@ import { live, onVisibilityChange } from "./features/recording/recorder";
 import { outbox, flush } from "./features/recording/outbox";
 import { findOrphan } from "./features/recording/orphan";
 import { installTestBridge } from "./testBridge";
+import { onLectureKey } from "./pages/lecture/actions";
 import { App } from "./App";
 
 /* bump() redraws before it returns, like render() did. */
@@ -25,6 +26,7 @@ const net = () => document.body.classList.toggle("is-offline", navigator.onLine 
 document.addEventListener("visibilitychange", onVisibilityChange);
 window.addEventListener("online", flush); setInterval(() => { if (outbox.length) flush(); }, 10000);
 window.addEventListener("beforeunload", e => { if (live.active) { e.preventDefault(); e.returnValue = ""; } });
+document.addEventListener("keydown", onLectureKey);   // flashcard and quiz keys
 window.addEventListener("online", net); window.addEventListener("offline", net);
 window.addEventListener("hashchange", route);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !(overlay.modal && overlay.modal.locked)) closeModal(); });

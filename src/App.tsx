@@ -2,7 +2,7 @@
 import { Fragment, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { CONFIG } from "./config";
-import { takeFullRedraw } from "./lib/bus";
+import { getGeneration } from "./lib/bus";
 import { R, S, view } from "./state/app";
 import { PUBLIC, route } from "./state/router";
 import { t } from "./i18n";
@@ -17,12 +17,14 @@ import { Home, Courses } from "./pages/Home";
 import { Course } from "./pages/Course";
 import { Settings } from "./pages/Settings";
 import { ReviewPack } from "./pages/ReviewPack";
+import { LecturePage } from "./pages/Lecture";
+import { Shared } from "./pages/Shared";
 
 function Placeholder({ name }: { name: string }) { return <div className="placeholder" data-page={name}>{name}</div>; }
 
 function page(a: string, b: string): ReactNode {
   return a === "home" ? <Home /> : a === "course" ? <Course id={b} /> : a === "courses" ? <Courses />
-    : a === "lecture" ? <Shell active=""><Placeholder name={"lecture " + b} /></Shell> : a === "s" ? <Placeholder name={"shared " + b} /> : a === "new" ? <Shell active="new"><Placeholder name="new" /></Shell>
+    : a === "lecture" ? <LecturePage id={b} /> : a === "s" ? <Shared id={b} /> : a === "new" ? <Shell active="new"><Placeholder name="new" /></Shell>
     : a === "live" ? <Shell active="new"><Placeholder name="live" /></Shell> : a === "pack" ? <ReviewPack id={b} /> : a === "settings" ? <Settings />
     : a === "signin" ? <SignIn /> : a === "" ? <Landing /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Sidenote." /></Shell>;
 }
@@ -35,11 +37,7 @@ function afterRender() {
 
 export function App() {
   useStore();
-  useLayoutEffect(() => {
-    /* A full redraw replaced every element in #app, so keyboard focus inside it was lost. Do the same (see lib/bus.ts). */
-    if (takeFullRedraw()) { const el = document.activeElement as HTMLElement | null, app = document.getElementById("app"); if (el && app && app.contains(el)) el.blur(); }
-    afterRender();
-  });
+  useLayoutEffect(afterRender);
   const { a, b } = R;
   let body: ReactNode = null;
   if (view.loader === "shell") body = <Shell active="" raw><Skeleton /></Shell>;
@@ -52,8 +50,8 @@ export function App() {
   }
   const pill = view.loader === null && CONFIG.USE_MOCK && a !== "";
   return <>
-    {/* A new route gets new elements, as the old innerHTML swap did; within one route React updates in place. */}
-    <Fragment key={(view.loader || "page") + "|" + a + "/" + b}>{body}</Fragment>
+    {/* Every bump() draws the page with new elements, as render() did with innerHTML; refresh() updates it in place. */}
+    <Fragment key={getGeneration()}>{body}</Fragment>
     {pill ? <div className="mock-pill">{t("Sample data")}</div> : null}
     {createPortal(t("You are offline. Recording still works and is sent when you are back online."), document.querySelector(".offline-bar")!)}
     <Overlay />

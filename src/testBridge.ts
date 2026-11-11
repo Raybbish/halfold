@@ -15,13 +15,15 @@ import { busy, modal, closeModal, toast } from "./state/overlay";
 import { ZH } from "./i18n/zh";
 import { pl } from "./features/player/player";
 import { live, rec } from "./features/recording/recorder";
+import { outbox } from "./features/recording/outbox";
+import { notesMarkdown } from "./features/export";
 
 declare global {
   interface Window { __sidenote?: Record<string, unknown> }
 }
 
 export function installTestBridge() {
-  const b: Record<string, unknown> = { CONFIG, api, DATA, mockDb, S, session, state, today, dayMon, route, store, idb, trs, t, setLang, ZH, pl, live, rec, busy, modal, closeModal, toast };
+  const b: Record<string, unknown> = { CONFIG, api, DATA, mockDb, S, session, state, today, dayMon, route, store, idb, trs, t, setLang, ZH, pl, live, rec, outbox, notesMarkdown, busy, modal, closeModal, toast };
   Object.defineProperties(b, {
     R: { get: () => R, enumerable: true },
     cur: { get: () => cur, enumerable: true },
