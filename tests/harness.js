@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, '..');
 const arg = process.argv.find(a => a.startsWith('--target='));
 const TARGET = (arg && arg.split('=')[1]) || process.env.SIDENOTE_TARGET || 'dist';
 if (!['dist', 'legacy'].includes(TARGET)) throw new Error('target must be dist or legacy');
-const DIST = path.join(ROOT, 'dist');
+const DIST = process.env.SIDENOTE_DIST ? path.resolve(process.env.SIDENOTE_DIST) : path.join(ROOT, 'dist');   // SIDENOTE_DIST: serve another build folder
 const LEGACY = path.join(ROOT, 'reference', 'sidenote.html');
 const ORIGIN = 'http://localhost:8765';
 // SIDENOTE_STABLE=1 turns animations off (prefers-reduced-motion) so two runs can be compared pixel by pixel.
