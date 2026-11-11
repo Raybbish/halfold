@@ -11,14 +11,20 @@ import { Shell, Skeleton, Problem } from "./ui/Shell";
 import { Logo, Sid } from "./ui/icons";
 import { Overlay } from "./ui/Overlay";
 import { css } from "./ui/css";
+import { Landing } from "./pages/Landing";
+import { SignIn } from "./pages/SignIn";
+import { Home, Courses } from "./pages/Home";
+import { Course } from "./pages/Course";
+import { Settings } from "./pages/Settings";
+import { ReviewPack } from "./pages/ReviewPack";
 
 function Placeholder({ name }: { name: string }) { return <div className="placeholder" data-page={name}>{name}</div>; }
 
 function page(a: string, b: string): ReactNode {
-  return a === "home" ? <Shell active="home"><Placeholder name="home" /></Shell> : a === "course" ? <Shell active={b}><Placeholder name={"course " + b} /></Shell> : a === "courses" ? <Shell active="courses"><Placeholder name="courses" /></Shell>
+  return a === "home" ? <Home /> : a === "course" ? <Course id={b} /> : a === "courses" ? <Courses />
     : a === "lecture" ? <Shell active=""><Placeholder name={"lecture " + b} /></Shell> : a === "s" ? <Placeholder name={"shared " + b} /> : a === "new" ? <Shell active="new"><Placeholder name="new" /></Shell>
-    : a === "live" ? <Shell active="new"><Placeholder name="live" /></Shell> : a === "pack" ? <Shell active={b}><Placeholder name={"pack " + b} /></Shell> : a === "settings" ? <Shell active="settings"><Placeholder name="settings" /></Shell>
-    : a === "signin" ? <Placeholder name="signin" /> : a === "" ? <Placeholder name="landing" /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Sidenote." /></Shell>;
+    : a === "live" ? <Shell active="new"><Placeholder name="live" /></Shell> : a === "pack" ? <ReviewPack id={b} /> : a === "settings" ? <Settings />
+    : a === "signin" ? <SignIn /> : a === "" ? <Landing /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Sidenote." /></Shell>;
 }
 
 /* afterRender() from sidenote.html: keep the chosen tab in view when the tab row scrolls sideways. */
