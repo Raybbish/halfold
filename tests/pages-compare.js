@@ -54,7 +54,14 @@ const STEPS = `[
   ['feedback', async p => { await p.click('.main p.noprint .ts'); }],
   ['-close4', async p => { await p.keyboard.press('Escape'); }],
   ['lecture-no-notes', async p => { await p.goto(O + '/#/lecture/econ-w8'); await p.waitForSelector('.main .card h3'); }],
-  ['shared', async p => { await p.goto(O + '/#/s/econ-w9'); await p.waitForSelector('.shared-bar'); }]
+  ['shared', async p => { await p.goto(O + '/#/s/econ-w9'); await p.waitForSelector('.shared-bar'); }],
+  ['new', async p => { await p.goto(O + '/#/new'); await p.waitForSelector('.choice'); }],
+  ['new-upload', async p => { await p.click('.choice button:nth-child(2)'); }],
+  ['new-upload-file', async p => { await p.setInputFiles('#fRec', { name: 'week10-lecture.mp3', mimeType: 'audio/mpeg', buffer: Buffer.alloc(1258291) }); }],
+  ['new-link-error', async p => { await p.click('.choice button:nth-child(3)'); await p.fill('input[type=url]', 'https://lecture'); await p.click('form button.btn.blue'); await p.waitForSelector('.err'); }],
+  ['new-tab', async p => { await p.click('.choice button:nth-child(4)'); }],
+  ['new-rec-tip', async p => { await p.click('.choice button:nth-child(1)'); await p.click('form button.btn.blue'); await p.waitForSelector('#overlay .modal'); }],
+  ['-close5', async p => { await p.keyboard.press('Escape'); }]
 ]`;
 
 function run(target, w, zh) {

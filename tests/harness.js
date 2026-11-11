@@ -21,6 +21,7 @@ const LEGACY = path.join(ROOT, 'reference', 'sidenote.html');
 const ORIGIN = 'http://localhost:8765';
 // SIDENOTE_STABLE=1 turns animations off (prefers-reduced-motion) so two runs can be compared pixel by pixel.
 const STABLE = process.env.SIDENOTE_STABLE === '1';
+const PHONE_WIDTH = +process.env.SIDENOTE_PHONE_WIDTH || 0;
 
 // Names the check scripts use as globals of sidenote.html. In the React app they live on window.__sidenote.
 const GLOBALS = ['S', 'route', 'state', 'trs', 'today', 'dayMon', 'pl', 'live', 'rec', 'outbox', 'idb', 'DATA', 'notesMarkdown', 'api', 'mockDb'];
@@ -69,6 +70,8 @@ const chromium = {
     const browser = await pw.chromium.launch(rest);
     const newContext = browser.newContext.bind(browser);
     browser.newContext = async (o = {}) => {
+      // SIDENOTE_PHONE_WIDTH=375 runs a script's phone-sized viewport (under 900 px) at that width instead.
+      if (PHONE_WIDTH && o.viewport && o.viewport.width < 900) o = { ...o, viewport: { ...o.viewport, width: PHONE_WIDTH } };
       const ctx = await newContext(STABLE ? { reducedMotion: 'reduce', ...o } : o);
       if (TARGET === 'dist') await ctx.addInitScript(shim, GLOBALS);
       // Default for scripts that open the page in sample mode. A script's own ctx.route or page.route takes precedence.

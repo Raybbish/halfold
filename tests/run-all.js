@@ -62,17 +62,20 @@ function run(script, target, extraEnv = {}) {
     line('printcheck.js: nav, player, tabs and buttons hidden in print', pass, m ? m[1] + ' | main padding ' + m[2].trim() : r.out.slice(0, 300));
   }
 
-  if (TARGET === 'dist' && want('shots') && !flag('no-shots')) {
+  // The shots5.js walk at its own sizes (390 and 1280 px), then with the phone at 375 px as the acceptance asks.
+  if (TARGET === 'dist' && want('shots') && !flag('no-shots')) for (const phone of ['390', '375']) {
+    const tag = 'shots5-' + phone;   // shots5.js writes to shots5/; each width's set is kept under its own name
     for (const t of ['legacy', 'dist']) {
-      console.log(`> shots5.js (${t}, animations off)`);
-      const dir = path.join(OUT, t, 'shots5'); fs.rmSync(dir, { recursive: true, force: true });
-      const r = run('shots5.js', t, { SIDENOTE_STABLE: '1' });
-      line(`shots5.js on ${t === 'legacy' ? 'sidenote.html' : 'the build'}: no console or page errors`, /no console\/page errors/.test(r.out) && r.code === 0, /no console\/page errors/.test(r.out) ? '' : r.out.slice(0, 600));
+      console.log(`> shots5.js (${t}, phone ${phone} px, animations off)`);
+      const dir = path.join(OUT, t, 'shots5'), keep = path.join(OUT, t, tag); fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(keep, { recursive: true, force: true });
+      const r = run('shots5.js', t, { SIDENOTE_STABLE: '1', ...(phone === '375' ? { SIDENOTE_PHONE_WIDTH: '375' } : {}) });
+      if (fs.existsSync(dir)) fs.renameSync(dir, keep);
+      line(`shots5.js (phone ${phone} px) on ${t === 'legacy' ? 'sidenote.html' : 'the build'}: no console or page errors`, /no console\/page errors/.test(r.out) && r.code === 0, /no console\/page errors/.test(r.out) ? '' : r.out.slice(0, 600));
     }
-    const rows = await compare(path.join(OUT, 'legacy', 'shots5'), path.join(OUT, 'dist', 'shots5'), path.join(OUT, 'shots-diff'));
+    const rows = await compare(path.join(OUT, 'legacy', tag), path.join(OUT, 'dist', tag), path.join(OUT, 'diff-' + tag));
     const differ = rows.filter(r => r.missing || (r.diff && !r.noise)), noisy = rows.filter(r => r.noise);
     rows.forEach(r => { if (r.missing || r.diff) console.log(`   ${r.missing ? 'MISSING' : r.noise ? 'NOISE' : 'DIFF'}  ${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)}` : ''}`); });
-    line(`screenshots: ${rows.length - differ.length - noisy.length} of ${rows.length} identical to sidenote.html` + (noisy.length ? `, ${noisy.length} differ only by anti-aliasing noise` : ''), differ.length === 0, differ.length ? 'diff images in tests/output/shots-diff/' : '');
+    line(`screenshots (phone ${phone} px, desktop 1280 px): ${rows.length - differ.length - noisy.length} of ${rows.length} identical to sidenote.html` + (noisy.length ? `, ${noisy.length} differ only by anti-aliasing noise` : ''), differ.length === 0, differ.length ? 'diff images in tests/output/diff-' + tag + '/' : '');
   }
 
   console.log('\n' + summary.join('\n'));
