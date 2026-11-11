@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFD93B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sidenote">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 3h26v17l-9 9H3z' fill='%23FFD93B' stroke='%2316233B' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='11.5' cy='13' r='2.1' fill='%2316233B'/%3E%3Ccircle cx='20.5' cy='13' r='2.1' fill='%2316233B'/%3E%3C/svg%3E">
+<title>Sidenote: the half of the lecture that is not on the slides</title>
+<style>
+:root{
+  --ink:#16233B; --text:#27303F; --muted:#637083; --line:#DDE3EC; --bg:#F4F6FB; --surface:#FFFFFF;
+  --blue:#2B59FF; --blue-soft:#E9EEFF; --yellow:#FFD93B; --yellow-soft:#FFF5C7; --yellow-deep:#E0B400;
+  --coral:#FF6B57; --coral-soft:#FFE6E1; --mint:#19B88A; --mint-soft:#DDF6EC; --violet:#7A5AF8; --violet-soft:#ECE7FF;
+  --amber:#B45309; --amber-soft:#FDEFD3; --green:#157A55; --red:#B42318; --red-soft:#FBE7E4;
+  --r-sm:8px; --r:14px; --r-lg:22px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--sans);color:var(--text);background:var(--bg);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p{margin:0}
+h1,h2,h3{color:var(--ink);letter-spacing:-.025em;line-height:1.12}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:6px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:2px solid var(--ink);background:var(--surface);padding:10px 18px;border-radius:99px;font-weight:700;font-size:15px;color:var(--ink);text-decoration:none;transition:transform .12s,box-shadow .12s;box-shadow:0 3px 0 var(--ink)}
+.btn:hover{text-decoration:none;transform:translateY(-1px);box-shadow:0 4px 0 var(--ink)}
+.btn:active{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+.btn.primary{background:var(--yellow)}
+.btn.dark{background:var(--ink);color:#fff}
+.btn.blue{background:var(--blue);color:#fff}
+.btn.plain{border-color:var(--line);box-shadow:none;font-weight:600}
+.btn.plain:hover{transform:none;border-color:#B8C2D2;box-shadow:none}
+.btn.sm{padding:7px 14px;font-size:14px}
+.tag{display:inline-block;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:99px;background:var(--blue-soft);color:var(--blue);white-space:nowrap}
+.tag.amber{background:var(--amber-soft);color:var(--amber)}
+.tag.sn{background:var(--yellow);color:#3D3000}
+.tag.grey{background:#EAEEF4;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.sid{display:inline-block;flex:none;transform:rotate(-6deg)}
+.sid .eye{animation:blink 5.5s infinite;transform-origin:center;transform-box:fill-box}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+
+/* ---------- public ---------- */
+.pub{background:#fff}
+.dots{background-image:radial-gradient(#D5DCE8 1.2px,transparent 1.2px);background-size:22px 22px}
+.pub-nav{display:flex;align-items:center;gap:22px;max-width:1140px;margin:0 auto;padding:18px 24px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:21px;color:var(--ink);letter-spacing:-.035em}
+.logo:hover{text-decoration:none}
+.logo:hover .sid{transform:rotate(6deg);transition:transform .2s}
+.pub-nav .sp{flex:1}
+.pub-nav a.l{color:var(--text);font-size:15px;font-weight:600}
+.wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+.hero{display:grid;grid-template-columns:1fr 1.05fr;gap:40px;align-items:center;padding:36px 0 64px}
+.hero h1{font-size:clamp(38px,5.2vw,62px);font-weight:820;letter-spacing:-.04em}
+.hero .lead{font-size:19px;color:var(--muted);margin:20px 0 28px;max-width:32em}
+.cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.niche{margin-top:22px;display:flex;gap:10px;align-items:center;font-size:14.5px;color:var(--muted)}
+.stage{position:relative;height:440px}
+.slide{position:absolute;left:14%;top:70px;width:64%;aspect-ratio:16/10;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:22px 24px;box-shadow:8px 8px 0 var(--blue-soft)}
+.slide h4{font-size:19px;color:var(--ink);margin:0 0 14px}
+.slide li{color:#8A95A6;font-size:14px;margin-bottom:7px}
+.slide ul{margin:0;padding-left:18px}
+.slide .pg{position:absolute;right:16px;bottom:10px;font-size:12px;color:#9AA4B4}
+.rec{position:absolute;left:14%;top:22px;display:flex;gap:8px;align-items:center;background:var(--ink);color:#fff;padding:6px 14px;border-radius:99px;font-size:13.5px;font-weight:700}
+.rec i{width:9px;height:9px;border-radius:50%;background:var(--coral);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.sticky-w{position:absolute;width:212px;filter:drop-shadow(0 8px 10px rgba(22,35,59,.16));transform:rotate(var(--rot));animation:pop .5s cubic-bezier(.2,1.4,.4,1) both;animation-delay:var(--d)}
+.sticky{background:var(--c);padding:12px 14px 16px;font-size:13.5px;line-height:1.4;color:var(--ink);clip-path:polygon(0 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%)}
+.sticky b{display:block;font-size:12.5px;margin-bottom:3px;opacity:.7}
+@keyframes pop{from{opacity:0;transform:rotate(var(--rot)) scale(.5) translateY(14px)}to{opacity:1;transform:rotate(var(--rot)) scale(1)}}
+.said{padding:64px 0;background:var(--ink);color:#fff}
+.said h2{color:#fff;font-size:32px;max-width:20em}
+.said p{color:#B5C0D4;margin-top:10px;max-width:38em}
+.cloud{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.bub{padding:10px 16px;border-radius:18px 18px 18px 4px;background:#253655;color:#D5DDEB;font-size:15.5px}
+.bub.flag{background:var(--yellow);color:#2B2300;font-weight:700}
+.bub.flag::after{content:" caught";font-size:12px;font-weight:800;background:var(--ink);color:var(--yellow);padding:2px 8px;border-radius:99px;margin-left:8px}
+.sect{padding:72px 0}
+.sect h2{font-size:34px;max-width:18em}
+.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-top:32px}
+.bx{border-radius:var(--r-lg);padding:24px;min-height:210px;display:flex;flex-direction:column;gap:8px;border:2px solid var(--ink)}
+.bx h3{font-size:20px}
+.bx p{font-size:15px;color:#3B4658}
+.bx .art{margin-top:auto;padding-top:14px}
+.b1{grid-column:span 4;background:var(--yellow-soft)} .b2{grid-column:span 2;background:var(--blue-soft)}
+.b3{grid-column:span 2;background:var(--coral-soft)} .b4{grid-column:span 2;background:var(--mint-soft)} .b5{grid-column:span 2;background:var(--violet-soft)}
+.b6{grid-column:span 6;background:#fff;flex-direction:row;align-items:center;gap:28px;min-height:0}
+.mini{background:#fff;border:1.5px solid var(--ink);border-radius:10px;padding:10px 12px;font-size:13.5px;color:var(--ink)}
+.chat{display:grid;gap:6px;max-width:320px;flex:none}
+.chat .m{background:#EEF1F6;border-radius:14px 14px 14px 4px;padding:8px 12px;font-size:14px;width:fit-content}
+.chat .m.me{background:var(--blue);color:#fff;border-radius:14px 14px 4px 14px;margin-left:auto}
+.ways{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+.ways .card{padding:22px;border-width:2px;border-color:var(--ink);border-radius:var(--r-lg)}
+.ways svg{margin-bottom:10px}
+.end{background:var(--yellow);padding:56px 0;text-align:center}
+.end h2{font-size:36px;margin:14px auto 22px;max-width:16em}
+footer.f{padding:26px 0 44px;color:var(--muted);font-size:14px;background:#fff}
+
+/* ---------- app shell ---------- */
+.shell{display:grid;grid-template-columns:256px 1fr;min-height:100vh}
+.side{background:#fff;border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+.side .logo{padding:2px 8px 16px}
+.side .new{margin:4px 4px 14px}
+.side a.n{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);color:var(--text);font-size:15px;font-weight:600}
+.side a.n:hover{background:var(--bg);text-decoration:none}
+.side a.n.on{background:var(--ink);color:#fff}
+.side a.n .ct{margin-left:auto;font-weight:500;opacity:.7}
+.cdot{width:11px;height:11px;border-radius:4px;flex:none}
+.side .lbl{font-size:13px;color:var(--muted);padding:16px 10px 6px}
+.streak{margin-top:auto;background:var(--yellow-soft);border-radius:var(--r);padding:14px}
+.streak b{color:var(--ink)}
+.days{display:flex;gap:6px;margin-top:10px}
+.days span{flex:1;text-align:center;font-size:11.5px;font-weight:700;padding:5px 0;border-radius:6px;background:#fff;color:var(--muted)}
+.days span.d{background:var(--ink);color:var(--yellow)}
+.main{padding:32px 40px 80px;min-width:0}
+.main>.inner{max-width:1000px}
+.crumb{font-size:14px;color:var(--muted);margin-bottom:8px}
+.page-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.page-h h1{font-size:32px;font-weight:800}
+.hello{display:flex;gap:14px;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.stat{padding:16px 18px;border-radius:var(--r);display:flex;flex-direction:column}
+.stat b{font-size:30px;color:var(--ink);line-height:1.1;font-weight:800}
+.stat span{font-size:14px;color:#3B4658}
+.grid2{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;align-items:start}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;gap:14px;align-items:center;padding:13px 18px;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.grow{flex:1;min-width:0}
+.list .t{font-weight:700;color:var(--ink)}
+.sec-h{font-size:17px;padding:16px 18px 4px}
+.count{flex:none;width:58px;height:58px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;background:var(--amber-soft);color:var(--amber)}
+.count b{font-size:22px;font-weight:800}
+.count span{font-size:11.5px;font-weight:700}
+.courses{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin-top:12px}
+.courses a{display:block;color:inherit;overflow:hidden;border-radius:var(--r);border:1px solid var(--line);background:#fff;transition:transform .12s}
+.courses a:hover{text-decoration:none;transform:translateY(-3px)}
+.courses .top{height:64px;padding:14px 16px;color:#fff;font-weight:800;font-size:19px;letter-spacing:-.02em}
+.courses .bot{padding:12px 16px 14px}
+
+/* ---------- lecture ---------- */
+.tl{position:relative;height:46px;margin:6px 0 4px}
+.tl .track{position:absolute;left:0;right:0;top:17px;height:14px;border-radius:9px;background:#E3E8F0;overflow:hidden;display:flex}
+.tl .seg{height:100%;border:0;border-right:2px solid var(--bg);padding:0;cursor:pointer;opacity:.45}
+.tl .seg:hover,.tl .seg.on{opacity:1}
+.tl .mk{position:absolute;top:2px;width:20px;height:20px;margin-left:-10px;border:0;background:none;padding:0}
+.tl .mk::before{content:"!";position:absolute;inset:0;border-radius:50%;background:var(--yellow);border:2px solid var(--ink);font-size:12px;font-weight:800;line-height:16px;color:var(--ink);text-align:center}
+.tl .head{position:absolute;top:12px;width:5px;height:24px;margin-left:-2px;background:var(--ink);border-radius:3px;transition:left .25s}
+.tl-ends{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.tabs{display:flex;gap:6px;margin:22px 0 20px;overflow-x:auto;padding-bottom:2px}
+.tabs button{border:2px solid transparent;background:#E7EBF2;padding:8px 16px;font-weight:700;color:var(--muted);border-radius:99px;white-space:nowrap}
+.tabs button.on{color:#fff;background:var(--ink)}
+.alert{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;background:var(--amber-soft);border-radius:var(--r-sm);margin-bottom:8px;font-size:15px}
+.alert .ts{margin-left:auto}
+.ts{border:0;background:none;padding:0;color:var(--blue);font-weight:700;font-size:13.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ts:hover{text-decoration:underline}
+.nsec{padding:20px 22px;margin-bottom:14px}
+.nsec h3{font-size:19px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pt{display:grid;grid-template-columns:52px 1fr;gap:10px;padding:10px 0;border-top:1px solid var(--line);margin-top:10px;align-items:start}
+.pt.off .body{background:var(--yellow-soft);padding:9px 12px 12px;transform:rotate(-.4deg);clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%)}
+.pt .zh{color:var(--muted);font-size:14.5px;margin-top:4px}
+.tools{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px;font-size:14.5px;font-weight:600}
+.tools label{display:flex;gap:7px;align-items:center;cursor:pointer}
+.seg-line{display:grid;grid-template-columns:52px 1fr;gap:10px;padding:9px 10px;border-radius:var(--r-sm)}
+.seg-line.hit{background:var(--yellow-soft)}
+.fc{max-width:560px;margin:0 auto;text-align:center;perspective:1200px}
+.flip{position:relative;width:100%;height:250px;border:0;background:none;padding:0;transform-style:preserve-3d;transition:transform .45s}
+.flip.on{transform:rotateY(180deg)}
+.flip .f{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:32px;border-radius:var(--r-lg);border:2px solid var(--ink);backface-visibility:hidden;-webkit-backface-visibility:hidden;font-size:21px;font-weight:700;color:var(--ink);line-height:1.35;background:#fff;box-shadow:6px 6px 0 var(--violet-soft)}
+.flip .f.b{transform:rotateY(180deg);background:var(--violet-soft);font-weight:600;font-size:18px;box-shadow:6px 6px 0 #fff}
+.fc .ctl{display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap}
+.pips{display:flex;gap:5px;justify-content:center;margin-bottom:14px}
+.pips i{width:26px;height:6px;border-radius:9px;background:#DCE2EC}
+.pips i.k{background:var(--mint)} .pips i.c{background:var(--ink)}
+.qz{max-width:640px;margin:0 auto}
+.qz .opt{display:block;width:100%;text-align:left;padding:13px 16px;margin-top:10px;border:2px solid var(--line);border-radius:var(--r);background:var(--surface);font-weight:600}
+.qz .opt:hover:not(:disabled){border-color:var(--ink)}
+.qz .opt.ok{background:var(--mint-soft);border-color:var(--mint);color:var(--green)}
+.qz .opt.no{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+.qz .why{margin-top:14px;padding:12px 16px;background:#EEF1F6;border-radius:var(--r-sm);font-size:15px;display:flex;gap:12px;align-items:flex-start}
+.result{position:relative;overflow:hidden;padding:36px 28px;text-align:center;border-radius:var(--r-lg);border:2px solid var(--ink)}
+.conf{position:absolute;top:-12px;width:9px;height:14px;animation:fall 1.8s ease-in forwards}
+@keyframes fall{to{transform:translateY(340px) rotate(540deg);opacity:0}}
+.shared-bar{background:var(--yellow);color:var(--ink);padding:9px 0;font-size:14.5px;font-weight:600}
+.shared-bar .wrap{display:flex;gap:10px;align-items:center}
+.sticky-cta{position:sticky;bottom:0;background:#fff;border-top:2px solid var(--ink);padding:14px 0;margin-top:40px}
+.sticky-cta .wrap{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+
+/* ---------- new / live ---------- */
+.choice{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0}
+.choice button{padding:18px;text-align:left;border:2px solid var(--line);background:var(--surface);border-radius:var(--r)}
+.choice button.on{border-color:var(--ink);box-shadow:4px 4px 0 var(--yellow)}
+.choice b{display:block;color:var(--ink);margin-bottom:4px}
+.field{display:block;margin-bottom:16px}
+.field>span{display:block;font-size:14px;font-weight:700;color:var(--ink);margin-bottom:6px}
+.field input,.field select{width:100%;font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--text)}
+.drop{border:2px dashed #B8C2D2;border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);background:var(--surface)}
+.live-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--coral);animation:pulse 1.4s infinite}
+.paused .dot{animation:none;background:var(--muted)}
+.clock{font-size:44px;font-weight:820;color:var(--ink);letter-spacing:-.03em}
+.live-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;margin-top:20px;align-items:start}
+.stream{padding:8px 12px;min-height:320px;max-height:460px;overflow:auto}
+.catch{padding:20px;background:var(--yellow-soft);border:2px solid var(--ink);border-radius:var(--r-lg)}
+.note-demo{font-size:13px;color:var(--muted);margin-top:10px}
+
+.modal{position:fixed;inset:0;background:rgba(22,35,59,.5);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
+.modal .box{background:var(--surface);border-radius:var(--r-lg);border:2px solid var(--ink);padding:26px;max-width:480px;width:100%}
+.modal h3{font-size:22px;margin-bottom:8px}
+.copy{display:flex;gap:8px;margin:16px 0}
+.copy input{flex:1;font:inherit;font-size:14.5px;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--bg);min-width:0}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:99px;font-size:14.5px;font-weight:600;z-index:30}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;padding-top:12px}
+  .stage{height:auto;padding-top:56px}
+  .slide{position:relative;left:0;top:0;width:100%}
+  .rec{left:0;top:8px}
+  .sticky-w{position:relative;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;width:86%;margin:12px 0 0 auto}
+  .sticky-w:nth-of-type(odd){margin-left:0}
+  .bento{grid-template-columns:1fr}.bx{grid-column:auto!important}.b6{flex-direction:column;align-items:flex-start}
+  .ways,.choice,.grid2,.live-grid,.stats{grid-template-columns:1fr}
+  .pub-nav a.l{display:none}
+  .tl-ends span:nth-child(2){display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- additions: auth, states, slides view, recording ---------- */
+button:disabled{opacity:.55;cursor:not-allowed}
+.btn{white-space:nowrap}
+.center{min-height:70vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.auth{max-width:430px;width:100%;padding:28px;border:2px solid var(--ink);border-radius:var(--r-lg);background:#fff;box-shadow:8px 8px 0 var(--yellow)}
+.err{color:var(--red);font-size:14.5px;font-weight:600;margin:-4px 0 14px}
+.pill-rec{display:inline-flex;gap:8px;align-items:center;background:var(--ink);color:#fff;padding:7px 16px;border-radius:99px;font-weight:700;font-size:14px;margin-bottom:16px}
+.pill-rec:hover{text-decoration:none}
+.pill-rec i{width:9px;height:9px;border-radius:50%;background:var(--coral);animation:pulse 1.4s infinite}
+.lvl{width:130px;height:7px;border-radius:9px;background:#E3E8F0;overflow:hidden;margin-top:5px}
+.lvl b{display:block;height:100%;width:0;background:var(--mint);transition:width .1s}
+.ubar{height:10px;border-radius:9px;background:#E3E8F0;overflow:hidden}
+.ubar b{display:block;height:100%;background:var(--ink)}
+.srow{display:grid;grid-template-columns:200px 1fr;gap:20px;padding:18px 0;border-top:1px solid var(--line);align-items:start}
+.srow:first-child{border-top:0}
+.srow .pt:first-child{border-top:0;margin-top:0;padding-top:0}
+.thumb{aspect-ratio:16/10;border:2px solid var(--ink);border-radius:10px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);box-shadow:4px 4px 0 var(--blue-soft);overflow:hidden}
+.thumb b{color:var(--ink);font-size:14.5px;line-height:1.25}
+.thumb img{width:calc(100% + 24px);height:calc(100% + 24px);margin:-12px;object-fit:cover}
+.sk{height:16px;border-radius:8px;background:linear-gradient(90deg,#E7EBF2,#F4F6FB,#E7EBF2);background-size:200% 100%;animation:sk 1.2s infinite;margin-bottom:12px}
+@keyframes sk{to{background-position:-200% 0}}
+.mock-pill{position:fixed;left:12px;bottom:12px;background:#fff;border:1.5px solid var(--ink);border-radius:99px;padding:3px 11px;font-size:12px;font-weight:700;z-index:15;color:var(--ink)}
+.search{font:inherit;font-size:14.5px;padding:7px 14px;border:1.5px solid var(--line);border-radius:99px;min-width:230px;background:#fff;color:var(--text)}
+.filechip{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:11px 14px;border:1.5px solid var(--ink);border-radius:var(--r-sm);background:var(--yellow-soft);font-size:14.5px}
+.side button.n{display:flex;align-items:center;gap:10px;padding:9px 10px;border:0;background:none;border-radius:var(--r-sm);color:var(--muted);font-size:14.5px;font-weight:600;text-align:left}
+.side button.n:hover{background:var(--bg)}
+.addcard{border:2px dashed #B8C2D2;border-radius:var(--r);background:none;font-weight:700;color:var(--muted);min-height:118px}
+.addcard:hover{border-color:var(--ink);color:var(--ink)}
+@media (max-width:900px){.sticky-cta span{display:none}.sticky-cta .btn{width:100%}.srow{grid-template-columns:1fr}.thumb{max-width:240px}.search{min-width:0;width:100%}}
+
+/* ---------- additions: editing, language, plans, review pack, print ---------- */
+html[lang=zh-Hant] .bub.flag::after{content:" 已記下"}
+html[lang=zh-Hant] .hero h1{letter-spacing:-.01em;line-height:1.25;font-size:clamp(30px,3.9vw,46px)}
+.field textarea{width:100%;font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--text);resize:vertical}
+.pt-acts{display:flex;gap:14px;margin-top:6px}
+.lang{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font-size:13px;font-weight:700;color:var(--ink)}
+.lang:hover{border-color:var(--ink)}
+.choice{grid-template-columns:repeat(2,1fr)}
+.offline-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:40;background:var(--ink);color:#fff;text-align:center;font-size:14px;font-weight:600;padding:6px 12px}
+body.is-offline .offline-bar{display:block}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:16px}
+.plan{border:2px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.plan.cur{border-color:var(--ink);box-shadow:4px 4px 0 var(--yellow)}
+.plan b{color:var(--ink);font-size:17px}
+.plan .price{font-size:20px;font-weight:800;color:var(--ink)}
+.plan ul{margin:0;padding-left:18px;font-size:14px;flex:1}
+.pk h2{font-size:21px;margin:26px 0 12px}
+.pk details{border-top:1px solid var(--line);padding:12px 0}
+.pk details:first-child{border-top:0}
+.pk summary{cursor:pointer;font-weight:700;color:var(--ink)}
+.pk ol{margin:8px 0 0;padding-left:24px}
+.keys{font-size:13px;color:var(--muted);margin-top:14px}
+@media (max-width:900px){.choice{grid-template-columns:1fr}.keys{display:none}}
+@media print{
+  .side,.tabs,.tools,.tl,.tl-ends,.mock-pill,.btn,.toast,.pill-rec,.crumb,.sticky-cta,.shared-bar,.pub-nav,.pt-acts,.offline-bar,#overlay,.noprint{display:none!important}
+  .shell{display:block}.main{padding:0}body,.pub{background:#fff!important}
+  .card,.nsec,.alert{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pk details>*{display:block}
+}
+
+/* ---------- recording playback ---------- */
+.player{position:sticky;bottom:16px;z-index:6;margin-top:26px;display:grid;grid-template-columns:auto auto 1fr auto auto auto;align-items:center;gap:0 10px;padding:7px 12px 7px 7px;background:#fff;border:2px solid var(--ink);border-radius:99px;box-shadow:0 4px 0 var(--ink)}
+.player .pp{width:44px;height:44px;border-radius:50%;border:2px solid var(--ink);background:var(--yellow);display:grid;place-items:center;padding:0;color:var(--ink)}
+.player .ptime{font-size:14px;color:var(--muted);font-weight:600;white-space:nowrap}
+.player .ptime b{color:var(--ink);font-weight:800}
+.player .pb{border:0;background:none;padding:0 6px;border-radius:99px;font-weight:700;font-size:13.5px;color:var(--ink);min-width:42px;height:36px}
+.player .pb:hover{background:var(--bg)}
+.player .pb.rate{background:#EAEEF4}
+.pbar{-webkit-appearance:none;appearance:none;width:100%;min-width:0;height:28px;margin:0;padding:0;background:none;cursor:pointer;--p:0%}
+.pbar::-webkit-slider-runnable-track{height:8px;border-radius:9px;background:linear-gradient(to right,var(--ink) var(--p),#E3E8F0 var(--p))}
+.pbar::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;margin-top:-5px;border-radius:50%;background:var(--yellow);border:2px solid var(--ink)}
+.pbar::-moz-range-track{height:8px;border-radius:9px;background:#E3E8F0}
+.pbar::-moz-range-progress{height:8px;border-radius:9px;background:var(--ink)}
+.pbar::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--yellow);border:2px solid var(--ink)}
+.player.off{display:block;border-radius:var(--r);padding:12px 16px;font-size:14.5px;font-weight:600;box-shadow:none}
+.pub .player{bottom:92px}
+.tag.red{background:var(--red-soft);color:var(--red)}
+.seg-line{align-items:start}
+.qz .opt:disabled{opacity:1;cursor:default}
+.qz .opt:disabled:not(.ok):not(.no){color:var(--muted)}
+.live-top{position:relative}
+.live-actions{display:flex;gap:14px;flex-wrap:wrap}
+.choice .n,.discard-m{display:none}
+
+/* ---------- phones and small tablets: top bar, bottom navigation, thumb-reach actions ---------- */
+.mtop,.mnav{display:none}
+@media (max-width:900px){
+  .shell{display:block}
+  .side,.desk,.pill-rec{display:none}
+  .mtop{display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid var(--line);padding:calc(6px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 6px max(16px,env(safe-area-inset-left))}
+  .mtop .logo{font-size:19px}
+  .mtop .sp{flex:1}
+  .mtop .ico{width:44px;height:44px;margin-right:-8px;display:grid;place-items:center;border-radius:50%;color:var(--ink)}
+  .mtop .ico.on{background:var(--ink);color:#fff}
+  .mtag{font-size:11.5px;font-weight:700;border:1.5px solid var(--ink);border-radius:99px;padding:1px 9px;color:var(--ink);white-space:nowrap}
+  .main{padding:18px max(16px,env(safe-area-inset-right)) calc(108px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+  .mnav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;position:fixed;left:0;right:0;bottom:0;z-index:12;background:#fff;border-top:2px solid var(--ink);padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
+  .mnav a.t{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:52px;font-size:11.5px;font-weight:700;color:var(--muted)}
+  .mnav a.t:hover{text-decoration:none}
+  .mnav a.t.on{color:var(--ink)}
+  .mnav .go{margin:0 6px 3px}
+  .shell~.mock-pill{display:none}
+  .shared-bar~.mock-pill{bottom:calc(84px + env(safe-area-inset-bottom))}
+  .btn{min-height:44px}
+  .btn.sm{min-height:38px}
+  .page-h{margin-bottom:16px}
+  .page-h h1{font-size:26px}
+  .hello{gap:12px}
+  .hello>svg{width:44px;height:44px}
+  .stats{grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+  .stat{padding:12px}
+  .stat b{font-size:24px}
+  .stat span{font-size:12.5px;line-height:1.3;margin-top:2px}
+  .list li{padding:13px 14px;gap:12px}
+  .sec-h{padding:14px 14px 4px}
+  .courses{grid-template-columns:1fr 1fr;gap:10px}
+  .courses .top{height:52px;padding:13px 12px;font-size:16px}
+  .courses .bot{padding:10px 12px 12px}
+  .addcard{min-height:104px}
+  .search,.field input,.field select,.copy input{font-size:16px} /* iOS zooms the page when a field under 16px is focused */
+  .tl{height:58px}
+  .tl .track{top:24px;height:18px}
+  .tl .mk{top:2px;width:32px;height:32px;margin-left:-16px}
+  .tl .mk::before{inset:6px}
+  .tl .head{top:18px;height:30px}
+  .tabs{position:sticky;top:0;z-index:7;background:var(--bg);margin:10px -16px 12px;padding:8px 16px;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{min-height:40px}
+  .ts{position:relative}
+  .ts::after{content:"";position:absolute;inset:-9px -8px} /* larger tap area, same look */
+  .pt{grid-template-columns:48px 1fr;gap:8px}
+  .nsec{padding:16px 14px}
+  .alert{padding:11px 12px;gap:10px}
+  .tools{gap:10px 18px}
+  .main input[type=checkbox]{width:18px;height:18px;flex:none}
+  .srow{gap:10px;padding:14px 0}
+  .thumb{max-width:none}
+  .thumb.noimg{aspect-ratio:auto;flex-direction:row;align-items:baseline;gap:8px;padding:8px 12px;box-shadow:none;border-width:1.5px}
+  .flip{height:230px}
+  .flip .f{font-size:19px;padding:24px}
+  .flip .f.b{font-size:16.5px}
+  .fc .ctl{gap:8px}
+  .fc .ctl .btn{flex:1;padding-left:8px;padding-right:8px}
+  .player{bottom:calc(72px + env(safe-area-inset-bottom));grid-template-columns:auto 1fr auto auto auto;grid-template-areas:"bar bar bar bar bar" "pp time back fwd rate";gap:0 6px;border-radius:20px;padding:2px 10px 8px;box-shadow:0 3px 0 var(--ink)}
+  .player .pbar{grid-area:bar}
+  .player .pp{grid-area:pp;width:40px;height:40px}
+  .player .ptime{grid-area:time;padding-left:4px}
+  .player .back{grid-area:back}
+  .player .fwd{grid-area:fwd}
+  .player .rate{grid-area:rate}
+  .player .pb{height:40px;min-width:46px}
+  .pub .player{bottom:calc(86px + env(safe-area-inset-bottom))}
+  .choice{grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+  .choice button{padding:13px 6px;text-align:center}
+  .choice b{margin:0}
+  .choice .w,.choice .d{display:none}
+  .choice .n{display:inline}
+  .main form.card{padding:16px}
+  .main form .btn.blue{width:100%;min-height:50px}
+  .live-top{gap:8px 12px}
+  .clock{font-size:42px}
+  .discard-m{display:inline;position:absolute;right:0;top:-31px;color:var(--muted)}
+  .live-actions{position:fixed;left:0;right:0;bottom:0;z-index:12;flex-wrap:nowrap;gap:8px;background:#fff;border-top:2px solid var(--ink);padding:10px max(12px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+  .live-actions .discard{display:none}
+  .live-actions .btn{min-height:50px}
+  .live-actions .btn.dark{flex:1}
+  .live-grid{margin-top:14px;gap:14px}
+  .stream{min-height:180px;max-height:44vh}
+  .catch{order:-1;display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px 12px;padding:14px}
+  .catch>p{display:none}
+  .catch>.btn{grid-column:2;grid-row:1}
+  .catch .recap{grid-column:1/-1;margin-top:2px!important}
+  .modal{align-items:flex-end;padding:0}
+  .modal .box{max-width:none;max-height:88vh;overflow:auto;border-width:2px 0 0;border-radius:22px 22px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom))}
+  .toast{top:calc(10px + env(safe-area-inset-top));bottom:auto;width:max-content;max-width:calc(100% - 32px);text-align:center;border-radius:18px}
+}
+
+/* ---------- the new design's additions on phones and in print ---------- */
+@media (max-width:900px){
+  .choice{grid-template-columns:repeat(auto-fit,minmax(74px,1fr))}
+  .pub-nav{gap:10px;flex-wrap:wrap}
+  body.is-offline .toast{top:calc(44px + env(safe-area-inset-top))}
+  .pk h2{font-size:19px;margin-top:22px}
+  .pk .alert{flex-wrap:wrap}
+  .pk .alert>span:last-child{margin-left:0!important;white-space:normal!important}
+}
+@media print{.mtop,.mnav,.player,.live-actions{display:none!important}.main{padding:0!important}}
+
+/* ---------- 繁 / 简 switch next to 中文解釋 ---------- */
+.seg2{display:inline-flex;margin-left:-8px;border:1.5px solid var(--line);border-radius:99px;overflow:hidden;background:#fff}
+.seg2 button{border:0;background:none;padding:2px 11px;font-size:13.5px;font-weight:700;color:var(--muted)}
+.seg2 button.on{background:var(--ink);color:#fff}
+@media (max-width:900px){.seg2 button{padding:6px 14px}}
+@media print{.seg2{display:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="overlay"></div>
+<div class="offline-bar" role="status">You are offline. Recording still works and is sent when you are back online.</div>
+<script>
+/* =====================================================================
+   SIDENOTE FRONT END
+   One file, no build step, no dependencies.
+
+   For the backend developer:
+   1. Set CONFIG.USE_MOCK = false and CONFIG.API_BASE to your server.
+   2. Every network call goes through the `api` object below. Each function
+      has a mock branch (answers from DATA) and a real branch (calls http()).
+      Keep the return shapes and the UI needs no other change.
+   3. DATA is sample content only. It is never read outside the mock branches.
+   See INTEGRATION.md for the endpoint list and data shapes.
+   ===================================================================== */
+const CONFIG = {
+  USE_MOCK: true,          // false = talk to the real backend
+  API_BASE: "/api",        // prefix for every request
+  CHUNK_SECONDS: 15,       // how often recorded audio is sent while recording
+  AUDIO_KBPS: 32,          // recording bitrate. 32 kbps is plenty for speech: a 90 minute lecture is about 22 MB
+  POLL_MS: 3000,           // how often to ask whether notes are ready
+  MAX_UPLOAD_MB: 500,
+  EXAMPLE_SHARE_ID: "econ-w9", // the shared lecture behind "Example notes" on the public pages. null hides those links
+  SHARE_AUDIO: false       // true = classmates with a share link can also play the recording
+};
+
+/* SAMPLE DATA: used only by the mock branches of `api`. Times are seconds from the start of the recording. */
+const DATA = {
+  user: { name: "Jasper", minutesToday: 90, minutesLimit: 240 },
+  courses: [
+    { id: "econ1001", code: "ECON 1001", name: "Principles of Microeconomics" },
+    { id: "math2011", code: "MATH 2011", name: "Multivariable Calculus" },
+    { id: "comp1021", code: "COMP 1021", name: "Introduction to Computer Science" }
+  ],
+  lectures: [
+    { id: "econ-w9", course: "econ1001", title: "Opportunity cost and comparative advantage", week: 9, date: "Tue 10 Nov", duration: 5400, full: true },
+    { id: "econ-w8", course: "econ1001", title: "Consumer choice and budget constraints", week: 8, date: "Tue 3 Nov", duration: 5280 },
+    { id: "econ-w7", course: "econ1001", title: "Elasticity and its applications", week: 7, date: "Tue 27 Oct", duration: 5340 },
+    { id: "math-w9", course: "math2011", title: "Lagrange multipliers", week: 9, date: "Mon 9 Nov", duration: 4800 },
+    { id: "comp-w9", course: "comp1021", title: "Recursion", week: 9, date: "Wed 4 Nov", duration: 3000 }
+  ],
+  upcoming: [
+    { day: "16", mon: "Nov", kind: "Deadline", text: "Problem set 4 due 23:59 on Canvas", course: "ECON 1001", lecture: "econ-w9", t: 3120 },
+    { day: "19", mon: "Nov", kind: "Quiz", text: "In-class quiz on constrained optimisation", course: "MATH 2011", lecture: "math-w9", t: 95 },
+    { day: "26", mon: "Nov", kind: "Midterm", text: "Midterm, chapters 1 to 4, closed book", course: "ECON 1001", lecture: "econ-w9", t: 18 }
+  ],
+  detail: {
+    alerts: [
+      { t: 18, kind: "Midterm", text: "Midterm on Thu 26 Nov in LT-A, chapters 1 to 4. Closed book, one A4 page of notes allowed." },
+      { t: 3120, kind: "Deadline", text: "Problem set 4 is due Mon 16 Nov at 23:59 on Canvas." },
+      { t: 4388, kind: "Exam hint", text: "The lecturer said working out opportunity cost from a two-good table “will be on the midterm”." }
+    ],
+    sections: [
+      { title: "Opportunity cost", slides: "Slides 3 to 6", start: 200, end: 640, points: [
+        { t: 252, text: "The opportunity cost of a choice is the value of the best alternative you gave up. It is not the sum of every alternative.", zh: "机会成本是你放弃的“最好的那一个”选项的价值，不是所有选项加起来。" },
+        { t: 408, off: true, text: "It includes costs you never pay in cash. The lecturer's example: a year at university costs the tuition plus the salary you did not earn.", zh: "包括隐性成本：读一年大学的成本 = 学费 + 没去工作少赚的工资。" },
+        { t: 570, text: "A cost that is the same under every option does not affect the decision, so leave it out.", zh: "每个选项都一样的成本不影响决策，可以忽略。" } ] },
+      { title: "Sunk costs and thinking at the margin", slides: "Slides 7 to 9", start: 640, end: 1380, points: [
+        { t: 663, text: "A sunk cost cannot be recovered whatever you choose next, so a rational decision ignores it.", zh: "沉没成本无论怎么选都收不回来，理性决策不应考虑它。" },
+        { t: 860, off: true, text: "Concert ticket example: you paid $400 and feel ill on the day. Compare only the enjoyment of going with the comfort of staying home. The $400 is gone either way.", zh: "演唱会门票例子：票钱已经花了，只比较“去”和“不去”哪个更好。" },
+        { t: 1065, text: "Decide by comparing marginal benefit with marginal cost: do one more unit only while the extra benefit is at least the extra cost.", zh: "边际分析：多做一单位的额外收益 ≥ 额外成本时才做。" } ] },
+      { title: "Production possibilities frontier", slides: "Slides 10 to 15", start: 1380, end: 2700, points: [
+        { t: 1450, text: "The PPF shows the maximum combinations of two goods an economy can produce with its current resources and technology.", zh: "生产可能性边界：现有资源和技术下两种商品的最大产量组合。" },
+        { t: 1652, text: "The slope of the PPF is the opportunity cost of the good on the horizontal axis, measured in units of the other good.", zh: "PPF 的斜率 = 横轴商品的机会成本。" },
+        { t: 1865, text: "A bowed-out PPF means opportunity cost rises as you produce more of one good, because resources are not equally suited to both.", zh: "向外凸的 PPF 表示机会成本递增。" },
+        { t: 2140, text: "Points inside the frontier are inefficient and points outside are unattainable. Growth shifts the whole frontier outward.", zh: "边界内：无效率；边界外：做不到；经济增长使边界外移。" } ] },
+      { title: "Absolute and comparative advantage", slides: "Slides 16 to 22", start: 2700, end: 3900, points: [
+        { t: 2775, text: "Absolute advantage means producing more with the same inputs. Comparative advantage means producing at a lower opportunity cost.", zh: "绝对优势：同样投入产出更多；比较优势：机会成本更低。" },
+        { t: 3190, text: "Worked example. Country A makes 10 cloth or 5 wine per worker, so 1 wine costs 2 cloth. Country B makes 6 cloth or 2 wine, so 1 wine costs 3 cloth. A has the comparative advantage in wine and B in cloth.", zh: "例题：A 国 1 酒 = 2 布，B 国 1 酒 = 3 布，所以 A 在酒上有比较优势，B 在布上有比较优势。" },
+        { t: 3510, off: true, text: "The lecturer stressed a common exam mistake: a country can have an absolute advantage in everything, but it can never have a comparative advantage in everything.", zh: "老师强调的常见错误：可以所有商品都有绝对优势，但不可能所有商品都有比较优势。" } ] },
+      { title: "Gains from trade", slides: "Slides 23 to 27", start: 3900, end: 5400, points: [
+        { t: 4000, text: "Both countries gain when the price of wine in trade lies between their two opportunity costs, here between 2 and 3 cloth per wine.", zh: "贸易条件落在两国机会成本之间（2 到 3 布换 1 酒）时，双方都获益。" },
+        { t: 4388, off: true, text: "Exam hint: expect a table like the cloth and wine one and be ready to compute each country's opportunity cost and state who exports what.", zh: "考试提示：会考类似布和酒的表格题。" },
+        { t: 4815, text: "Next week covers supply and demand. Read chapter 4 before class.", zh: "下周讲供给与需求，课前读第 4 章。" } ] }
+    ],
+    transcript: [
+      { t: 18, text: "Before we start, a reminder that the midterm is on Thursday the twenty-sixth of November in LT-A. It covers chapters one to four, it's closed book, and you may bring one A4 page of notes." },
+      { t: 252, text: "So the opportunity cost is the value of the best thing you gave up. Not everything you gave up. Just the best one." },
+      { t: 408, text: "Think about being here this year. You pay tuition, yes, but you also could have been working. That salary you didn't earn is part of the cost, even though nobody sends you a bill for it." },
+      { t: 663, text: "A sunk cost is money that's gone whatever you do next. And because it's gone either way, it shouldn't change your decision." },
+      { t: 860, text: "Say you bought a concert ticket for four hundred dollars and you wake up feeling ill. The four hundred is gone whether you go or not. The only question is whether tonight is better at the concert or at home." },
+      { t: 1652, text: "The slope here tells you how much of the good on the vertical axis you give up to get one more unit of the good on the horizontal axis. That's the opportunity cost." },
+      { t: 2775, text: "Absolute advantage is about who makes more. Comparative advantage is about who gives up less. Keep those two apart." },
+      { t: 3120, text: "Problem set four is on Canvas. It's due Monday the sixteenth at eleven fifty-nine p.m." },
+      { t: 3510, text: "This is where people lose marks. A country can be better at everything. It cannot have the comparative advantage in everything, because the opportunity costs are reciprocals of each other." },
+      { t: 4388, text: "A question like this table, two countries and two goods, will be on the midterm. Compute the opportunity costs and tell me who exports what." },
+      { t: 4815, text: "Next week is supply and demand. Please read chapter four before you come." }
+    ],
+    flashcards: [
+      { q: "What is the opportunity cost of a choice?", a: "The value of the best alternative you gave up." },
+      { q: "Why should a sunk cost not affect a decision?", a: "It cannot be recovered whichever option you choose, so it is the same in every option." },
+      { q: "What does the slope of the PPF measure?", a: "The opportunity cost of the good on the horizontal axis, in units of the good on the vertical axis." },
+      { q: "What does a bowed-out PPF tell you?", a: "Opportunity cost increases as more of one good is produced." },
+      { q: "Absolute advantage or comparative advantage: which one decides who should produce a good?", a: "Comparative advantage. The producer with the lower opportunity cost should make it." },
+      { q: "When do both countries gain from trade?", a: "When the trading price lies between the two countries' opportunity costs." }
+    ],
+    quiz: [
+      { q: "You paid $400 for a concert ticket and feel ill on the day. Which cost matters for deciding whether to go?", opts: ["The $400 you paid", "The enjoyment of going compared with staying home", "The $400 plus the travel cost", "Nothing, you should always go"], a: 1, why: "The $400 is sunk. Only what differs between going and staying matters.", t: 860 },
+      { q: "What does the slope of the PPF show?", opts: ["Total output of the economy", "The opportunity cost of one good in terms of the other", "The price level", "The unemployment rate"], a: 1, why: "Moving along the frontier, the slope is how much of one good you give up for one more unit of the other.", t: 1652 },
+      { q: "Country A: 10 cloth or 5 wine per worker. Country B: 6 cloth or 2 wine. Who has the comparative advantage in cloth?", opts: ["Country A", "Country B", "Both", "Neither"], a: 1, why: "One cloth costs A half a wine and costs B a third of a wine. B gives up less, so B has the comparative advantage in cloth.", t: 3190 },
+      { q: "Can one country have a comparative advantage in both goods?", opts: ["Yes, if it is more productive in both", "Yes, if it has more workers", "No, never", "Only with trade barriers"], a: 2, why: "The two opportunity costs are reciprocals, so being lower in one good means being higher in the other.", t: 3510 },
+      { q: "In the cloth and wine example, which price of wine lets both countries gain?", opts: ["1.5 cloth", "2.5 cloth", "3.5 cloth", "4 cloth"], a: 1, why: "The price must lie between the two opportunity costs, 2 and 3 cloth per wine.", t: 4000 }
+    ]
+  }
+};
+
+
+/* ---------- small helpers ---------- */
+const $ = s => document.querySelector(s);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+const fmt = t => { const m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ":" + String(s).padStart(2, "0"); };
+const mins = t => Math.round(t / 60) + " min";
+const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+const mb = b => (b / 1048576).toFixed(1) + " MB";
+const PALETTE = ["#FF6B57", "#7A5AF8", "#19B88A", "#2B59FF", "#E0B400"];
+
+/* ---------- store: everything the screens read ---------- */
+const S = { token: null, user: null, courses: [], lectures: [], upcoming: [], week: null, settings: { classLanguage: "en", zhDefault: false }, usage: null, today: null, detail: {}, shared: {}, pack: {}, plans: null, orphan: null, homeLoaded: false, error: null, next: null };
+const course = id => S.courses.find(c => c.id === id);
+const lecture = id => S.lectures.find(l => l.id === id);
+const colorOf = c => (c && c.color) || PALETTE[Math.max(0, S.courses.indexOf(c)) % PALETTE.length];
+const meta = (l, c) => [c && c.code, l.week && "week " + l.week, l.date, l.duration && mins(l.duration)].filter(Boolean).map(esc).join(", ");
+const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const today = () => S.today || ymd(new Date());   // the date where the student is, not the UTC date
+const daysLeft = d => Math.round((new Date(d) - new Date(today())) / 864e5);
+const dayMon = d => new Date(d).toLocaleDateString(LANG === "zh" ? "zh-HK" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+const session = {
+  load() { try { const s = JSON.parse(localStorage.getItem("sidenote.session") || "null"); if (s) { S.token = s.token; S.user = s.user; } } catch (e) {} },
+  save() { try { localStorage.setItem("sidenote.session", JSON.stringify({ token: S.token, user: S.user })); } catch (e) {} },
+  clear() { S.token = null; S.user = null; S.homeLoaded = false; S.detail = {}; S.pack = {}; S.plans = null; S.settings = { classLanguage: "en", zhDefault: false }; try { localStorage.removeItem("sidenote.session"); } catch (e) {} }
+};
+
+/* =====================================================================
+   API LAYER
+   ===================================================================== */
+async function http(method, path, body, anon) {   // anon = a public endpoint: no token is sent and a 401 is an ordinary error
+  const isForm = body instanceof FormData;
+  const headers = {};
+  if (S.token && !anon) headers.Authorization = "Bearer " + S.token;
+  if (body && !isForm) headers["Content-Type"] = "application/json";
+  const r = await fetch(CONFIG.API_BASE + path, { method, headers, body: isForm ? body : body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 && !anon) { session.clear(); if (location.hash !== "#/signin") S.next = location.hash; location.hash = "#/signin"; throw Object.assign(new Error("Please sign in again."), { status: 401 }); }
+  if (!r.ok) { let m = r.statusText; try { m = (await r.json()).message || m; } catch (e) {} throw Object.assign(new Error(m || "Request failed"), { status: r.status }); }
+  const text = r.status === 204 ? "" : await r.text();
+  if (!text.trim()) return null;   // endpoints with nothing to return may answer 204 or an empty 200
+  try { return JSON.parse(text); } catch (e) { throw new Error("The server sent a reply Sidenote could not read."); }
+}
+const form1 = (k, v, extra) => { const f = new FormData(); f.append(k, v); Object.entries(extra || {}).forEach(([a, b]) => f.append(a, b)); return f; };
+
+const mockDb = {
+  ready: false,
+  prep() {
+    if (this.ready) return; this.ready = true;
+    const d = DATA.detail; d.slides = []; d.audio = { url: null };   // no audio file in the sample build: see silentClock()
+    /* Sample build only: give every sample explanation both forms. The table covers just the characters the sample text uses; a real backend sends zhHant and zhHans itself. */
+    const T = "机機会會弃棄个個选選项項价價来來隐隱读讀学學费費没沒赚賺资資样樣响響决決无無论論么麼应應虑慮门門钱錢经經较較边邊际際单單额額时時产產现現术術两兩种種组組横橫轴軸递遞内內济濟长長绝絕对對优優势勢题題国國师師强強调調见見错錯误誤贸貿条條间間换換双雙获獲试試类類周週讲講给給与與课課“「”」";
+    const toHant = s => s.replace(/[^\x00-\x7f]/g, ch => { const i = T.indexOf(ch); return i >= 0 && i % 2 === 0 ? T[i + 1] : ch; });
+    d.sections.forEach(s => s.points.forEach(p => { if (p.zh) { p.zhHans = p.zh; p.zhHant = toHant(p.zh); delete p.zh; } }));
+    d.sections.forEach((s, si) => { const m = s.slides.match(/(\d+)\D+(\d+)/), a = +m[1], b = +m[2];
+      for (let n = a; n <= b; n++) d.slides.push({ n, title: s.title, section: si, image: null });
+      s.points.forEach((p, k) => { p.slide = a + Math.floor(k * (b - a + 1) / s.points.length); }); });
+    DATA.upcoming.forEach(u => { u.date = "2026-11-" + u.day; });
+    DATA.details = { "econ-w9": d };
+    DATA.week = { lectures: 4, known: 23, quiz: 86, days: [1, 1, 1, 0, 0] };
+    DATA.settings = { classLanguage: "en", zhDefault: false };
+    DATA.feed = 0; DATA.packs = {};
+  }
+};
+
+const api = {
+  /* POST /session {inviteCode, name} -> {token, user:{name}} */
+  async signIn(inviteCode, name) {
+    if (!CONFIG.USE_MOCK) return http("POST", "/session", { inviteCode, name }, true);
+    await wait(400); if (!inviteCode.trim()) throw new Error("Enter your invite code.");
+    return { token: "mock-token", user: { name: name.trim() || DATA.user.name } };
+  },
+  /* GET /home -> {user, courses[], lectures[], upcoming[], week, settings, usage, today?} */
+  async getHome() {
+    if (!CONFIG.USE_MOCK) return http("GET", "/home");
+    await wait(250);
+    return { user: S.user || DATA.user, courses: DATA.courses.slice(), lectures: DATA.lectures.slice(), upcoming: DATA.upcoming.slice(), week: DATA.week, settings: { ...DATA.settings },
+      usage: { minutesToday: DATA.user.minutesToday, minutesLimit: DATA.user.minutesLimit }, today: "2026-11-11" };
+  },
+  /* POST /courses {code, name} -> course */
+  async addCourse(code, name) {
+    if (!CONFIG.USE_MOCK) return http("POST", "/courses", { code, name });
+    const c = { id: code.toLowerCase().replace(/\W+/g, "") + Date.now().toString(36).slice(-3), code, name }; DATA.courses.push(c); return c;
+  },
+  /* GET /lectures/:id -> {lecture, detail|null}   detail is null while notes are still being written. detail.audio = {url} is the kept recording */
+  async getLecture(id) {
+    if (!CONFIG.USE_MOCK) return http("GET", "/lectures/" + encodeURIComponent(id));
+    await wait(200); const l = DATA.lectures.find(x => x.id === id); if (!l) throw new Error("This lecture does not exist.");
+    return { lecture: l, detail: DATA.details[id] || null };
+  },
+  /* GET /shared/:id (no sign-in) -> {lecture, course, detail, sharedBy} */
+  async getShared(id) {
+    if (!CONFIG.USE_MOCK) return http("GET", "/shared/" + encodeURIComponent(id), undefined, true);
+    await wait(200); const l = DATA.lectures.find(x => x.id === id); if (!l || !DATA.details[id] || l.unshared) throw new Error("This link is no longer shared.");
+    return { lecture: l, course: DATA.courses.find(c => c.id === l.course), detail: DATA.details[id], sharedBy: DATA.user.name };
+  },
+  /* POST /lectures {courseId, title, language, source:"record"|"tab"|"upload"|"link"} -> lecture */
+  async createLecture(p) {
+    if (!CONFIG.USE_MOCK) return http("POST", "/lectures", p);
+    const l = { id: "lec-" + Date.now().toString(36), course: p.courseId, title: p.title || "Untitled lecture", date: "Today", duration: 0, status: "recording" };
+    DATA.lectures.unshift(l); DATA.feed = 0; return l;
+  },
+  /* POST /lectures/:id/chunks (multipart: audio, seq) -> {segments:[{t,text}], alerts:[{t,kind,text}]} */
+  async uploadChunk(id, blob, seq) {
+    if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/chunks", form1("audio", blob, { seq }));
+    return { segments: [], alerts: [] };
+  },
+  /* POST /lectures/:id/recording (multipart: file) */
+  async uploadRecording(id, file) { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/recording", form1("file", file)); await wait(900); return null; },
+  /* POST /lectures/:id/slides (multipart: file, PDF) */
+  async uploadSlides(id, file) { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/slides", form1("file", file)); await wait(300); return null; },
+  /* POST /lectures/:id/link {url} */
+  async attachLink(id, url) { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/link", { url }); await wait(600); return null; },
+  /* POST /lectures/:id/catch-up -> {points:[string]}   summary of the last five minutes of a live recording */
+  async catchUp(id, seen) {
+    if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/catch-up");
+    await wait(700); const pts = DATA.detail.sections.flatMap(s => s.points).filter(p => seen.includes(p.t)).slice(-3).map(p => p.text);
+    return { points: pts.length ? pts : ["Nothing to summarise yet. The lecturer has only covered announcements."] };
+  },
+  /* POST /lectures/:id/finish {duration} -> {status} */
+  async finishLecture(id, duration) {
+    if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/finish", { duration });
+    let l = DATA.lectures.find(x => x.id === id); if (!l) { l = { id, course: DATA.courses[0].id, title: "Recovered recording", date: "Today" }; DATA.lectures.unshift(l); } l.status = "processing"; l.duration = 5400; return { status: "processing" };
+  },
+  /* GET /lectures/:id/status -> {status:"processing"|"ready"|"failed"} */
+  async getStatus(id) {
+    if (!CONFIG.USE_MOCK) return http("GET", "/lectures/" + id + "/status");
+    await wait(1500); const l = DATA.lectures.find(x => x.id === id); if (l) l.status = "ready"; DATA.details[id] = DATA.detail; return { status: "ready" };
+  },
+  /* POST /lectures/:id/retry -> {status}   write the notes again from the kept recording, after status "failed" */
+  async retryLecture(id) {
+    if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/retry");
+    const l = DATA.lectures.find(x => x.id === id); if (l) l.status = "processing"; return { status: "processing" };
+  },
+  /* POST /lectures/:id/share -> {url} */
+  async createShareLink(id) { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/share"); const l = DATA.lectures.find(x => x.id === id), url = location.href.split("#")[0] + "#/s/" + id; if (l) { l.shareUrl = url; l.unshared = false; } return { url }; },
+  /* DELETE /lectures/:id/share   the old link must stop working */
+  async revokeShareLink(id) { if (!CONFIG.USE_MOCK) return http("DELETE", "/lectures/" + id + "/share"); const l = DATA.lectures.find(x => x.id === id); if (l) { l.shareUrl = null; l.unshared = true; } return null; },
+  /* POST /shared/:id/save -> lecture   a signed-in reader keeps a copy of shared notes */
+  async saveShared(id) { if (!CONFIG.USE_MOCK) return http("POST", "/shared/" + encodeURIComponent(id) + "/save"); const src = DATA.lectures.find(x => x.id === id), l = { ...src, id: "lec-" + Date.now().toString(36), shareUrl: null }; DATA.lectures.unshift(l); DATA.details[l.id] = DATA.details[id]; return l; },
+  /* PATCH /lectures/:id/points {section, index, text} */
+  async updatePoint(id, section, index, text) { if (!CONFIG.USE_MOCK) return http("PATCH", "/lectures/" + id + "/points", { section, index, text }); await wait(200); return null; },
+  /* POST /lectures/:id/points {section, text} -> point */
+  async addPoint(id, section, text) { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/points", { section, text }); await wait(200); return { t: null, text, mine: true, off: false, slide: null }; },
+  /* DELETE /lectures/:id/points {section, index} */
+  async deletePoint(id, section, index) { if (!CONFIG.USE_MOCK) return http("DELETE", "/lectures/" + id + "/points", { section, index }); await wait(200); return null; },
+  /* POST /lectures/:id/feedback {text}   a user says the notes are wrong */
+  async sendFeedback(id, text) { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/feedback", { text }); await wait(300); return null; },
+  /* GET /courses/:id/review-pack -> {status:"none"|"processing"|"ready", hints[], sheet[], exam[]} */
+  async getReviewPack(courseId) {
+    if (!CONFIG.USE_MOCK) return http("GET", "/courses/" + courseId + "/review-pack");
+    await wait(900); const st = DATA.packs[courseId] || "none"; if (st !== "ready") return { status: st };
+    const hints = [], sheet = [], exam = [];
+    DATA.lectures.filter(l => l.course === courseId && DATA.details[l.id]).forEach(l => { const d = DATA.details[l.id];
+      d.alerts.forEach(a => hints.push({ ...a, lecture: l.title, lectureId: l.id }));
+      d.sections.forEach(s => sheet.push({ topic: s.title, points: s.points.map(p => ({ text: p.text, off: !!p.off, t: p.t, lecture: l.title, lectureId: l.id })) }));
+      d.quiz.forEach(q => exam.push({ ...q, lectureId: l.id })); });
+    return { status: "ready", hints, sheet, exam };
+  },
+  /* GET /plans -> {plans:[{id, name, priceText, features[]}], current: planId|null}   empty list = nothing shown */
+  async getPlans() { if (!CONFIG.USE_MOCK) return http("GET", "/plans"); return { plans: [], current: null }; },
+  /* POST /checkout {planId} -> {url}   the browser is sent to url */
+  async startCheckout(planId) { if (!CONFIG.USE_MOCK) return http("POST", "/checkout", { planId }); return { url: null }; },
+
+
+  /* PATCH /lectures/:id {title} */
+  async renameLecture(id, title) { if (!CONFIG.USE_MOCK) return http("PATCH", "/lectures/" + id, { title }); const l = DATA.lectures.find(x => x.id === id); if (l) l.title = title; return null; },
+  /* DELETE /lectures/:id */
+  async deleteLecture(id) { if (!CONFIG.USE_MOCK) return http("DELETE", "/lectures/" + id); DATA.lectures = DATA.lectures.filter(x => x.id !== id); return null; },
+  /* POST /courses/:id/review-pack -> {status} */
+  async makeReviewPack(courseId) { if (!CONFIG.USE_MOCK) return http("POST", "/courses/" + courseId + "/review-pack"); await wait(400); DATA.packs[courseId] = "ready"; return { status: "processing" }; },
+  /* PUT /lectures/:id/progress {known:[cardIndex], quizScore} */
+  async saveProgress(id, p) { if (!CONFIG.USE_MOCK) return http("PUT", "/lectures/" + id + "/progress", p); return null; },
+  /* PUT /settings {name, classLanguage, zhDefault, zhScript:"hant"|"hans"} */
+  async updateSettings(p) { if (!CONFIG.USE_MOCK) return http("PUT", "/settings", p); Object.assign(DATA.settings, { classLanguage: p.classLanguage, zhDefault: p.zhDefault, zhScript: p.zhScript }); await wait(300); return null; }
+};
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+const state = { tab: "notes", onlyOff: false, zh: false, pos: 0, hit: null, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, q: "", tq: "", edit: false, order: null, wrong: [] };
+let R = { a: "", b: "" }, cur = null, routeSeq = 0, pendingPos = 0;
+
+const ic = d => `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON = {
+  home: ic(`<path d="M4 11.5 12 4l8 7.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/>`),
+  courses: ic(`<path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v13H6.5A1.5 1.5 0 0 0 5 18.5z"/><path d="M5 18.5A1.5 1.5 0 0 0 6.5 20H19"/>`),
+  plus: ic(`<path d="M12 5v14M5 12h14"/>`),
+  settings: ic(`<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>`),
+  play: `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></svg>`,
+  pause: `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z" fill="currentColor"/></svg>`
+};
+const exHref = () => CONFIG.EXAMPLE_SHARE_ID ? "#/s/" + encodeURIComponent(CONFIG.EXAMPLE_SHARE_ID) : "";
+function sid(size = 28, mood = "plain", color = "#FFD93B") {
+  const mouth = mood === "smile" ? `<path d="M12.5 18.5q3.5 3 7 0" fill="none" stroke="#16233B" stroke-width="1.8" stroke-linecap="round"/>` : mood === "wow" ? `<ellipse cx="16" cy="20" rx="2" ry="2.4" fill="#16233B"/>` : mood === "sad" ? `<path d="M12.5 20.5q3.5 -3 7 0" fill="none" stroke="#16233B" stroke-width="1.8" stroke-linecap="round"/>` : "";
+  return `<svg class="sid" width="${size}" height="${size}" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h26v17l-9 9H3z" fill="${color}" stroke="#16233B" stroke-width="2" stroke-linejoin="round"/><path d="M29 20h-9v9" fill="#fff" fill-opacity=".55" stroke="#16233B" stroke-width="2" stroke-linejoin="round"/><circle class="eye" cx="11.5" cy="13" r="2.1" fill="#16233B"/><circle class="eye" cx="20.5" cy="13" r="2.1" fill="#16233B"/>${mouth}</svg>`;
+}
+const logo = href => `<a class="logo" href="${href}">${sid(28)}sidenote</a>`;
+function toast(msg) { const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); el.textContent = trs(msg); document.body.appendChild(el); setTimeout(() => el.remove(), 2600); }
+function modal(html, locked) { $("#overlay").innerHTML = `<div class="modal" ${locked ? "" : `onclick="if(event.target===this)closeModal()"`}><div class="box" role="dialog" aria-modal="true">${html}</div></div>`; tr($("#overlay")); const f = $("#overlay input, #overlay textarea"); if (f) f.focus(); }
+function closeModal() { $("#overlay").innerHTML = ""; }
+function busy(title, text) { modal(`<div style="text-align:center">${sid(64, "wow")}<h3 style="margin-top:12px">${title}</h3><p class="muted">${text}</p></div>`, true); }
+async function act(fn) { try { await fn(); } catch (e) { closeModal(); toast(e.message || "Something went wrong. Try again."); } }
+const stickyNote = (c, rot, d, pos, ts, text) => `<div class="sticky-w" style="--c:${c};--rot:${rot}deg;--d:${d}s;${pos}"><div class="sticky"><b class="num">${ts}</b>${text}</div></div>`;
+
+/* ---------- landing ---------- */
+function landing() {
+  return `<div class="pub">
+  <div class="dots">
+  <nav class="pub-nav">${logo("#/")}<span class="sp"></span>
+    ${langBtn()}${exHref() ? `<a class="l" href="${exHref()}">Example notes</a>` : ""}<a class="l" href="${S.token ? "#/home" : "#/signin"}">${S.token ? "My lectures" : "Sign in"}</a>
+    <a class="btn primary sm" href="#/new">Record a lecture</a></nav>
+  <div class="wrap"><section class="hero">
+    <div>
+      <h1>The slides are half the lecture. Sidenote catches the other half.</h1>
+      <p class="lead">Record your class and get notes that sit next to each slide: what the lecturer explained, the examples that were never written down, and every exam date they mentioned.</p>
+      <div class="cta"><a class="btn primary" href="#/new">Record a lecture</a>${exHref() ? `<a class="btn" href="${exHref()}">Open example notes</a>` : ""}</div>
+      <div class="niche">${sid(22, "smile")}<span>Made for English-taught lectures at Hong Kong universities.</span></div>
+    </div>
+    <div class="stage" aria-label="A lecture slide with sidenotes attached">
+      <div class="rec"><i></i><span class="num">Recording 12:48</span></div>
+      <div class="slide"><h4>Opportunity cost</h4><ul><li>Definition</li><li>Explicit and implicit costs</li><li>Sunk costs</li></ul><span class="pg">Slide 4 of 27</span></div>
+      ${stickyNote("#FFD93B", 4, .25, "right:0;top:36px", "6:48", "A year here costs the tuition <i>plus</i> the salary you did not earn.")}
+      ${stickyNote("#FFB5A8", -5, .5, "left:0;top:250px", "0:18", "Midterm Thu 26 Nov. Chapters 1 to 4. One A4 page allowed.")}
+      ${stickyNote("#A6EBD1", 3, .75, "right:4%;top:290px", "14:20", "Concert ticket example: the $400 is gone either way.")}
+    </div>
+  </section></div></div>
+  <section class="said"><div class="wrap">
+    <h2>Lecturers say the important things out loud.</h2>
+    <p>None of this is on Canvas. Sidenote listens for it and pins it to your notes.</p>
+    <div class="cloud">
+      <span class="bub flag">“This will be on the midterm.”</span><span class="bub">“You can read this slide yourselves.”</span>
+      <span class="bub flag">“The deadline has moved to Monday.”</span><span class="bub">“As I said last week…”</span>
+      <span class="bub flag">“This is where people lose marks.”</span><span class="bub">“Any questions? No? Okay.”</span>
+      <span class="bub flag">“Let me give you an example that is not in the notes.”</span><span class="bub">“We are running out of time, so…”</span>
+    </div>
+  </div></section>
+  <section class="sect"><div class="wrap">
+    <h2>Everything you need between the lecture and the exam.</h2>
+    <div class="bento">
+      <div class="bx b1"><h3>Notes that stick to the slides</h3><p>Add the slide deck and every point is filed under the slide it explains. Anything said but not written is marked as a sidenote.</p>
+        <div class="art" style="display:flex;gap:10px;flex-wrap:wrap"><span class="mini">Slide 4. Opportunity cost is the best alternative you gave up.</span><span class="mini" style="background:var(--yellow)">Sidenote. Includes the salary you did not earn.</span></div></div>
+      <div class="bx b2"><h3>Every point has a source</h3><p>Tap a timestamp to read the lecturer's exact words, or play the recording from that moment.</p><div class="art"><span class="mini num" style="color:var(--blue);font-weight:700">27:32 in the transcript</span></div></div>
+      <div class="bx b3"><h3>Exam radar</h3><p>Midterms, deadlines and exam hints are flagged in class and counted down on your home page.</p><div class="art"><span class="mini"><b>15 days</b> to the ECON 1001 midterm</span></div></div>
+      <div class="bx b4"><h3>Catch me up</h3><p>Zoned out? One tap summarises the last five minutes while class is still going.</p><div class="art">${sid(44, "wow", "#A6EBD1")}</div></div>
+      <div class="bx b5"><h3>Flashcards and a quiz</h3><p>Written from your lecture, not a generic textbook. Wrong answers link back to the moment it was taught.</p><div class="art"><span class="mini">Card 3 of 6</span></div></div>
+      <div class="bx b6"><div class="grow"><h3>One link for the whole class</h3><p style="margin-top:8px">Drop the notes in the course group chat. Classmates read them without an account, and the next person records the next lecture.</p></div>
+        <div class="chat"><div class="m">did anyone get what she said about the midterm</div><div class="m me">sidenote link to ECON 1001 week 9</div><div class="m">you are a legend</div></div></div>
+    </div>
+  </div></section>
+  <section class="sect" style="padding-top:0"><div class="wrap">
+    <h2>Three ways to get a lecture in</h2>
+    <div class="ways">
+      <div class="card"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="7" y="8" width="26" height="18" rx="3" fill="#E9EEFF" stroke="#16233B" stroke-width="2"/><path d="M3 31h34" stroke="#16233B" stroke-width="2.5" stroke-linecap="round"/></svg><h3 style="font-size:19px">Record on your laptop</h3><p class="muted" style="margin-top:6px">Open Sidenote in a tab and keep working. Recording continues in the background.</p></div>
+      <div class="card"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="12" y="4" width="16" height="32" rx="4" fill="#FFE6E1" stroke="#16233B" stroke-width="2"/><circle cx="20" cy="30" r="1.6" fill="#16233B"/></svg><h3 style="font-size:19px">Record on your phone</h3><p class="muted" style="margin-top:6px">Face up on the desk, with this page open and the screen on.</p></div>
+      <div class="card"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 26v6h24v-6" fill="none" stroke="#16233B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26V8m-7 7 7-7 7 7" fill="none" stroke="#16233B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><h3 style="font-size:19px">Upload a recording</h3><p class="muted" style="margin-top:6px">Already have the audio or the lecture video? Upload it and get the same notes.</p></div>
+    </div>
+  </div></section>
+  <section class="end"><div class="wrap">${sid(64, "smile", "#fff")}<h2>Your next lecture is the best one to start with.</h2><a class="btn dark" href="#/new">Record a lecture</a></div></section>
+  <footer class="f"><div class="wrap">Notes are written by AI from your recording and can contain mistakes. Check dates and requirements against your lecturer's announcements. Ask your lecturer before recording if your course requires it.</div></footer>
+  </div>`;
+}
+
+/* ---------- sign in ---------- */
+const auth = { err: "", busy: false, code: "", name: "" };
+function signinPage() {
+  return `<div class="pub dots" style="min-height:100vh"><nav class="pub-nav">${logo("#/")}<span class="sp"></span>${langBtn()}</nav>
+    <div class="center"><form class="auth" onsubmit="event.preventDefault();doSignIn(this)">
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:6px">${sid(44, "smile")}<h1 style="font-size:26px">Sign in to Sidenote</h1></div>
+      <p class="muted" style="margin-bottom:20px">Sidenote is invite only for now. Enter the code you were given.</p>
+      <label class="field"><span>Invite code</span><input name="code" autocomplete="one-time-code" placeholder="For example a3f9c2" value="${esc(auth.code)}" required></label>
+      <label class="field"><span>Your name (optional)</span><input name="name" autocomplete="given-name" placeholder="What should we call you?" value="${esc(auth.name)}"></label>
+      ${auth.err ? `<p class="err" role="alert">${esc(auth.err)}</p>` : ""}
+      <button class="btn primary" style="width:100%" ${auth.busy ? "disabled" : ""}>${auth.busy ? "Signing in" : "Sign in"}</button>
+      <p class="small muted" style="margin-top:14px">No code? Ask a classmate who uses Sidenote${exHref() ? `, or open the <a href="${exHref()}">example notes</a>` : ""}.</p>
+    </form></div></div>`;
+}
+async function doSignIn(f) {
+  const code = f.code.value, name = f.name.value; Object.assign(auth, { busy: true, err: "", code, name }); render();
+  try { const r = await api.signIn(code, name); S.token = r.token; S.user = r.user; session.save(); Object.assign(auth, { busy: false, code: "", name: "" }); const n = S.next || "#/home"; S.next = null; location.hash = n; }
+  catch (e) { auth.busy = false; auth.err = e.message; render(); }
+}
+function signOut() { if (live.active) { toast("End or discard the recording before signing out."); return; } live.id = null; plStop(); session.clear(); location.hash = "#/"; }
+
+/* ---------- shell ---------- */
+function shell(inner, active) {
+  const dn = LANG === "zh" ? ["一", "二", "三", "四", "五"] : ["M", "T", "W", "T", "F"], w = S.week, recOn = live.active && R.a !== "live";
+  return `<div class="shell">
+    <aside class="side">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">${logo("#/home")}${langBtn()}</div>
+      <a class="btn primary new" href="#/new">New lecture</a>
+      <a class="n ${active === "home" ? "on" : ""}" href="#/home">Home</a>
+      <a class="n ${active === "settings" ? "on" : ""}" href="#/settings">Settings</a>
+      <div class="lbl">Courses</div>
+      ${S.courses.map(c => `<a class="n c ${active === c.id ? "on" : ""}" href="#/course/${encodeURIComponent(c.id)}"><i class="cdot" style="background:${colorOf(c)}"></i>${esc(c.code)}<span class="ct num">${S.lectures.filter(l => l.course === c.id).length}</span></a>`).join("")}
+      <button class="n c addc" onclick="addCourseModal()">Add a course</button>
+      ${w ? `<div class="streak"><b class="num">${plural(w.lectures, "lecture")} this week</b><div class="small">One more and Sid gets a gold corner.</div>
+        <div class="days" data-notr>${dn.map((x, i) => `<span class="${w.days && w.days[i] ? "d" : ""}">${x}</span>`).join("")}</div></div>` : ""}
+    </aside>
+    <header class="mtop">${logo("#/home")}${CONFIG.USE_MOCK ? `<span class="mtag">Sample data</span>` : ""}<span class="sp"></span>${langBtn()}<a class="ico ${active === "settings" ? "on" : ""}" href="#/settings" aria-label="Settings">${ICON.settings}</a></header>
+    <main class="main"><div class="inner">
+      ${live.active && R.a !== "live" ? `<a class="pill-rec" href="#/live"><i></i>Recording ${esc(live.courseCode)} <span class="clk num">${fmt(live.sec)}</span> Return</a>` : ""}
+      ${orphanHtml()}
+      ${inner}</div></main>
+    ${R.a === "live" ? "" : `<nav class="mnav" aria-label="Main">
+      <a class="t ${active === "home" ? "on" : ""}" href="#/home">${ICON.home}Home</a>
+      ${recOn ? `<a class="go btn dark" href="#/live" aria-label="Return to the recording"><i class="dot"></i><span class="clk num">${fmt(live.sec)}</span></a>` : `<a class="go btn primary" href="#/new">${ICON.plus}New lecture</a>`}
+      <a class="t ${active === "courses" || course(active) ? "on" : ""}" href="#/courses">${ICON.courses}Courses</a></nav>`}</div>`;
+}
+function skeleton() { return `<div class="sk" style="width:40%;height:30px"></div><div class="sk" style="width:65%"></div><div class="card" style="padding:22px;margin-top:20px"><div class="sk"></div><div class="sk" style="width:80%"></div><div class="sk" style="width:55%;margin:0"></div></div>`; }
+function problem(title, text, btn) { return `<div class="card" style="padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">${sid(52, "sad")}<div class="grow"><h3>${title}</h3><p class="muted" style="margin:8px 0 16px">${text}</p>${btn || `<a class="btn primary" href="#/home">Go to home</a>`}</div></div>`; }
+
+/* ---------- home ---------- */
+const statusTag = l => l.status === "processing" ? `<span class="tag grey">Writing notes</span>` : l.status === "failed" ? `<span class="tag red">Not written</span>`
+  : l.status === "recording" ? (live.active && live.id === l.id ? `<span class="tag amber">Recording</span>` : `<span class="tag grey">Not finished</span>`) : "";
+function lecListHtml() {
+  const q = state.q.trim().toLowerCase();
+  const hay = l => { const c = course(l.course), d = S.detail[l.id]; return [l.title, c && c.code, c && c.name, d ? d.sections.map(s => s.title + " " + s.points.map(p => p.text).join(" ")).join(" ") : ""].join(" ").toLowerCase(); };
+  const ls = (q ? S.lectures.filter(l => hay(l).includes(q)) : S.lectures).slice(0, q ? 20 : 6);
+  if (!ls.length) return `<li><span class="muted">${q ? "No lecture matches that search." : "No lectures yet."}</span></li>`;
+  return ls.map(l => { const c = course(l.course); return `<li><i class="cdot" style="background:${colorOf(c)}"></i><div class="grow"><a class="t" data-notr href="#/lecture/${encodeURIComponent(l.id)}">${esc(l.title)}</a><div class="small muted">${meta({ ...l, duration: 0 }, c)}</div></div>${statusTag(l) || `<span class="small muted num">${l.duration ? mins(l.duration) : ""}</span>`}</li>`; }).join("");
+}
+function home() {
+  const up = S.upcoming.filter(u => daysLeft(u.date) >= 0).sort((a, b) => new Date(a.date) - new Date(b.date)), w = S.week, n = up[0]; S._up = up;
+  if (!S.lectures.length) return shell(`<div class="center" style="min-height:60vh"><div style="text-align:center;max-width:420px">${sid(84, "smile")}<h1 style="font-size:30px;margin:16px 0 8px">Hi ${esc(S.user.name)}. Nothing here yet.</h1><p class="muted" style="margin-bottom:22px">Record your next class or upload a recording you already have. Notes, flashcards and a quiz arrive a minute or two after it ends.</p><a class="btn primary" href="#/new">Add your first lecture</a></div></div>`, "home");
+  return shell(`
+    <div class="page-h"><div class="hello">${sid(52, "smile")}<div><h1>Hi ${esc(S.user.name)}</h1><p class="muted" style="margin-top:4px">${n ? `Next up: ${esc(n.kind.toLowerCase())} for ${esc(n.course)}, ${daysLeft(n.date) === 0 ? "today" : "in " + plural(daysLeft(n.date), "day")}.` : "No exam dates on the radar."}</p></div></div>
+      <a class="btn primary desk" href="#/new">New lecture</a></div>
+    ${w ? `<div class="stats">
+      <div class="stat" style="background:var(--blue-soft)"><b class="num">${w.lectures}</b><span>lectures recorded this week</span></div>
+      <div class="stat" style="background:var(--mint-soft)"><b class="num">${w.known}</b><span>flashcards you know</span></div>
+      <div class="stat" style="background:var(--violet-soft)"><b class="num">${w.quiz}%</b><span>average quiz score</span></div></div>` : ""}
+    <div class="grid2">
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px 4px;flex-wrap:wrap"><h2 style="font-size:17px">Lectures</h2>
+        <input class="search" type="search" aria-label="Search lectures" placeholder="Search course, title or notes" value="${esc(state.q)}" oninput="state.q=this.value;var el=document.getElementById('lecList');el.innerHTML=lecListHtml();tr(el)"></div>
+        <ul class="list" id="lecList">${lecListHtml()}</ul></div>
+      <div class="card"><h2 class="sec-h">Exam radar</h2><ul class="list">
+        ${up.length ? up.map((u, i) => `<li><div class="count"><b class="num">${daysLeft(u.date)}</b><span>${daysLeft(u.date) === 1 ? "day" : "days"}</span></div><div class="grow"><div><span class="tag amber">${esc(u.kind)}</span> <span class="small muted">${esc(u.course)}, ${dayMon(u.date)}</span></div><div class="small" style="margin-top:3px" data-notr>${esc(u.text)}</div><a class="small" href="#/lecture/${encodeURIComponent(u.lecture)}" onclick="pendingPos=${+u.t}">Said at ${fmt(u.t)}</a><button class="ts" style="margin-left:12px" onclick="addToCalendar(${i})">Add to calendar</button></div></li>`).join("")
+        : `<li><span class="muted">No dates yet. They appear here when a lecturer mentions an exam or a deadline.</span></li>`}
+      </ul></div>
+    </div>
+    <h2 style="font-size:20px;margin-top:32px">Your courses</h2>
+    <div class="courses">${courseCards()}</div>`, "home");
+}
+const courseCards = () => S.courses.map(c => `<a href="#/course/${encodeURIComponent(c.id)}"><div class="top" style="background:${colorOf(c)}">${esc(c.code)}</div><div class="bot"><div class="small" style="font-weight:600;color:var(--ink)" data-notr>${esc(c.name)}</div><div class="small muted" style="margin-top:4px">${plural(S.lectures.filter(l => l.course === c.id).length, "lecture")}</div></div></a>`).join("") + `<button class="addcard" onclick="addCourseModal()">Add a course</button>`;
+function coursesPage() { return shell(`<div class="page-h"><h1>Courses</h1></div><div class="courses" style="margin-top:0">${courseCards()}</div>`, "courses"); }
+function addCourseModal() {
+  modal(`<h3>Add a course</h3><form onsubmit="event.preventDefault();doAddCourse(this)">
+    <label class="field"><span>Course code</span><input name="code" placeholder="FINA 2303" required maxlength="20"></label>
+    <label class="field"><span>Course name</span><input name="name" placeholder="Financial Management" maxlength="80"></label>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn plain" onclick="closeModal()">Cancel</button><button class="btn primary">Add course</button></div></form>`);
+}
+function doAddCourse(f) { act(async () => { const c = await api.addCourse(f.code.value.trim(), f.name.value.trim()); if (!S.courses.find(x => x.id === c.id)) S.courses.push(c); nf.courseId = c.id; closeModal(); toast("Course added"); render(); }); }
+
+/* ---------- course ---------- */
+function coursePage(id) {
+  const c = course(id); if (!c) return shell(problem("This course does not exist", "It may have been removed."), "home");
+  const ls = S.lectures.filter(l => l.course === id);
+  return shell(`
+    <div class="crumb"><a href="#/home">Home</a> / ${esc(c.code)}</div>
+    <div class="page-h"><div class="hello"><i class="cdot" style="background:${colorOf(c)};width:44px;height:44px;border-radius:12px"></i><div><h1>${esc(c.code)}</h1><p class="muted" style="margin-top:4px" data-notr>${esc(c.name)}</p></div></div><a class="btn primary" href="#/new" onclick="nf.courseId='${esc(c.id)}'">New lecture</a></div>
+    ${ls.length ? `<div style="padding:18px 20px;margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--yellow-soft);border:2px solid var(--ink);border-radius:var(--r-lg)">
+      ${sid(44, "wow")}<div class="grow" style="min-width:220px"><b style="color:var(--ink);font-size:18px">Exam review pack</b><div class="small">All ${plural(ls.length, "lecture")} in one revision sheet and a mock exam, weighted towards what the lecturer flagged.</div></div>
+      <a class="btn dark" href="#/pack/${encodeURIComponent(c.id)}">Open review pack</a></div>
+    <div class="card"><ul class="list">
+      ${ls.map(l => `<li><span class="tag grey num">${l.week ? "Week " + esc(l.week) : esc(l.date)}</span><div class="grow"><a class="t" data-notr href="#/lecture/${encodeURIComponent(l.id)}">${esc(l.title)}</a><div class="small muted">${esc(l.date)}</div></div>${statusTag(l) || `<span class="small muted num">${l.duration ? mins(l.duration) : ""}</span>`}</li>`).join("")}
+    </ul></div>` : `<div class="card" style="padding:28px;text-align:center">${sid(52)}<h3 style="margin:12px 0 8px">No lectures in ${esc(c.code)} yet</h3><a class="btn primary" href="#/new" onclick="nf.courseId='${esc(c.id)}'">Add the first one</a></div>`}`, id);
+}
+
+/* ---------- lecture ---------- */
+function timeline(d, dur, pos) {
+  dur = dur || 1; const first = d.sections[0] ? d.sections[0].start : 0;
+  const segs = d.sections.map((s, i) => `<button class="seg ${pos >= s.start && pos < s.end ? "on" : ""}" style="width:${(s.end - s.start) / dur * 100}%;background:${PALETTE[(i + 3) % 5]}" title="${esc(s.title)}" aria-label="${esc(s.title)}" onclick="jump(${+(s.points[0] ? s.points[0].t : s.start)})"></button>`).join("");
+  const mks = d.alerts.map(a => `<button class="mk" style="left:${a.t / dur * 100}%" title="${esc(a.kind)} at ${fmt(a.t)}" aria-label="${esc(a.kind)} at ${fmt(a.t)}" onclick="jump(${+a.t})"></button>`).join("");
+  return `<div class="tl"><div class="track"><span style="width:${first / dur * 100}%"></span>${segs}</div>${mks}<div class="head" style="left:${Math.min(100, pos / dur * 100)}%"></div></div>
+  <div class="tl-ends num"><span>0:00</span><span>One colour per topic. Exam and deadline mentions are marked with !</span><span>${fmt(dur)}</span></div>`;
+}
+function confetti() { const cs = ["#FFD93B", "#FF6B57", "#19B88A", "#7A5AF8", "#2B59FF"]; return Array.from({ length: 26 }, (_, i) => `<i class="conf" style="left:${(i * 37) % 100}%;background:${cs[i % 5]};animation-delay:${(i % 7) * .08}s"></i>`).join(""); }
+/* 中文解釋 can be read in Traditional or Simplified characters. The backend sends both (point.zhHant, point.zhHans) and the
+   reader chooses. Signed in, the choice lives in the account settings; otherwise it is remembered on this device.
+   Until someone chooses, a browser set to Simplified Chinese starts with Simplified and every other browser with Traditional. */
+const zhScript = () => (S.token && S.settings.zhScript) || store.get("zhScript") || (/^zh-(cn|sg|my)\b|^zh-hans/i.test(navigator.language || "") ? "hans" : "hant");
+const zhText = p => (zhScript() === "hans" ? p.zhHans || p.zhHant : p.zhHant || p.zhHans) || p.zh || "";
+function setZhScript(v) { store.set("zhScript", v);
+  if (S.token) { S.settings.zhScript = v; if (S.homeLoaded) api.updateSettings({ name: S.user.name, classLanguage: S.settings.classLanguage, zhDefault: S.settings.zhDefault, zhScript: v }).catch(() => {}); }
+  render(); }
+const zhPick = d => { const hans = zhScript() === "hans";   // only offered when this lecture really has both forms
+  return state.zh && d.sections.some(s => s.points.some(p => p.zhHant && p.zhHans)) ? `<span class="seg2" role="group" aria-label="Chinese characters"><button class="${hans ? "" : "on"}" aria-pressed="${!hans}" onclick="setZhScript('hant')" data-notr>繁</button><button class="${hans ? "on" : ""}" aria-pressed="${hans}" onclick="setZhScript('hans')" data-notr>简</button></span>` : ""; };
+function ptHtml(p, si, pi) { const own = cur && !cur.shared && state.edit;
+  return `<div class="pt ${p.off ? "off" : ""}">${p.t != null ? `<button class="ts" onclick="jump(${+p.t})" aria-label="Open transcript at ${fmt(p.t)}">${fmt(p.t)}</button>` : `<span class="tag grey">You</span>`}<div class="body">${p.off ? `<span class="tag sn">Sidenote</span> ` : ""}<span data-notr>${esc(p.text)}</span>${state.zh && zhText(p) ? `<div class="zh" data-notr lang="${zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}">${esc(zhText(p))}</div>` : ""}${own ? `<div class="pt-acts"><button class="ts" onclick="editPoint(${si},${pi})">Edit</button><button class="ts" style="color:var(--red)" onclick="delPoint(${si},${pi})">Delete</button></div>` : ""}</div></div>`; }
+function lectureBody() {
+  const { l, c, d, shared } = cur;
+  if (!d) {
+    const box = (mood, h, p, btn) => `<div class="card" style="padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">${sid(52, mood)}<div class="grow"><h3>${h}</h3><p class="muted" style="margin:8px 0 16px">${p}</p>${btn}</div></div>`;
+    if (l.status === "failed") return box("sad", "These notes could not be written", "Your recording is safe. Sid can try again from it.", `<button class="btn primary" onclick="retryNotes(false)">Try again</button>`);
+    if (l.status === "recording") return live.active && live.id === l.id
+      ? box("wow", "This lecture is being recorded", "The notes are written when you end the recording.", `<a class="btn primary" href="#/live">Return to the recording</a>`)
+      : box("plain", "This recording was not finished", "The page was closed before the recording ended. Sid can still write notes from the part that was saved.", `<button class="btn primary" onclick="${S.orphan && S.orphan.id === l.id ? "recoverOrphan()" : "retryNotes(true)"}">Make notes from what was saved</button>`);
+    if (CONFIG.USE_MOCK && l.status !== "processing") return box("plain", `<span data-notr>${esc(l.title)}</span>`, "The sample data has full notes for one lecture, ECON 1001 week 9. Every lecture uses this same page.", `<a class="btn primary" href="#/lecture/econ-w9">Open ECON 1001 week 9</a>`);
+    return box("wow", "Sid is still writing these notes", "This usually takes a minute or two after the lecture ends.", `<button class="btn primary" onclick="refreshLecture()">Check again</button>`);
+  }
+  const audio = hasAudio(); if (audio) plLoad(); else plStop();
+  /* How long a recording is kept depends on the student's plan. The backend may send audio.keptUntil (a date) or
+     audio.expired. Both notices link to the plans in Settings once the backend reports a plan-based limit (usage.audioDays). */
+  const au = !shared && d.audio, left = au && au.keptUntil && !au.expired ? daysLeft(au.keptUntil) : null;
+  const plans = S.usage && S.usage.audioDays ? `<a class="ts" href="#/settings">See plans</a>` : "";
+  const keep = au && au.expired ? `<div class="alert noprint"><span class="tag grey">Recording</span><span>The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.</span>${plans}</div>`
+    : left != null && left >= 0 && left <= 7 ? `<div class="alert noprint"><span class="tag amber">Recording</span><span>The recording of this lecture is kept until ${dayMon(au.keptUntil)}${left ? ", " + plural(left, "more day") : ", which is today"}. The notes stay after that.</span>${plans}</div>` : "";
+  const hasSlides = d.slides && d.slides.length;
+  const tabs = [["notes", "Notes"], ...(hasSlides ? [["slides", "Slides"]] : []), ["transcript", "Transcript"], ["cards", `Flashcards (${d.flashcards.length})`], ["quiz", `Quiz (${d.quiz.length})`]];
+  const tools = `<div class="tools"><label><input type="checkbox" ${state.onlyOff ? "checked" : ""} onchange="state.onlyOff=this.checked;render()"> Sidenotes only (said, but not on the slides)</label>
+        <label><input type="checkbox" ${state.zh ? "checked" : ""} onchange="state.zh=this.checked;render()"> 中文解釋</label>${zhPick(d)}${shared ? "" : `<label><input type="checkbox" ${state.edit ? "checked" : ""} onchange="state.edit=this.checked;render()"> Edit notes</label>`}</div>`;
+  let body = "";
+  if (state.tab === "notes") {
+    body = tools + d.alerts.map(a => `<div class="alert"><span class="tag amber">${esc(a.kind)}</span><span data-notr>${esc(a.text)}</span><button class="ts" onclick="jump(${+a.t})">${fmt(a.t)}</button></div>`).join("") + `<div style="height:10px"></div>` +
+      (d.sections.map((s, i) => { const pts = s.points.map((p, pi) => ({ p, pi })).filter(x => !state.onlyOff || x.p.off); if (!pts.length && !state.edit) return ""; return `<section class="card nsec" style="border-left:6px solid ${PALETTE[(i + 3) % 5]}"><h3><span data-notr>${esc(s.title)}</span>${s.slides ? `<span class="tag grey">${esc(s.slides)}</span>` : ""}</h3>${pts.map(x => ptHtml(x.p, i, x.pi)).join("")}${!shared && state.edit ? `<div class="pt-acts" style="margin-top:12px"><button class="btn plain sm" onclick="addPoint(${i})">Add a note</button></div>` : ""}</section>`; }).join("") || `<p class="muted">No sidenotes in this lecture.</p>`) + (shared ? "" : `<p class="small muted noprint" style="margin-top:18px">Something wrong in these notes? <button class="ts" style="font-size:inherit" onclick="feedbackModal()">Tell us</button></p>`);
+  } else if (state.tab === "slides") {
+    const by = {}; d.sections.forEach((s, si) => s.points.forEach((p, pi) => { if (p.slide != null && (!state.onlyOff || p.off)) (by[p.slide] = by[p.slide] || []).push({ p, si, pi }); }));
+    const rows = d.slides.filter(sl => by[sl.n]);
+    body = tools + `<div class="card" style="padding:4px 22px 10px">` + (rows.map(sl => `<div class="srow"><div class="thumb ${sl.image ? "" : "noimg"}">${sl.image ? `<img src="${esc(sl.image)}" alt="Slide ${esc(sl.n)}">` : `<span class="num">Slide ${esc(sl.n)}</span><b data-notr>${esc(sl.title)}</b>`}</div><div>${by[sl.n].map(x => ptHtml(x.p, x.si, x.pi)).join("")}</div></div>`).join("") || `<p class="muted" style="padding:18px 0">Nothing to show with this filter.</p>`) + `</div>
+      <p class="note-demo">Slides without anything said about them are hidden.</p>`;
+  } else if (state.tab === "transcript") {
+    body = `<input class="search" style="margin-bottom:12px;width:100%;max-width:340px" type="search" aria-label="Search the transcript" placeholder="Search the transcript" value="${esc(state.tq)}" oninput="state.tq=this.value;var el=document.getElementById('trList');el.innerHTML=trListHtml();tr(el)"><div class="card" style="padding:10px" id="trList">${trListHtml()}</div>`;
+  } else if (state.tab === "cards") {
+    const f = d.flashcards[state.fc];
+    body = f ? `<div class="fc"><div class="pips">${d.flashcards.map((_, i) => `<i class="${i === state.fc ? "c" : state.known.has(i) ? "k" : ""}"></i>`).join("")}</div>
+      <button class="flip ${state.flip ? "on" : ""}" onclick="state.flip=!state.flip;this.classList.toggle('on')" aria-label="Flip card"><span class="f" data-notr>${esc(f.q)}</span><span class="f b" data-notr>${esc(f.a)}</span></button>
+      <p class="small muted" style="margin-top:16px">Tap the card to flip it. ${state.known.size} of ${d.flashcards.length} marked as known.</p>
+      <div class="ctl"><button class="btn plain" onclick="card(-1)">Previous</button><button class="btn" onclick="know()">I know this</button><button class="btn primary" onclick="card(1)">Next</button></div><p class="keys">Arrow keys move between cards. Space flips.</p></div>` : `<p class="muted">No flashcards for this lecture.</p>`;
+  } else {
+    const order = state.order || d.quiz.map((_, i) => i), total = order.length;
+    if (!d.quiz.length) body = `<p class="muted">No quiz for this lecture.</p>`;
+    else if (state.done) { const all = state.score === total, good = state.score >= total * .6, miss = state.wrong.length;
+      body = `<div class="qz"><div class="result" style="background:${all ? "var(--yellow-soft)" : "#fff"}">${good ? confetti() : ""}${sid(72, good ? "smile" : "wow")}<h3 class="num" style="font-size:30px;margin-top:12px">${state.score} of ${total} correct</h3><p class="muted" style="margin:8px 0 20px">${all ? "Clean sheet. The midterm should be worried." : "Each wrong answer links back to the moment it was taught."}</p><div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">${miss ? `<button class="btn primary" onclick="retryMissed()">Retry the ${miss} you missed</button>` : ""}<button class="btn ${miss ? "" : "primary"}" onclick="restartQuiz()">Take the whole quiz again</button></div></div></div>`; }
+    else { const q = d.quiz[order[state.qi]];
+      body = `<div class="qz"><div class="pips" style="justify-content:flex-start">${order.map((_, i) => `<i class="${i === state.qi ? "c" : i < state.qi ? "k" : ""}"></i>`).join("")}</div><h3 style="font-size:21px;line-height:1.35" data-notr>${esc(q.q)}</h3>
+        ${q.opts.map((o, i) => `<button class="opt ${state.picked !== null ? (i === q.a ? "ok" : i === state.picked ? "no" : "") : ""}" ${state.picked !== null ? "disabled" : ""} onclick="pick(${i})" data-notr>${esc(o)}</button>`).join("")}
+        ${state.picked !== null ? `<div class="why">${sid(34, state.picked === q.a ? "smile" : "wow")}<div><b>${state.picked === q.a ? "Correct." : "Not quite."}</b> <span data-notr>${esc(q.why)}</span> ${q.t != null ? `<button class="ts" onclick="jump(${+q.t})">Said at ${fmt(q.t)}</button>` : ""}</div></div>
+          <div style="text-align:right;margin-top:16px"><button class="btn primary" onclick="nextQ()">${state.qi + 1 < total ? "Next question" : "See result"}</button></div>` : `<p class="keys">Keys 1 to ${q.opts.length} answer. Enter continues.</p>`}</div>`; }
+  }
+  return `
+    <div class="page-h" style="margin-bottom:10px"><div><h1 data-notr>${esc(l.title)}</h1><p class="muted num" style="margin-top:6px">${meta(l, c)}</p></div>
+      ${shared ? "" : `<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn plain" onclick="moreMenu()">More</button><button class="btn primary" onclick="share()">Share with class</button></div>`}</div>
+    ${keep}${timeline(d, l.duration, state.pos)}
+    <div id="tabtop"></div>
+    <div class="tabs" role="tablist">${tabs.map(([k, n]) => `<button role="tab" aria-selected="${state.tab === k}" class="${state.tab === k ? "on" : ""}" onclick="setTab('${k}')">${n}</button>`).join("")}</div>
+    ${body}${audio && ((state.tab !== "cards" && state.tab !== "quiz") || (pl.a && !pl.a.paused)) ? playerHtml() : ""}`;
+}
+function lecturePage(id) { const l = lecture(id); if (!l) return shell(problem("This lecture does not exist", "It may have been deleted."), "home"); const c = course(l.course);
+  cur = { l, c, d: S.detail[id], shared: false };
+  return shell(`<div class="crumb"><a href="#/home">Home</a>${c ? ` / <a href="#/course/${encodeURIComponent(c.id)}">${esc(c.code)}</a>` : ""}${l.week ? " / Week " + esc(l.week) : ""}</div>${lectureBody()}`, c && c.id); }
+function sharedPage(id) { const sh = S.shared[id]; cur = { l: sh.lecture, c: sh.course, d: sh.detail, shared: true };
+  return `<div class="shared-bar"><div class="wrap">${sid(22, "smile", "#fff")}<span>${esc(sh.sharedBy)} shared these notes with you. Read only.</span></div></div>
+    <div class="pub" style="background:var(--bg)"><nav class="pub-nav">${logo("#/")}<span class="sp"></span>${langBtn()}${S.token ? `<button class="btn sm" onclick="saveShared()">Save to my lectures</button>` : ""}<a class="btn primary sm desk" href="#/new">Record your own lecture</a></nav>
+    <div class="wrap" style="max-width:900px;padding-top:12px">${lectureBody()}</div>
+    <div class="sticky-cta"><div class="wrap" style="max-width:900px"><span><b style="color:var(--ink)">Is your course missing?</b> Record one class and the notes are ready when it ends.</span><a class="btn primary" href="#/new">Record your own lecture</a></div></div></div>`; }
+function refreshLecture() { delete S.detail[R.b]; route(); }
+function jump(t) { const list = cur.d.transcript; state.pos = t; state.tq = ""; plSeek(t);
+  if (list.length) { const seg = segAt(t) || list[0]; state.hit = seg.t; state.tab = "transcript"; render(); const el = document.getElementById("seg-" + seg.t); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); } else render(); }
+function progress() { if (!cur.shared) api.saveProgress(cur.l.id, { known: [...state.known], quizScore: state.done ? state.score : null }).catch(() => {}); }
+function card(d) { const n = cur.d.flashcards.length; state.fc = (state.fc + d + n) % n; state.flip = false; render(); }
+function know() { state.known.add(state.fc); progress(); card(1); }
+
+
+function copyLink() { const i = $("#shareUrl"); i.select(); const fb = () => { try { document.execCommand("copy"); } catch (_) {} }; try { navigator.clipboard.writeText(i.value).catch(fb); } catch (e) { fb(); } toast("Link copied"); }
+function renameModal() { modal(`<h3>Rename lecture</h3><form onsubmit="event.preventDefault();doRename(this)"><label class="field"><span>Title</span><input name="t" value="${esc(cur.l.title)}" required maxlength="120"></label>
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn plain" onclick="closeModal()">Cancel</button><button class="btn primary">Save title</button></div></form>`); }
+function doRename(f) { const t = f.t.value.trim(); if (!t) return; act(async () => { await api.renameLecture(cur.l.id, t); cur.l.title = t; closeModal(); toast("Title saved"); render(); }); }
+function deleteModal() { modal(`<h3>Delete this lecture?</h3><p class="muted">The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.</p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn plain" onclick="closeModal()">Keep lecture</button><button class="btn dark" onclick="doDelete()">Delete lecture</button></div>`); }
+function doDelete() { act(async () => { const id = cur.l.id, c = cur.c; await api.deleteLecture(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id]; closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
+
+/* ---------- recording playback ----------
+   Recordings are kept, so a lecture whose detail has audio.url gets a player, and every timestamp seeks it.
+   The audio object lives outside the page markup because render() rebuilds the page; the bar is repainted from it. */
+const pl = { a: null, id: null, url: null, rate: 1, drag: false, err: false, retried: false, pending: null, told: false };
+const RATES = [1, 1.25, 1.5, 2];
+const hasAudio = () => !!(cur && cur.d && cur.d.audio && !cur.d.audio.expired && (cur.d.audio.url || CONFIG.USE_MOCK) && (!cur.shared || CONFIG.SHARE_AUDIO));
+const plDur = () => (cur && cur.l.duration) || (pl.a && isFinite(pl.a.duration) && pl.a.duration) || 1;
+const segAt = t => { let r = null; for (const s of cur.d.transcript) { if (s.t <= t) r = s; else break; } return r; };   // the line being spoken at t
+const onScreen = el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; };
+/* Sample build only: a silent stand-in with the same controls as an audio element, so the player can be tried without a backend. */
+function silentClock(duration) {
+  const c = { currentTime: 0, duration: duration || 1, paused: true, playbackRate: 1, readyState: 4, timer: null,
+    play() { if (!c.paused) return; c.paused = false; let last = performance.now();
+      c.timer = setInterval(() => { const now = performance.now(); c.currentTime = Math.min(c.duration, c.currentTime + (now - last) / 1000 * c.playbackRate); last = now;
+        if (c.currentTime >= c.duration) c.pause(); if (c.ontimeupdate) c.ontimeupdate(); }, 250);
+      if (c.onplay) c.onplay(); },
+    pause() { if (c.paused) return; c.paused = true; clearInterval(c.timer); if (c.onpause) c.onpause(); } };
+  return c;
+}
+function plLoad() {
+  const id = R.a + ":" + R.b, url = cur.d.audio.url || null;
+  if (pl.a && pl.id === id && pl.url === url) return;
+  plStop();
+  const a = url ? new Audio() : silentClock(cur.l.duration);
+  Object.assign(pl, { a, id, url, err: false, retried: false, pending: null });
+  a.ontimeupdate = plTick; a.onplay = a.onpause = a.onended = plPaint;
+  a.onloadedmetadata = () => { if (pl.a === a && pl.pending != null) { a.currentTime = pl.pending; pl.pending = null; } };
+  a.onerror = () => plFail(a);
+  if (url) { a.preload = "metadata"; a.src = url; }
+  a.playbackRate = pl.rate;
+  if (state.pos) plSeek(state.pos);
+}
+function plStop() {
+  const a = pl.a; if (!a) return;
+  try { a.pause(); } catch (e) {}
+  a.ontimeupdate = a.onplay = a.onpause = a.onended = a.onerror = a.onloadedmetadata = null;
+  if (pl.url) { a.removeAttribute("src"); try { a.load(); } catch (e) {} }
+  Object.assign(pl, { a: null, id: null, url: null, pending: null, drag: false });
+}
+function plSeek(t) {
+  const a = pl.a; if (!a) return;
+  t = Math.max(0, Math.min(t, plDur()));
+  if (pl.url && a.readyState < 1) pl.pending = t; else { try { a.currentTime = t; } catch (e) { pl.pending = t; } }
+  plTick(t);
+}
+function plTick(at) {   // moves the bar, the timeline head and the highlighted transcript line without rebuilding the page
+  const a = pl.a; if (!a || !cur || !cur.d) return;
+  const t = typeof at === "number" ? at : pl.pending != null ? pl.pending : a.currentTime || 0, pct = Math.min(100, t / plDur() * 100);
+  state.pos = t;
+  const c = $("#pCur"), b = $("#pBar"), h = $(".tl .head");
+  if (!pl.drag) { if (c) c.textContent = fmt(t); if (b) { b.value = t; b.style.setProperty("--p", pct + "%"); } }
+  if (h) h.style.left = pct + "%";
+  document.querySelectorAll(".tl .seg").forEach((el, i) => { const s = cur.d.sections[i]; el.classList.toggle("on", !!s && t >= s.start && t < s.end); });
+  if (state.tab !== "transcript") return;
+  const seg = segAt(t); if (!seg || seg.t === state.hit) return;
+  const old = document.getElementById("seg-" + state.hit), el = document.getElementById("seg-" + seg.t), follow = !a.paused && (!old || onScreen(old));   // follow only while the reader is following
+  if (old) old.classList.remove("hit");
+  state.hit = seg.t;
+  if (el) { el.classList.add("hit"); if (follow) el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+}
+function plPaint() {
+  const p = $("#pPlay"), r = $("#pRate"), paused = !pl.a || pl.a.paused;
+  if (p) { p.innerHTML = paused ? ICON.play : ICON.pause; const lab = paused ? "Play recording" : "Pause recording"; p["__aria-label"] = lab; p.setAttribute("aria-label", trs(lab)); }
+  if (r) r.textContent = pl.rate + "×";
+}
+function plToggle() {
+  const a = pl.a; if (!a || pl.err) return;
+  if (!a.paused) return a.pause();
+  const p = a.play(); if (p && p.catch) p.catch(() => {});
+  if (!pl.url && !pl.told) { pl.told = true; toast("Sample build: playback is simulated, so there is no sound."); }
+  plMedia();
+}
+function plSkip(d) { if (pl.a) plSeek(state.pos + d); }
+function plRate() { pl.rate = RATES[(RATES.indexOf(pl.rate) + 1) % RATES.length]; if (pl.a) pl.a.playbackRate = pl.rate; plPaint(); }
+function plDrag(el) { pl.drag = true; const v = +el.value, c = $("#pCur"); el.style.setProperty("--p", v / plDur() * 100 + "%"); if (c) c.textContent = fmt(v); }
+function plDrop(el) { pl.drag = false; plSeek(+el.value); const line = state.tab === "transcript" && document.getElementById("seg-" + state.hit); if (line) line.scrollIntoView({ block: "center", behavior: "smooth" }); }
+async function plFail(a) {
+  if (pl.a !== a || pl.err) return;
+  const at = state.pos, was = !a.paused;
+  if (!pl.retried) { pl.retried = true;   // a signed link may have expired: ask for a fresh one once
+    try { const r = cur.shared ? await api.getShared(R.b) : await api.getLecture(R.b), u = r && r.detail && r.detail.audio && r.detail.audio.url;
+      if (pl.a !== a) return;
+      if (u) { cur.d.audio = r.detail.audio; pl.url = u; pl.pending = at; a.src = u; if (was) { const p = a.play(); if (p && p.catch) p.catch(() => {}); } return; }
+    } catch (e) { if (pl.a !== a) return; } }
+  pl.err = true; render(); toast("The recording could not be played.");
+}
+function plRetry() { const at = state.pos; plStop(); pl.err = false; state.pos = at; render(); }
+function plMedia() {   // lock screen and headphone controls on phones
+  try { const ms = navigator.mediaSession; if (!ms || !pl.url) return;
+    ms.metadata = new MediaMetadata({ title: cur.l.title, artist: (cur.c && cur.c.code) || "Sidenote", album: "Sidenote" });
+    ms.setActionHandler("play", () => { if (pl.a && pl.a.paused) plToggle(); });
+    ms.setActionHandler("pause", () => { if (pl.a && !pl.a.paused) plToggle(); });
+    ms.setActionHandler("seekbackward", () => plSkip(-15)); ms.setActionHandler("seekforward", () => plSkip(15)); } catch (e) {}
+}
+function playerHtml() {
+  if (pl.err) return `<div class="player off" role="group" aria-label="Recording of this lecture">The recording could not be played. <button class="ts" onclick="plRetry()">Try again</button></div>`;
+  const dur = plDur(), t = Math.min(state.pos, dur), paused = !pl.a || pl.a.paused;
+  return `<div class="player" role="group" aria-label="Recording of this lecture">
+    <button class="pp" id="pPlay" onclick="plToggle()" aria-label="${paused ? "Play recording" : "Pause recording"}">${paused ? ICON.play : ICON.pause}</button>
+    <div class="ptime num"><b id="pCur">${fmt(t)}</b> / ${fmt(dur)}</div>
+    <input class="pbar" id="pBar" type="range" min="0" max="${Math.max(1, Math.floor(dur))}" step="1" value="${Math.floor(t)}" style="--p:${t / dur * 100}%" aria-label="Position in the recording" oninput="plDrag(this)" onchange="plDrop(this)">
+    <button class="pb back num" onclick="plSkip(-15)" aria-label="Back 15 seconds">-15</button>
+    <button class="pb fwd num" onclick="plSkip(15)" aria-label="Forward 15 seconds">+15</button>
+    <button class="pb rate num" id="pRate" onclick="plRate()" aria-label="Playback speed">${pl.rate}×</button>
+  </div>`;
+}
+function setTab(k) {
+  state.tab = k; if (k === "transcript" && pl.a) { const s = segAt(state.pos); if (s) state.hit = s.t; }
+  render();
+  const top = $("#tabtop"), y = top ? top.getBoundingClientRect().top : 0; if (y < 0) window.scrollBy(0, y);   // the tabs stick on phones: start the new tab from its top
+}
+function afterRender() {   // keep the chosen tab in view when the tab row scrolls sideways
+  const t = $(".tabs"), on = t && t.querySelector(".on");
+  if (on) t.scrollLeft += on.getBoundingClientRect().left - t.getBoundingClientRect().left - (t.clientWidth - on.offsetWidth) / 2;
+}
+
+/* ---------- new lecture ---------- */
+const nf = { mode: "record", courseId: null, title: "", lang: null, file: null, slides: null, link: "", err: "", busy: false };
+const LANGS = [["en", "English"], ["en-yue", "English with Cantonese"], ["en-zh", "English with Mandarin"], ["auto", "Detect automatically"]];
+function fileBox(key, id, accept, emptyHtml) { const f = nf[key];
+  return `<input type="file" id="${id}" accept="${accept}" hidden onchange="pickFile('${key}',this)">` + (f ? `<div class="filechip"><span><b>${esc(f.name)}</b> <span class="muted num">${mb(f.size)}</span></span><button type="button" class="ts" onclick="nf.${key}=null;render()">Remove</button></div>` : `<div class="drop" ondragover="event.preventDefault()" ondrop="event.preventDefault();dropFile('${key}',event)">${emptyHtml}</div>`); }
+function pickFile(key, input) { setFile(key, input.files[0]); }
+function dropFile(key, e) { setFile(key, e.dataTransfer.files[0]); }
+function setFile(key, f) { if (!f) return; if (f.size > CONFIG.MAX_UPLOAD_MB * 1048576) { toast("That file is larger than " + CONFIG.MAX_UPLOAD_MB + " MB."); return; }
+  if (key === "slides" && !/pdf$/i.test(f.type || f.name)) { toast("Slides need to be a PDF."); return; } nf[key] = f; nf.err = ""; render(); }
+function newPage() {
+  const m = nf.mode; if (!nf.courseId || !course(nf.courseId)) nf.courseId = S.courses[0] ? S.courses[0].id : null; if (!nf.lang) nf.lang = S.settings.classLanguage || "en";
+  const u = S.usage;
+  return shell(`
+    <div class="crumb"><a href="#/home">Home</a> / New lecture</div>
+    <div class="page-h"><h1>New lecture</h1>${u ? `<span class="small muted num">${u.minutesToday} of ${u.minutesLimit} recording minutes used today</span>` : ""}</div>
+    ${live.active ? `<div class="alert"><span class="tag amber">Recording</span><span>A recording is already running. End it before starting another.</span><a class="ts" href="#/live">Return</a></div>` : ""}
+    <div class="choice" role="radiogroup" aria-label="How to add the lecture">
+      <button role="radio" aria-checked="${m === "record"}" class="${m === "record" ? "on" : ""}" onclick="nf.mode='record';nf.err='';render()"><b><span class="w">Record now</span><span class="n">Record</span></b><span class="small muted d">Use this device's microphone during class.</span></button>
+      <button role="radio" aria-checked="${m === "upload"}" class="${m === "upload" ? "on" : ""}" onclick="nf.mode='upload';nf.err='';render()"><b><span class="w">Upload a recording</span><span class="n">Upload</span></b><span class="small muted d">Audio or video file you already have.</span></button>
+      <button role="radio" aria-checked="${m === "link"}" class="${m === "link" ? "on" : ""}" onclick="nf.mode='link';nf.err='';render()"><b><span class="w">Paste a lecture video link</span><span class="n">Video link</span></b><span class="small muted d">For classes with an online replay.</span></button>
+      ${CAN_TAB ? `<button role="radio" aria-checked="${m === "tab"}" class="${m === "tab" ? "on" : ""}" onclick="nf.mode='tab';nf.err='';render()"><b><span class="w">Record an online class</span><span class="n">Online class</span></b><span class="small muted d">Capture the sound of a browser tab, such as Zoom in the browser. Desktop Chrome or Edge.</span></button>` : ""}
+    </div>
+    <form class="card" style="padding:22px;max-width:640px" onsubmit="event.preventDefault();submitNew()">
+      <label class="field"><span>Course</span><select onchange="if(this.value==='__add'){this.value=nf.courseId||'';addCourseModal()}else nf.courseId=this.value">${S.courses.map(c => `<option value="${esc(c.id)}" ${c.id === nf.courseId ? "selected" : ""}>${esc(c.code)}${c.name ? ", " + esc(c.name) : ""}</option>`).join("")}<option value="__add">Add a course</option></select></label>
+      <label class="field"><span>Title (optional)</span><input placeholder="Week 10, supply and demand" maxlength="120" value="${esc(nf.title)}" oninput="nf.title=this.value"></label>
+      ${m === "upload" ? `<div class="field"><span>Recording</span>${fileBox("file", "fRec", "audio/*,video/*", `Drop an audio or video file here, or <button type="button" class="ts" style="font-size:inherit" onclick="document.getElementById('fRec').click()">choose a file</button><div class="small">MP3, M4A, WAV, MP4. Up to ${CONFIG.MAX_UPLOAD_MB} MB.</div>`)}</div>` : ""}
+      ${m === "link" ? `<label class="field"><span>Video link</span><input type="url" placeholder="https://" value="${esc(nf.link)}" oninput="nf.link=this.value"></label>` : ""}
+      <div class="field"><span>Slides (optional)</span>${fileBox("slides", "fSl", "application/pdf,.pdf", `Add the slide deck as a PDF and the notes will stick to each slide. <button type="button" class="ts" style="font-size:inherit" onclick="document.getElementById('fSl').click()">Choose a PDF</button>`)}</div>
+      <label class="field"><span>Language spoken in class</span><select onchange="nf.lang=this.value">${LANGS.map(([v, n]) => `<option value="${v}" ${v === nf.lang ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      ${nf.err ? `<p class="err" role="alert">${esc(nf.err)}</p>` : ""}
+      <button class="btn blue" ${nf.busy || ((m === "record" || m === "tab") && live.active) ? "disabled" : ""}>${m === "record" || m === "tab" ? "Start recording" : "Make notes"}</button>
+      ${m === "record" ? `<p class="small muted" style="margin-top:14px">Your browser will ask to use the microphone. On a laptop, recording continues while you use other tabs. On an iPhone, keep this page open and the screen on.</p>` : ""}
+      ${m === "tab" ? `<p class="small muted" style="margin-top:14px">Your browser will ask what to share. Choose the tab that is playing the class and turn on the option to share tab audio. Only the sound is recorded.</p>` : ""}
+    </form>`, "new");
+}
+function submitNew() {
+  if (!nf.courseId) { nf.err = "Add a course first."; return render(); }
+  if (nf.mode === "upload" && !nf.file) { nf.err = "Choose the recording to upload."; return render(); }
+  if (nf.mode === "link" && !/^https?:\/\/\S+\.\S+/.test(nf.link.trim())) { nf.err = "Paste the full link, starting with https://"; return render(); }
+  const recMode = nf.mode === "record" || nf.mode === "tab";
+  if (recMode && S.usage && S.usage.minutesToday >= S.usage.minutesLimit) { nf.err = "You have used today's recording minutes. Upload a recording instead, or come back tomorrow."; return render(); }
+  if (recMode && !store.get("recTip")) return recTipModal();
+  nf.err = ""; nf.busy = true;
+  const done = () => { Object.assign(nf, { title: "", file: null, slides: null, link: "", busy: false }); };
+  act(async () => {
+    try {
+      const lec = await api.createLecture({ courseId: nf.courseId, title: nf.title.trim(), language: nf.lang, source: nf.mode });
+      if (recMode) { const code = course(nf.courseId).code; if (nf.slides) api.uploadSlides(lec.id, nf.slides).catch(() => toast("Slides did not upload. The notes will be made without them.")); await beginRecording(lec, code, nf.mode); done(); location.hash = "#/live"; return; }
+      busy("Uploading", "Keep this page open until the upload finishes.");
+      if (nf.mode === "upload") await api.uploadRecording(lec.id, nf.file); else await api.attachLink(lec.id, nf.link.trim());
+      if (nf.slides) await api.uploadSlides(lec.id, nf.slides);
+      done(); await finalize(lec.id, 0);
+    } finally { nf.busy = false; }
+  });
+}
+
+/* ---------- recording ---------- */
+const live = { id: null, courseCode: "", sec: 0, acc: 0, paused: false, held: false, segs: [], alert: null, recap: null, recapBusy: false, mic: "off", micNote: "", netNote: "", active: false, offline: false };
+const rec = { full: null, stream: null, mr: null, seq: 0, wake: null, ctx: null, an: null, tick: null, feed: null, lvl: null, last: 0, beat: 0, stopped: null, hiddenAt: 0 };
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+async function keepAwake() { try { rec.wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
+function micLost() { if (!live.active || live.mic !== "on") return; live.mic = "lost"; live.micNote = "The microphone stopped. End the recording to keep what you have so far."; if (R.a === "live") render(); else toast(live.micNote); }
+async function beginRecording(lec, courseCode, source) {
+  Object.assign(live, { id: lec.id, courseCode, sec: 0, acc: 0, paused: false, held: false, segs: [], alert: null, recap: null, mic: "off", micNote: "", netNote: "", offline: false, active: true }); rec.seq = 0;
+  try {
+    if (!navigator.mediaDevices || !window.MediaRecorder) throw Object.assign(new Error(), { name: "NotSupportedError" });
+    rec.stream = source === "tab" ? await tabStream() : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
+    try { rec.mr = new MediaRecorder(rec.stream, { audioBitsPerSecond: CONFIG.AUDIO_KBPS * 1000 }); } catch (e) { rec.mr = new MediaRecorder(rec.stream); }
+    rec.mr.ondataavailable = e => { if (e.data && e.data.size && !dropped.has(lec.id)) { const c = { key: lec.id + ":" + String(rec.seq).padStart(6, "0"), id: lec.id, seq: rec.seq++, blob: e.data, sec: live.sec, code: courseCode }; outbox.push(c); idb.put(c); flush(); } };
+    rec.stopped = new Promise(done => { rec.mr.onstop = done; });   // fires after the last piece of audio has been handed over
+    rec.mr.onerror = micLost; if (source !== "tab") rec.stream.getAudioTracks().forEach(t => { t.onended = micLost; });   // a shared tab ends the recording itself, see tabStream()
+    rec.mr.start(CONFIG.CHUNK_SECONDS * 1000); live.mic = "on";
+    try { const AC = window.AudioContext || window.webkitAudioContext; rec.ctx = new AC(); rec.an = rec.ctx.createAnalyser(); rec.an.fftSize = 512; rec.ctx.createMediaStreamSource(rec.stream).connect(rec.an);
+      const buf = new Uint8Array(rec.an.fftSize); rec.lvl = setInterval(() => { rec.an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) s += (v - 128) * (v - 128); const el = document.getElementById("lvl"); if (el) el.style.width = Math.min(100, Math.sqrt(s / buf.length) * 6) + "%"; }, 120); } catch (e) {}
+    await keepAwake();
+  } catch (e) {
+    live.mic = "none";
+    live.micNote = source === "tab" ? (e.name === "NoAudioError" ? "No sound was shared. Start again, choose a browser tab and turn on the option to share tab audio." : e.name === "NotSupportedError" ? "This browser cannot record a tab. Use Chrome or Edge on a computer." : "Nothing was shared, so there is no sound to record.") : e.name === "NotAllowedError" ? "Microphone access was blocked. Allow it in the browser's site settings, then start again." : e.name === "NotFoundError" ? "No microphone was found on this device." : "This browser cannot record here.";
+    if (!CONFIG.USE_MOCK) { live.active = false; live.id = null; api.deleteLecture(lec.id).catch(() => {}); throw new Error(live.micNote); }
+  }
+  /* The clock adds up real elapsed time, so it stays right when the browser slows timers in a background tab.
+     mark() runs every five seconds, paused or not: it is the heartbeat that tells other tabs this recording is alive. */
+  mark(); rec.last = rec.beat = performance.now();
+  rec.tick = setInterval(() => { const now = performance.now(), dt = (now - rec.last) / 1000; rec.last = now;
+    if (now - rec.beat >= 5000) { rec.beat = now; mark(); }
+    if (live.paused || live.held) return;
+    live.acc += dt; const s = Math.floor(live.acc); if (s !== live.sec) { live.sec = s; document.querySelectorAll(".clk").forEach(el => el.textContent = fmt(s)); } }, 250);
+  /* Sample build only: feed the sample transcript so the screen has content. */
+  if (CONFIG.USE_MOCK) rec.feed = setInterval(() => { if (live.paused) return; const s = DATA.detail.transcript[DATA.feed]; if (!s) return; DATA.feed++; applyChunk({ segments: [s], alerts: DATA.detail.alerts.filter(a => a.t === s.t) }, lec.id); }, 3000);
+}
+/* Phones. The screen lock is released whenever the page is hidden, so it is asked for again on return. iOS also stops
+   the microphone while Sidenote is in the background: the clock waits, and the student is told how much was missed. */
+document.addEventListener("visibilitychange", () => {
+  if (!live.active) return;
+  if (document.hidden) { rec.hiddenAt = Date.now(); if (IOS) live.held = true; return; }
+  keepAwake();
+  if (!live.held) return;
+  live.held = false; rec.last = performance.now();
+  if (rec.stream && rec.stream.getAudioTracks().some(t => t.readyState === "ended")) return micLost();
+  const gap = Math.round((Date.now() - rec.hiddenAt) / 1000);
+  if (gap >= 3 && live.mic === "on") { live.micNote = "Recording stopped for about " + (gap < 90 ? gap + " seconds" : mins(gap)) + " while Sidenote was in the background. Keep this page open with the screen on."; if (R.a === "live") render(); else toast(live.micNote); }
+});
+/* Audio waiting to be sent. Chunks go in order; a failed send stays queued and is retried when the connection returns.
+   Each chunk is also kept in IndexedDB until the server has it, so a closed tab does not lose it (see findOrphan). */
+const outbox = [], dropped = new Set(); let flushJob = null;
+function flush() { if (!flushJob) flushJob = sendAll().finally(() => { flushJob = null; }); return flushJob; }   // resolves true once nothing is left to send; callers share one run
+async function sendAll() {
+  while (outbox.length) { const c = outbox[0];
+    if (!dropped.has(c.id)) {
+      try { applyChunk(await api.uploadChunk(c.id, c.blob, c.seq), c.id); setOffline(false); }
+      catch (e) { if (e.status === 404 || e.status === 410) dropped.add(c.id);   // the lecture is gone on the server: stop sending its audio
+        else { setOffline(true, e); return false; } } }
+    const i = outbox.indexOf(c); if (i >= 0) outbox.splice(i, 1); if (c.key) idb.del(c.key); }
+  return true;
+}
+function setOffline(off, e) {
+  if (off === live.offline) return; live.offline = off;
+  live.netNote = !off ? "" : e && e.status ? "Sidenote could not save the audio just now. Recording continues and it will keep trying. Keep this page open."
+    : "Connection lost. Recording continues and the audio will be sent when you are back online. Keep this page open.";
+  if (live.active && R.a === "live") render();
+}
+window.addEventListener("online", flush); setInterval(() => { if (outbox.length) flush(); }, 10000);
+function applyChunk(res, id) { if (!res || !live.active || id !== live.id) return; if (res.segments) live.segs.push(...res.segments); if (res.alerts && res.alerts.length) live.alert = res.alerts[res.alerts.length - 1];
+  if (R.a !== "live") return; const st = $("#stream"); if (st) { st.innerHTML = streamHtml(); st.scrollTop = st.scrollHeight; } const al = $("#liveAlert"); if (al) { al.innerHTML = alertHtml(); tr(al); } }
+function togglePause() { live.paused = !live.paused; try { if (rec.mr && rec.mr.state !== "inactive") live.paused ? rec.mr.pause() : rec.mr.resume(); } catch (e) {} render(); }
+function stopRecording() {   // resolves once the recorder has handed over its last piece of audio
+  const mr = rec.mr, running = mr && mr.state !== "inactive", done = running ? Promise.race([rec.stopped, wait(3000)]) : Promise.resolve();
+  if (rec.stream) rec.stream.getAudioTracks().forEach(t => { t.onended = null; });
+  try { if (running) mr.stop(); } catch (e) {} if (rec.stream) rec.stream.getTracks().forEach(t => t.stop()); if (rec.full) rec.full.getTracks().forEach(t => t.stop());
+  [rec.tick, rec.feed, rec.lvl].forEach(i => i && clearInterval(i)); try { rec.wake && rec.wake.release(); } catch (e) {} try { rec.ctx && rec.ctx.close(); } catch (e) {}
+  Object.assign(rec, { full: null, stream: null, mr: null, wake: null, ctx: null, an: null, tick: null, feed: null, lvl: null });
+  return done;
+}
+function endLive() { const id = live.id, dur = live.sec, stopped = stopRecording(); live.active = false; finishAfterUpload(id, dur, stopped); }
+function finishAfterUpload(id, dur, stopped) { act(async () => { busy("Sending the last of the audio", "Keep this page open."); await stopped;
+  if (!(await flush())) { modal(`<div style="text-align:center">${sid(56, "sad")}<h3 style="margin-top:12px">Waiting for a connection</h3><p class="muted">The end of your recording has not been sent yet. Keep this page open and try again in a moment.</p><button class="btn primary" style="margin-top:16px" onclick="finishAfterUpload('${esc(id)}',${+dur})">Try again</button></div>`, true); return; }
+  await finalize(id, dur); }); }
+function discardModal() { modal(`<h3>Discard this recording?</h3><p class="muted">Nothing recorded so far will be kept.</p><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn plain" onclick="closeModal()">Keep recording</button><button class="btn dark" onclick="doDiscard()">Discard recording</button></div>`); }
+function doDiscard() { const id = live.id; dropped.add(id); stopRecording(); outbox.forEach(c => { if (c.id === id && c.key) idb.del(c.key); }); unmark(); live.active = false; live.id = null; flush(); api.deleteLecture(id).catch(() => {}); closeModal(); toast("Recording discarded"); location.hash = "#/home"; }
+async function pollNotes(id) { let st = { status: "processing" };
+  for (let i = 0; i < 100 && st.status === "processing"; i++) { st = await api.getStatus(id); if (st.status === "processing") await wait(CONFIG.POLL_MS); }
+  return st.status; }
+async function afterNotes(id, status) {
+  if (live.id === id) live.id = null; if (S.orphan && S.orphan.id === id) S.orphan = null; S.homeLoaded = false; delete S.detail[id]; closeModal();
+  toast(status === "failed" ? "The notes could not be written. You can try again from the lecture." : status === "processing" ? "Still working. The notes will appear in the lecture when ready." : "Notes are ready");
+  const h = "#/lecture/" + encodeURIComponent(id); if (location.hash === h) route(); else location.hash = h;
+}
+async function finalize(id, duration) {
+  busy("Sid is writing your notes", "Transcribing, sticking points to slides, and writing flashcards and a quiz. This usually takes a minute or two.");
+  await api.finishLecture(id, duration); if (!live.active) unmark();
+  await afterNotes(id, await pollNotes(id));
+}
+/* The recording is kept, so notes can be written again after a failure, or from a recording whose page was closed before it ended. */
+function retryNotes(unfinished) { const id = cur.l.id; act(async () => { busy("Sid is writing your notes", "This usually takes a minute or two.");
+  if (unfinished) await api.finishLecture(id, 0); else await api.retryLecture(id);
+  await afterNotes(id, await pollNotes(id)); }); }
+function streamHtml() { return live.segs.length ? live.segs.map(s => `<div class="seg-line"><span class="ts">${fmt(s.t)}</span><div data-notr>${esc(s.text)}</div></div>`).join("") : `<p class="muted" style="padding:14px">Text appears about half a minute after the lecturer starts speaking.</p>`; }
+function alertHtml() { return live.alert ? `<div class="alert" style="margin-top:16px" role="alert"><span class="tag amber">${esc(live.alert.kind)}</span><span data-notr>${esc(live.alert.text)}</span><button class="ts" onclick="live.alert=null;render()">Dismiss</button></div>` : ""; }
+function livePage() {
+  return shell(`
+    <div class="crumb"><a href="#/home">Home</a> / Recording</div>
+    <div class="live-top ${live.paused ? "paused" : ""}"><span class="dot" aria-hidden="true"></span><span class="clock clk num" aria-label="Recording time">${fmt(live.sec)}</span>
+      <div><div class="muted">${live.paused ? "Paused" : "Recording"} ${esc(live.courseCode)}</div>${live.mic === "on" ? `<div class="lvl" title="Microphone level"><b id="lvl"></b></div>` : ""}</div><button class="ts discard-m" onclick="discardModal()">Discard</button><span style="flex:1"></span>
+      <div class="live-actions"><button class="btn plain discard" onclick="discardModal()">Discard</button><button class="btn plain" onclick="togglePause()">${live.paused ? "Resume" : "Pause"}</button>
+      <button class="btn dark" onclick="endLive()">End and make notes</button></div></div>
+    ${live.micNote ? `<div class="alert" style="margin-top:14px"><span class="tag amber">Microphone</span><span>${esc(live.micNote)}${live.mic === "none" && CONFIG.USE_MOCK ? " The sample transcript below still plays so you can see the screen." : ""}</span></div>` : ""}
+    ${live.netNote ? `<div class="alert" style="margin-top:14px"><span class="tag amber">Connection</span><span>${esc(live.netNote)}</span></div>` : ""}
+    <div id="liveAlert">${alertHtml()}</div>
+    <div class="live-grid">
+      <div><h2 style="font-size:17px;margin-bottom:8px">Live transcript</h2>
+        <div class="card stream" id="stream">${streamHtml()}</div>
+        ${CONFIG.USE_MOCK ? `<p class="note-demo">Sample build: this transcript is sample text. The microphone is ${live.mic === "on" ? "really recording, and audio is handed to the upload function every " + CONFIG.CHUNK_SECONDS + " seconds" : "not recording"}.</p>` : ""}</div>
+      <div class="catch"><div style="display:flex;gap:12px;align-items:center">${sid(40, "wow")}<h2 style="font-size:19px">Lost the thread?</h2></div><p class="small" style="margin:8px 0 16px">Sid sums up the last five minutes so you can rejoin the class.</p>
+        <button class="btn blue" onclick="recap()" ${live.recapBusy ? "disabled" : ""}>${live.recapBusy ? "Reading back" : "Catch me up"}</button>
+        ${live.recap ? `<div class="recap" style="margin-top:16px;padding-top:14px;border-top:2px solid var(--ink)"><b style="color:var(--ink)">The last five minutes</b><ul style="padding-left:18px;margin:8px 0 0">${live.recap.map(r => `<li style="margin-bottom:6px" data-notr>${esc(r)}</li>`).join("")}</ul></div>` : ""}</div>
+    </div>`, "new");
+}
+async function recap() { live.recapBusy = true; render(); try { const r = await api.catchUp(live.id, live.segs.map(s => s.t)); live.recap = r.points; } catch (e) { toast(e.message); } live.recapBusy = false; if (R.a === "live") render(); }
+window.addEventListener("beforeunload", e => { if (live.active) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ---------- settings ---------- */
+function settingsPage() {
+  const u = S.usage, s = S.settings;
+  return shell(`
+    <div class="crumb"><a href="#/home">Home</a> / Settings</div>
+    <div class="page-h"><h1>Settings</h1></div>
+    <form class="card" style="padding:22px;max-width:640px;margin-bottom:18px" onsubmit="event.preventDefault();saveSettings(this)">
+      <h2 style="font-size:18px;margin-bottom:14px">You</h2>
+      <label class="field"><span>Name</span><input name="name" value="${esc(S.user.name)}" maxlength="40" required></label>
+      <label class="field"><span>Language usually spoken in class</span><select name="lang">${LANGS.map(([v, n]) => `<option value="${v}" ${v === s.classLanguage ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      <label style="display:flex;gap:9px;align-items:center;margin-bottom:18px;font-weight:600;cursor:pointer"><input type="checkbox" name="zh" ${s.zhDefault ? "checked" : ""}> Show 中文解釋 under each point by default</label>
+      <label class="field"><span>Show 中文解釋 in</span><select name="zs" data-notr><option value="hant" ${zhScript() === "hans" ? "" : "selected"}>繁體中文</option><option value="hans" ${zhScript() === "hans" ? "selected" : ""}>简体中文</option></select></label>
+      <label class="field"><span>Interface language</span><select onchange="setLang(this.value)" data-notr><option value="en" ${LANG === "en" ? "selected" : ""}>English</option><option value="zh" ${LANG === "zh" ? "selected" : ""}>繁體中文</option></select></label>
+      <button class="btn primary">Save settings</button></form>
+    <div class="card" style="padding:22px;max-width:640px;margin-bottom:18px">
+      <h2 style="font-size:18px;margin-bottom:10px">Plan and usage</h2>
+      ${u ? `<p class="num" style="margin-bottom:8px">${u.minutesToday} of ${u.minutesLimit} recording minutes used today</p><div class="ubar"><b style="width:${Math.min(100, u.minutesToday / u.minutesLimit * 100)}%"></b></div>` : ""}
+      ${u && u.audioDays ? `<p class="small muted" style="margin-top:10px">Recordings are kept for ${plural(+u.audioDays, "day")} on your plan.</p>` : ""}
+      ${plansHtml()}</div>
+    <div class="card" style="padding:22px;max-width:640px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <div><h2 style="font-size:18px">Sign out</h2><p class="small muted">This device will no longer remember you.</p></div><button class="btn plain" onclick="signOut()">Sign out</button></div>`, "settings");
+}
+function saveSettings(f) { act(async () => { const p = { name: f.name.value.trim(), classLanguage: f.lang.value, zhDefault: f.zh.checked, zhScript: f.zs.value }; await api.updateSettings(p); S.user.name = p.name; S.settings = { classLanguage: p.classLanguage, zhDefault: p.zhDefault, zhScript: p.zhScript }; store.set("zhScript", p.zhScript); nf.lang = p.classLanguage; session.save(); toast("Settings saved"); render(); }); }
+
+/* ---------- small things kept on this device ---------- */
+const mem = {};
+const store = {
+  get(k) { try { const v = localStorage.getItem("sidenote." + k); return v === null ? mem[k] : v; } catch (e) { return mem[k]; } },
+  set(k, v) { mem[k] = v; try { localStorage.setItem("sidenote." + k, v); } catch (e) {} },
+  del(k) { delete mem[k]; try { localStorage.removeItem("sidenote." + k); } catch (e) {} }
+};
+/* Recorded audio that has not been sent yet is also written here, so it survives a closed tab. */
+const idb = { db: null,
+  open() { return new Promise(res => { try { const r = indexedDB.open("sidenote", 1); r.onupgradeneeded = () => r.result.createObjectStore("chunks", { keyPath: "key" }); r.onsuccess = () => { idb.db = r.result; res(true); }; r.onerror = () => res(false); r.onblocked = () => res(false); } catch (e) { res(false); } }); },
+  tx(mode, fn) { return new Promise(res => { if (!idb.db) return res(null); try { const t = idb.db.transaction("chunks", mode), rq = fn(t.objectStore("chunks")); t.oncomplete = () => res(rq ? rq.result : null); t.onerror = () => res(null); t.onabort = () => res(null); } catch (e) { res(null); } }); },
+  put(c) { return idb.tx("readwrite", s => s.put(c)); }, del(key) { return idb.tx("readwrite", s => s.delete(key)); }, all() { return idb.tx("readonly", s => s.getAll()); }
+};
+function mark() { store.set("live", JSON.stringify({ id: live.id, code: live.courseCode, sec: live.sec, at: Date.now() })); }   // at = heartbeat while the recording runs
+function unmark() { store.del("live"); }
+/* A freshly opened tab asks the others whether one of them is recording right now. Message events are not slowed
+   down in background tabs the way timers are, so the answer arrives at once. */
+const recChan = (() => { try { const c = new BroadcastChannel("sidenote-rec"); c.addEventListener("message", e => { if (e.data === "ping" && live.active) c.postMessage("alive:" + live.id); }); return c; } catch (e) { return null; } })();
+function recordingElsewhere(m) { return new Promise(res => {
+  if (!recChan) return res(m && m.at && Date.now() - m.at < 90000 ? m.id : null);   // no channel in this browser: trust a recent heartbeat instead
+  const done = id => { recChan.removeEventListener("message", on); res(id); }, on = e => { if (String(e.data).indexOf("alive:") === 0) done(String(e.data).slice(6)); };
+  recChan.addEventListener("message", on); recChan.postMessage("ping"); setTimeout(() => done(null), 400); }); }
+async function findOrphan() { let m = null; try { m = JSON.parse(store.get("live") || "null"); } catch (e) {}
+  let all = (await idb.all()) || []; if (!m && !all.length) return;
+  const busyId = live.active ? live.id : await recordingElsewhere(m);   // a recording that is running right now, here or in another tab, is not an interrupted one
+  if (busyId) { all = all.filter(c => c.id !== busyId); if (m && m.id === busyId) m = null; if (!m && !all.length) return; }
+  const id = m ? m.id : all[0].id, chunks = all.filter(c => c.id === id).sort((a, b) => a.seq - b.seq);
+  S.orphan = { id, code: m ? m.code : (chunks[0] && chunks[0].code) || "", sec: Math.max(m ? m.sec : 0, ...chunks.map(c => c.sec || 0)), chunks }; }
+function orphanHtml() { const o = S.orphan; if (!o || live.active) return "";
+  return `<div class="alert" style="align-items:center;flex-wrap:wrap"><span class="tag amber">Unfinished</span><span>A recording${o.code ? " of " + esc(o.code) : ""} was interrupted at ${fmt(o.sec)}, before its notes were made.</span><span style="margin-left:auto;display:flex;gap:14px"><button class="ts" onclick="recoverOrphan()">Make notes from it</button><button class="ts" style="color:var(--red)" onclick="dropOrphan()">Discard it</button></span></div>`; }
+function recoverOrphan() { const o = S.orphan; S.orphan = null; o.chunks.forEach(c => outbox.push(c)); render(); finishAfterUpload(o.id, o.sec); }
+async function dropOrphan() { const o = S.orphan; S.orphan = null; unmark(); for (const c of o.chunks) await idb.del(c.key); api.deleteLecture(o.id).catch(() => {}); toast("Recording discarded"); render(); }
+
+/* ---------- online class: record the sound of a browser tab ---------- */
+const CAN_TAB = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);   // phones cannot share a tab
+async function tabStream() {
+  if (!navigator.mediaDevices.getDisplayMedia) throw Object.assign(new Error(), { name: "NotSupportedError" });
+  const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }), a = s.getAudioTracks();
+  if (!a.length) { s.getTracks().forEach(t => t.stop()); throw Object.assign(new Error(), { name: "NoAudioError" }); }
+  rec.full = s; a[0].onended = () => { if (live.active) { toast("Sharing stopped, so the recording has ended."); endLive(); } };
+  return new MediaStream(a);
+}
+function recTipModal() { modal(`<div style="display:flex;gap:12px;align-items:center">${sid(44, "smile")}<h3 style="margin:0">Before you record</h3></div>
+  <ul style="padding-left:20px;margin:14px 0"><li>Check that recording is allowed in this class. Ask the lecturer if you are not sure.</li><li>Sit where you can hear the lecturer clearly.</li><li>On a phone, keep this page open and the screen on.</li></ul>
+  <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn plain" onclick="closeModal()">Not now</button><button class="btn primary" onclick="store.set('recTip','1');closeModal();submitNew()">Start recording</button></div>`); }
+
+/* ---------- downloads made in the browser ---------- */
+function download(name, text, type) { const a = document.createElement("a"), url = URL.createObjectURL(new Blob([text], { type: type + ";charset=utf-8" })); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); toast("Downloaded " + name); }
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9一-鿿]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "lecture";
+const oneLine = s => String(s).replace(/\s+/g, " ").trim();
+function notesMarkdown() { const { l, c, d } = cur; let o = "# " + l.title + "\n\n" + [c && c.code, l.date].filter(Boolean).join(", ") + "\n";
+  if (d.alerts.length) o += "\n## Dates and exam hints\n\n" + d.alerts.map(a => "- **" + a.kind + "** (" + fmt(a.t) + "): " + a.text).join("\n") + "\n";
+  d.sections.forEach(s => { o += "\n## " + s.title + (s.slides ? " (" + s.slides + ")" : "") + "\n\n" + s.points.map(p => "- " + (p.t != null ? "[" + fmt(p.t) + "] " : "") + (p.off ? "**Sidenote:** " : "") + p.text + (zhText(p) ? "\n  - " + zhText(p) : "")).join("\n") + "\n"; });
+  return o; }
+function moreMenu() { const au = cur.d && cur.d.audio; modal(`<h3 data-notr>${esc(cur.l.title)}</h3>${au && au.keptUntil && !au.expired ? `<p class="small muted" style="margin-top:6px">Recording kept until ${dayMon(au.keptUntil)}.</p>` : ""}
+    <div style="display:grid;gap:8px;margin-top:14px"><button class="btn plain" onclick="doExport('pdf')">Print or save notes as PDF</button><button class="btn plain" onclick="doExport('md')">Download notes as Markdown</button><button class="btn plain" onclick="doExport('anki')">Download flashcards for Anki</button><button class="btn plain" onclick="doExport('txt')">Download transcript as text</button>${cur.d && cur.d.audio && cur.d.audio.url ? `<a class="btn plain" href="${esc(cur.d.audio.url)}" download>Download recording</a>` : ""}
+    <button class="btn plain" onclick="renameModal()">Rename</button><button class="btn plain" style="color:var(--red)" onclick="deleteModal()">Delete lecture</button></div>`); }
+function doExport(f) { const { l, c, d } = cur, base = slug((c ? c.code + " " : "") + l.title); closeModal();
+  if (f === "pdf") { Object.assign(state, { tab: "notes", onlyOff: false, edit: false }); render(); setTimeout(() => window.print(), 200); return; }
+  if (f === "anki") return download(base + "-flashcards.txt", d.flashcards.map(x => oneLine(x.q) + "\t" + oneLine(x.a)).join("\n"), "text/plain");
+  if (f === "txt") return download(base + "-transcript.txt", d.transcript.map(s => "[" + fmt(s.t) + "] " + s.text).join("\n\n"), "text/plain");
+  download(base + "-notes.md", notesMarkdown(), "text/markdown"); }
+function addToCalendar(i) { const u = S._up[i], d = u.date.replace(/-/g, ""), next = new Date(new Date(u.date).getTime() + 864e5).toISOString().slice(0, 10).replace(/-/g, ""), e = s => String(s).replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+  download(slug(u.course + " " + u.kind) + ".ics", ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Sidenote//EN", "BEGIN:VEVENT", "UID:" + u.lecture + "-" + u.t + "@sidenote", "DTSTAMP:" + new Date().toISOString().replace(/[-:]|\.\d+/g, ""), "DTSTART;VALUE=DATE:" + d, "DTEND;VALUE=DATE:" + next, "SUMMARY:" + e(u.course + " " + u.kind), "DESCRIPTION:" + e(u.text), "END:VEVENT", "END:VCALENDAR"].join("\r\n"), "text/calendar"); }
+
+/* ---------- sharing ---------- */
+function share() { act(async () => { const l = cur.l; if (!l.shareUrl) { const r = await api.createShareLink(l.id); l.shareUrl = r.url; }
+  modal(`<h3>Share with your class</h3><p class="muted">Anyone with the link can read the notes, transcript, flashcards and quiz${CONFIG.SHARE_AUDIO ? ", and play the recording" : ". The recording stays private"}. They cannot see your other lectures.</p>
+    <div class="copy"><input id="shareUrl" readonly value="${esc(l.shareUrl)}" aria-label="Share link"><button class="btn primary sm" onclick="copyLink()">Copy link</button></div>
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><a class="btn plain" href="${esc(l.shareUrl)}">Preview shared page</a><button class="btn plain" style="color:var(--red)" onclick="stopSharing()">Stop sharing</button></div>`); }); }
+function stopSharing() { act(async () => { await api.revokeShareLink(cur.l.id); cur.l.shareUrl = null; delete S.shared[cur.l.id]; closeModal(); toast("Sharing stopped. The old link no longer works."); }); }
+function saveShared() { act(async () => { const l = await api.saveShared(R.b); S.homeLoaded = false; toast("Saved to your lectures"); location.hash = "#/lecture/" + encodeURIComponent(l.id); }); }
+
+/* ---------- editing notes ---------- */
+let editing = null;
+function pointModal(title, text, fn) { modal(`<h3>${title}</h3><form onsubmit="event.preventDefault();${fn}(this.t.value)"><label class="field"><span>Note</span><textarea name="t" rows="4" required maxlength="600" data-notr>${esc(text)}</textarea></label>
+  <div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn plain" onclick="closeModal()">Cancel</button><button class="btn primary">Save note</button></div></form>`); }
+function editPoint(si, pi) { editing = { si, pi }; pointModal("Edit note", cur.d.sections[si].points[pi].text, "saveEdit"); }
+function saveEdit(text) { text = text.trim(); if (!text) return; const { si, pi } = editing; act(async () => { await api.updatePoint(cur.l.id, si, pi, text); cur.d.sections[si].points[pi].text = text; closeModal(); toast("Note saved"); render(); }); }
+function addPoint(si) { editing = { si }; pointModal("Add a note", "", "saveAdd"); }
+function saveAdd(text) { text = text.trim(); if (!text) return; const { si } = editing; act(async () => { const p = await api.addPoint(cur.l.id, si, text); cur.d.sections[si].points.push(p || { t: null, text, mine: true, off: false, slide: null }); closeModal(); toast("Note added"); render(); }); }
+function delPoint(si, pi) { editing = { si, pi }; modal(`<h3>Delete this note?</h3><p class="muted" data-notr>${esc(cur.d.sections[si].points[pi].text)}</p><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn plain" onclick="closeModal()">Keep note</button><button class="btn dark" onclick="doDelPoint()">Delete note</button></div>`); }
+function doDelPoint() { const { si, pi } = editing; act(async () => { await api.deletePoint(cur.l.id, si, pi); cur.d.sections[si].points.splice(pi, 1); closeModal(); toast("Note deleted"); render(); }); }
+function feedbackModal() { modal(`<h3>What is wrong in these notes?</h3><form onsubmit="event.preventDefault();sendFeedback(this.t.value)"><label class="field"><span>Tell us what the lecturer actually said, or what is missing</span><textarea name="t" rows="4" required maxlength="1000" data-notr></textarea></label>
+  <div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn plain" onclick="closeModal()">Cancel</button><button class="btn primary">Send</button></div></form>`); }
+function sendFeedback(text) { act(async () => { await api.sendFeedback(cur.l.id, text.trim()); closeModal(); toast("Thank you. This helps Sid write better notes."); }); }
+function trListHtml() { const q = state.tq.trim().toLowerCase(), list = cur.d.transcript.filter(s => !q || s.text.toLowerCase().includes(q));
+  return list.length ? list.map(s => `<div class="seg-line ${state.hit === s.t ? "hit" : ""}" id="seg-${+s.t}"><button class="ts" onclick="jump(${+s.t})">${fmt(s.t)}</button><div data-notr>${esc(s.text)}</div></div>`).join("") : `<p class="muted" style="padding:10px">Nothing in the transcript matches that.</p>`; }
+
+/* ---------- quiz helpers and keyboard ---------- */
+function quizOrder() { return state.order || cur.d.quiz.map((_, i) => i); }
+function pick(i) { if (state.picked !== null || state.done) return; const o = quizOrder(), q = cur.d.quiz[o[state.qi]]; if (!q || i >= q.opts.length) return; state.picked = i; if (i === q.a) state.score++; else state.wrong.push(o[state.qi]); render(); }
+function nextQ() { if (state.picked === null) return; if (state.qi + 1 < quizOrder().length) { state.qi++; state.picked = null; } else { state.done = true; progress(); } render(); }
+function restartQuiz() { Object.assign(state, { qi: 0, picked: null, score: 0, done: false, order: null, wrong: [] }); render(); }
+function retryMissed() { Object.assign(state, { order: state.wrong.slice(), qi: 0, picked: null, score: 0, done: false, wrong: [] }); render(); }
+document.addEventListener("keydown", e => {
+  if (!cur || !cur.d || (R.a !== "lecture" && R.a !== "s") || $("#overlay").firstChild || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (state.tab === "cards") { if (e.key === "ArrowRight") card(1); else if (e.key === "ArrowLeft") card(-1); else if (e.key === " " && e.target.tagName !== "BUTTON") { e.preventDefault(); state.flip = !state.flip; render(); } }
+  else if (state.tab === "quiz" && !state.done) { if (/^[1-9]$/.test(e.key)) pick(+e.key - 1); else if (e.key === "Enter" && e.target.tagName !== "BUTTON") nextQ(); }
+});
+
+/* ---------- review pack ---------- */
+function packPage(id) {
+  const c = course(id); if (!c) return shell(problem("This course does not exist", "It may have been removed."), "home");
+  const p = S.pack[id] || { status: "none" };
+  const head = `<div class="crumb"><a href="#/home">Home</a> / <a href="#/course/${encodeURIComponent(id)}">${esc(c.code)}</a> / Review pack</div>
+    <div class="page-h"><div class="hello">${sid(52, "wow")}<div><h1>Review pack</h1><p class="muted" style="margin-top:4px">${esc(c.code)}${c.name ? ", " + esc(c.name) : ""}</p></div></div>${p.status === "ready" && p.sheet.length ? `<button class="btn" onclick="window.print()">Print or save as PDF</button>` : ""}</div>`;
+  if (p.status === "processing") return shell(head + `<div class="card" style="padding:28px"><h3>Sid is still building this pack</h3><p class="muted" style="margin:8px 0 16px">It takes a few minutes for a full course.</p><button class="btn primary" onclick="refreshPack()">Check again</button></div>`, id);
+  if (p.status !== "ready") return shell(head + `<div class="card" style="padding:28px"><h3>One sheet for the whole course</h3><p class="muted" style="margin:8px 0 16px;max-width:36em">Sid reads every lecture in this course and writes one revision sheet grouped by topic, a list of everything the lecturer flagged for the exam, and a mock exam.</p><button class="btn primary" onclick="makePack()">Make review pack</button></div>`, id);
+  if (!p.sheet.length) return shell(head + `<div class="card" style="padding:28px"><h3>Nothing to revise yet</h3><p class="muted" style="margin:8px 0 16px">This course has no finished lecture notes. Add a lecture, then make the pack again.</p><a class="btn primary" href="#/new">New lecture</a></div>`, id);
+  const link = x => x.lectureId ? `<a class="small noprint" data-notr href="#/lecture/${encodeURIComponent(x.lectureId)}" onclick="pendingPos=${+x.t || 0}">${esc(x.lecture || "")}${x.t != null ? ", " + fmt(x.t) : ""}</a>` : "";
+  return shell(head + `<div class="pk">
+    ${p.hints.length ? `<h2>What the lecturer flagged</h2>` + p.hints.map(a => `<div class="alert"><span class="tag amber">${esc(a.kind)}</span><span data-notr>${esc(a.text)}</span><span style="margin-left:auto;white-space:nowrap">${link(a)}</span></div>`).join("") : ""}
+    <h2>Revision sheet</h2>
+    ${p.sheet.map((s, i) => `<section class="card nsec" style="border-left:6px solid ${PALETTE[(i + 3) % 5]}"><h3 data-notr>${esc(s.topic)}</h3>${s.points.map(x => `<div class="pt ${x.off ? "off" : ""}" style="grid-template-columns:1fr"><div class="body">${x.off ? `<span class="tag sn">Sidenote</span> ` : ""}<span data-notr>${esc(x.text)}</span> ${link(x)}</div></div>`).join("")}</section>`).join("")}
+    ${p.exam.length ? `<h2>Mock exam</h2><p class="muted noprint" style="margin:-6px 0 12px">Open a question to see the options and the answer.</p><div class="card" style="padding:6px 22px">` + p.exam.map((q, i) => `<details><summary data-notr>${i + 1}. ${esc(q.q)}</summary><ol type="A" data-notr>${q.opts.map(o => `<li>${esc(o)}</li>`).join("")}</ol><p style="margin-top:8px"><b>Answer</b> <b data-notr>${String.fromCharCode(65 + q.a)}.</b> <span data-notr>${esc(q.why || "")}</span></p></details>`).join("") + `</div>` : ""}
+  </div>`, id);
+}
+function makePack() { const id = R.b; act(async () => { busy("Sid is building your review pack", "Reading every lecture in this course."); await api.makeReviewPack(id); let p = { status: "processing" };
+  for (let i = 0; i < 40 && p.status === "processing"; i++) { p = await api.getReviewPack(id); if (p.status === "processing") await wait(CONFIG.POLL_MS); }
+  S.pack[id] = p; closeModal(); render(); }); }
+function refreshPack() { delete S.pack[R.b]; route(); }
+
+/* ---------- plans (filled in by the backend) ---------- */
+function plansHtml() { const p = S.plans;
+  if (!p || !p.plans || !p.plans.length) return `<div class="drop" style="margin-top:16px;text-align:left">Plans and prices are not decided yet. This space is reserved for them.</div>`;
+  return `<div class="plans">${p.plans.map(x => `<div class="plan ${x.id === p.current ? "cur" : ""}" data-notr><b>${esc(x.name)}</b><div class="price">${esc(x.priceText)}</div><ul>${(x.features || []).map(f => `<li>${esc(f)}</li>`).join("")}</ul>${x.id === p.current ? `<span class="tag grey">${trs("Your plan")}</span>` : `<button class="btn primary sm" onclick="choosePlan('${esc(x.id)}')">${trs("Choose this plan")}</button>`}</div>`).join("")}</div>`; }
+function choosePlan(id) { act(async () => { const r = await api.startCheckout(id); if (r && r.url) location.href = r.url; else toast("Checkout is not connected yet."); }); }
+
+/* ---------- offline notice ---------- */
+const net = () => document.body.classList.toggle("is-offline", navigator.onLine === false);
+window.addEventListener("online", net); window.addEventListener("offline", net);
+
+/* =====================================================================
+   INTERFACE LANGUAGE
+   Screens are written in English. For 繁體中文 the text on the page is
+   swapped after each render: ZH maps an exact English string to Chinese,
+   ZHR handles strings with numbers or names in them. Lecture content that
+   comes from the backend is never touched. Add data-notr to an element to
+   leave it alone.
+   ===================================================================== */
+let LANG = store.get("lang") === "zh" ? "zh" : "en";
+const ZH = {
+  /* landing */
+  "Example notes": "示例筆記", "Sign in": "登入", "My lectures": "我的課堂", "Record a lecture": "錄一堂課", "Switch language": "切換語言",
+  "The slides are half the lecture. Sidenote catches the other half.": "簡報只是半堂課。另一半，Sidenote 幫你記下。",
+  "Record your class and get notes that sit next to each slide: what the lecturer explained, the examples that were never written down, and every exam date they mentioned.": "錄下課堂，筆記會貼在每一頁簡報旁邊：老師怎樣解釋、沒寫在簡報上的例子，還有他提過的每個考試日期。",
+  "Open example notes": "看看示例筆記", "Made for English-taught lectures at Hong Kong universities.": "專為香港各大學的英語授課課堂而設。",
+  "A lecture slide with sidenotes attached": "貼滿旁註的一頁課堂簡報",
+  "Lecturers say the important things out loud.": "重要的事，老師都是用口說的。",
+  "None of this is on Canvas. Sidenote listens for it and pins it to your notes.": "這些都不會出現在 Canvas。Sidenote 會聽著，並釘在你的筆記上。",
+  "Everything you need between the lecture and the exam.": "由上課到考試，需要的都在這裡。",
+  "Notes that stick to the slides": "貼在簡報上的筆記",
+  "Add the slide deck and every point is filed under the slide it explains. Anything said but not written is marked as a sidenote.": "加入簡報後，每個重點都會歸到它所解釋的那一頁。老師說了但沒寫出來的，會標示為旁註。",
+  "Every point has a source": "每個重點都有出處", "Tap a timestamp and read the lecturer's exact words.": "點一下時間標記，就能看到老師的原話。", "27:32 in the transcript": "逐字稿 27:32",
+  "Exam radar": "考試雷達", "Midterms, deadlines and exam hints are flagged in class and counted down on your home page.": "期中考、截止日期和考試提示會在課堂上即時標記，並在主頁倒數。", "to the ECON 1001 midterm": "後是 ECON 1001 期中考",
+  "Catch me up": "幫我跟上", "Zoned out? One tap summarises the last five minutes while class is still going.": "走神了？點一下，上課期間就能看到剛才五分鐘的摘要。",
+  "Flashcards and a quiz": "閃卡和測驗", "Written from your lecture, not a generic textbook. Wrong answers link back to the moment it was taught.": "內容來自你上的那堂課，不是通用教科書。答錯的題目會連回老師講解的那一刻。",
+  "One link for the whole class": "一條連結，全班受用", "Drop the notes in the course group chat. Classmates read them without an account, and the next person records the next lecture.": "把筆記丟進課程群組。同學不用登記就能看，下一堂課自然有人接著錄。",
+  "did anyone get what she said about the midterm": "有人聽到她說期中考的事嗎", "sidenote link to ECON 1001 week 9": "Sidenote 連結：ECON 1001 第 9 週", "you are a legend": "你是我的救星",
+  "Three ways to get a lecture in": "三種方法把課堂放進來",
+  "Record on your laptop": "用手提電腦錄音", "Open Sidenote in a tab and keep working. Recording continues in the background.": "在分頁開著 Sidenote，照常做你的事，錄音會在背景繼續。",
+  "Record on your phone": "用手機錄音", "Face up on the desk, with this page open and the screen on.": "螢幕朝上放在桌上，保持這個頁面開啟、螢幕亮著。",
+  "Upload a recording": "上載錄音", "Already have the audio or the lecture video? Upload it and get the same notes.": "已經有錄音或課堂影片？上載後同樣會得到筆記。",
+  "Your next lecture is the best one to start with.": "就從下一堂課開始吧。",
+  "Notes are written by AI from your recording and can contain mistakes. Check dates and requirements against your lecturer's announcements. Ask your lecturer before recording if your course requires it.": "筆記由 AI 根據錄音撰寫，可能有錯漏。日期和要求請以老師的公布為準。如課程有規定，錄音前請先徵求老師同意。",
+  /* sign in */
+  "Sign in to Sidenote": "登入 Sidenote", "Sidenote is invite only for now. Enter the code you were given.": "Sidenote 目前只限受邀使用，請輸入你收到的邀請碼。", "Invite code": "邀請碼", "For example a3f9c2": "例如 a3f9c2",
+  "Your name (optional)": "名字（可不填）", "What should we call you?": "怎樣稱呼你？", "Signing in": "登入中", "No code? Ask a classmate who uses Sidenote, or open the": "沒有邀請碼？問問用過 Sidenote 的同學，或者看看", "example notes": "示例筆記",
+  "Enter your invite code.": "請輸入邀請碼。", "Please sign in again.": "請重新登入。",
+  /* shell */
+  "New lecture": "新增課堂", "Home": "主頁", "Settings": "設定", "Courses": "課程", "Add a course": "新增課程", "One more and Sid gets a gold corner.": "再錄一堂，Sid 就有金色摺角。", "Return": "返回", "Sample data": "示例資料",
+  "Unfinished": "未完成", "Make notes from it": "用它整理筆記", "Discard it": "捨棄", "Recording discarded": "錄音已捨棄",
+  "You are offline. Recording still works and is sent when you are back online.": "你目前離線。錄音仍可繼續，恢復連線後會自動送出。",
+  /* home */
+  "Record your next class or upload a recording you already have. Notes, flashcards and a quiz arrive a minute or two after it ends.": "錄下你的下一堂課，或上載已有的錄音。課堂結束後一兩分鐘，筆記、閃卡和測驗就會準備好。",
+  "Add your first lecture": "新增第一堂課", "No exam dates on the radar.": "暫時沒有考試日期。", "lectures recorded this week": "本週錄下的課堂", "flashcards you know": "已記得的閃卡", "average quiz score": "測驗平均分",
+  "Lectures": "課堂", "Search lectures": "搜尋課堂", "Search course, title or notes": "搜尋課程、標題或筆記", "No lecture matches that search.": "找不到符合的課堂。", "No lectures yet.": "還沒有課堂。", "Writing notes": "整理筆記中",
+  "No dates yet. They appear here when a lecturer mentions an exam or a deadline.": "暫時沒有日期。老師提到考試或截止日期時，會出現在這裡。", "Add to calendar": "加到日曆", "Your courses": "你的課程", "days": "天", "day": "天",
+  "Course code": "課程編號", "Course name": "課程名稱", "Cancel": "取消", "Add course": "新增課程", "Course added": "已新增課程",
+  "Midterm": "期中考", "Deadline": "截止日期", "Exam hint": "考試提示", "Quiz": "小測", "Final": "期末考",
+  /* course and review pack */
+  "This course does not exist": "找不到這個課程", "It may have been removed.": "它可能已被移除。", "Exam review pack": "考試溫習包", "Open review pack": "開啟溫習包", "Add the first one": "新增第一堂",
+  "Review pack": "溫習包", "Print or save as PDF": "列印或儲存為 PDF", "Sid is still building this pack": "Sid 還在製作這個溫習包", "It takes a few minutes for a full course.": "整個課程需要幾分鐘。", "Check again": "再檢查一次",
+  "One sheet for the whole course": "整個課程，一份搞定", "Sid reads every lecture in this course and writes one revision sheet grouped by topic, a list of everything the lecturer flagged for the exam, and a mock exam.": "Sid 會讀完這個課程的每一堂課，寫出一份按主題分組的溫習重點、老師為考試強調過的所有內容，以及一份模擬試題。",
+  "Make review pack": "製作溫習包", "Nothing to revise yet": "暫時沒有可溫習的內容", "This course has no finished lecture notes. Add a lecture, then make the pack again.": "這個課程還沒有完成的課堂筆記。先新增一堂課，再製作溫習包。",
+  "What the lecturer flagged": "老師強調過的", "Revision sheet": "溫習重點", "Mock exam": "模擬試題", "Open a question to see the options and the answer.": "展開題目可看到選項和答案。", "Answer": "答案",
+  "Sid is building your review pack": "Sid 正在製作你的溫習包", "Reading every lecture in this course.": "正在讀這個課程的每一堂課。",
+  /* lecture */
+  "This lecture does not exist": "找不到這堂課", "It may have been deleted.": "它可能已被刪除。", "This lecture does not exist.": "找不到這堂課。",
+  "Sid is still writing these notes": "Sid 還在寫這份筆記", "This usually takes a minute or two after the lecture ends.": "課堂結束後通常需要一兩分鐘。",
+  "The sample data has full notes for one lecture, ECON 1001 week 9. Every lecture uses this same page.": "示例資料只有 ECON 1001 第 9 週一堂課有完整筆記。每堂課都使用同一個頁面。",
+  "Notes": "筆記", "Slides": "簡報", "Transcript": "逐字稿", "Sidenotes only (said, but not on the slides)": "只看旁註（老師說了，但簡報上沒有）", "Edit notes": "編輯筆記",
+  "No sidenotes in this lecture.": "這堂課沒有旁註。", "Something wrong in these notes?": "筆記有錯？", "Tell us": "告訴我們", "Nothing to show with this filter.": "這個篩選條件下沒有內容。",
+  "Slides without anything said about them are hidden.": "老師沒有額外講解的簡報頁已隱藏。", "Search the transcript": "搜尋逐字稿", "Nothing in the transcript matches that.": "逐字稿中找不到符合的內容。",
+  "Flip card": "翻轉卡片", "Previous": "上一張", "I know this": "我記得", "Next": "下一張", "Arrow keys move between cards. Space flips.": "用方向鍵切換卡片，按空白鍵翻面。",
+  "No flashcards for this lecture.": "這堂課沒有閃卡。", "No quiz for this lecture.": "這堂課沒有測驗。", "Clean sheet. The midterm should be worried.": "全對。該緊張的是期中考。",
+  "Each wrong answer links back to the moment it was taught.": "每條答錯的題目都能連回老師講解的那一刻。", "Take the whole quiz again": "整份測驗重做一次", "Correct.": "答對了。", "Not quite.": "不太對。", "Next question": "下一題", "See result": "看結果",
+  "More": "更多", "Share with class": "分享給同學", "One colour per topic. Exam and deadline mentions are marked with !": "每個主題一種顏色。提到考試或截止日期的位置以 ! 標示",
+  "Sidenote": "旁註", "You": "你", "Edit": "編輯", "Delete": "刪除", "Add a note": "新增筆記",
+  "Is your course missing?": "沒有你的課程？", "Record one class and the notes are ready when it ends.": "錄一堂課，下課時筆記就準備好。", "Record your own lecture": "錄你自己的課", "Save to my lectures": "儲存到我的課堂", "Saved to your lectures": "已儲存到你的課堂",
+  "Share with your class": "分享給同學", "Anyone with the link can read the notes, flashcards and quiz. They cannot see your other lectures.": "任何有連結的人都可以看這份筆記、閃卡和測驗，但看不到你的其他課堂。",
+  "Share link": "分享連結", "Copy link": "複製連結", "Preview shared page": "預覽分享頁", "Stop sharing": "停止分享", "Link copied": "已複製連結", "Sharing stopped. The old link no longer works.": "已停止分享，舊連結已失效。", "This link is no longer shared.": "這條連結已停止分享。",
+  "Print or save notes as PDF": "列印筆記或儲存為 PDF", "Download notes as Markdown": "下載筆記（Markdown）", "Download flashcards for Anki": "下載閃卡（Anki）", "Download transcript as text": "下載逐字稿（文字檔）",
+  "Rename": "重新命名", "Delete lecture": "刪除課堂", "Rename lecture": "重新命名課堂", "Title": "標題", "Save title": "儲存標題", "Title saved": "已儲存標題",
+  "Delete this lecture?": "刪除這堂課？", "The notes, flashcards, quiz and any shared link will be removed. This cannot be undone.": "筆記、閃卡、測驗和已分享的連結都會被移除，而且無法復原。", "Keep lecture": "保留課堂", "Lecture deleted": "課堂已刪除",
+  "Edit note": "編輯筆記", "Note": "筆記", "Save note": "儲存筆記", "Note saved": "已儲存筆記", "Note added": "已新增筆記", "Delete this note?": "刪除這條筆記？", "Keep note": "保留", "Delete note": "刪除筆記", "Note deleted": "已刪除筆記",
+  "What is wrong in these notes?": "這份筆記哪裡不對？", "Tell us what the lecturer actually said, or what is missing": "告訴我們老師實際說了甚麼，或者漏了甚麼", "Send": "送出", "Thank you. This helps Sid write better notes.": "謝謝你，這能幫 Sid 把筆記寫得更好。",
+  /* new lecture */
+  "How to add the lecture": "新增課堂的方式", "Record now": "現在錄音", "Use this device's microphone during class.": "上課時使用這部裝置的麥克風。", "Audio or video file you already have.": "你已有的錄音或影片檔。",
+  "Paste a lecture video link": "貼上課堂影片連結", "For classes with an online replay.": "適用於有網上重溫的課堂。", "Record an online class": "錄網上課堂",
+  "Capture the sound of a browser tab, such as Zoom in the browser. Desktop Chrome or Edge.": "錄下瀏覽器分頁的聲音，例如在瀏覽器開啟的 Zoom。需使用電腦版 Chrome 或 Edge。",
+  "Course": "課程", "Title (optional)": "標題（可不填）", "Week 10, supply and demand": "第 10 週，供求", "Recording": "錄音", "Drop an audio or video file here, or": "把錄音或影片檔拖到這裡，或", "choose a file": "選擇檔案", "Video link": "影片連結",
+  "Slides (optional)": "簡報（可不填）", "Add the slide deck as a PDF and the notes will stick to each slide.": "以 PDF 加入簡報，筆記就會貼到每一頁上。", "Choose a PDF": "選擇 PDF", "Remove": "移除",
+  "Language spoken in class": "課堂使用的語言", "English": "英文", "English with Cantonese": "英文夾雜廣東話", "English with Mandarin": "英文夾雜普通話", "Detect automatically": "自動偵測",
+  "Start recording": "開始錄音", "Make notes": "整理筆記",
+  "Your browser will ask to use the microphone. On a laptop, recording continues while you use other tabs. On an iPhone, keep this page open and the screen on.": "瀏覽器會要求使用麥克風。用手提電腦時，切換到其他分頁也會繼續錄音。用 iPhone 時，請保持這個頁面開啟、螢幕亮著。",
+  "Your browser will ask what to share. Choose the tab that is playing the class and turn on the option to share tab audio. Only the sound is recorded.": "瀏覽器會問你要分享甚麼。請選擇正在播放課堂的分頁，並開啟分享分頁音訊的選項。只會錄下聲音。",
+  "Choose the recording to upload.": "請選擇要上載的錄音。", "Paste the full link, starting with https://": "請貼上完整連結，以 https:// 開頭", "Add a course first.": "請先新增課程。",
+  "You have used today's recording minutes. Upload a recording instead, or come back tomorrow.": "你已用完今天的錄音時間。可以改為上載錄音，或明天再來。",
+  "A recording is already running. End it before starting another.": "已有錄音正在進行，請先結束再開始新的。", "Slides need to be a PDF.": "簡報必須是 PDF。", "Slides did not upload. You can add them later.": "簡報未能上載，可以之後再加。",
+  "Uploading": "上載中", "Keep this page open until the upload finishes.": "上載完成前請保持這個頁面開啟。",
+  "Before you record": "錄音之前", "Check that recording is allowed in this class. Ask the lecturer if you are not sure.": "確認這堂課容許錄音。不確定的話，請先問老師。", "Sit where you can hear the lecturer clearly.": "坐在聽得清楚老師的位置。",
+  "On a phone, keep this page open and the screen on.": "用手機時，請保持這個頁面開啟、螢幕亮著。", "Not now": "暫時不要",
+  /* recording */
+  "Recording time": "錄音時間", "Microphone level": "麥克風音量", "Discard": "捨棄", "Pause": "暫停", "Resume": "繼續", "End and make notes": "結束並整理筆記", "Live transcript": "即時逐字稿",
+  "Text appears about half a minute after the lecturer starts speaking.": "老師開始說話後約半分鐘會出現文字。", "Lost the thread?": "跟不上了？", "Sid sums up the last five minutes so you can rejoin the class.": "Sid 會總結剛才五分鐘，讓你重新跟上。",
+  "Reading back": "正在回看", "The last five minutes": "剛才五分鐘", "Dismiss": "知道了", "Discard this recording?": "捨棄這段錄音？", "Nothing recorded so far will be kept.": "目前錄下的內容都不會保留。", "Keep recording": "繼續錄音", "Discard recording": "捨棄錄音", "Microphone": "麥克風",
+  "Microphone access was blocked. Allow it in the browser's site settings, then start again.": "麥克風權限被封鎖。請在瀏覽器的網站設定中允許，然後重新開始。", "No microphone was found on this device.": "這部裝置找不到麥克風。", "This browser cannot record here.": "這個瀏覽器無法在這裡錄音。",
+  "No sound was shared. Start again, choose a browser tab and turn on the option to share tab audio.": "沒有分享到聲音。請重新開始，選擇一個瀏覽器分頁，並開啟分享分頁音訊的選項。",
+  "This browser cannot record a tab. Use Chrome or Edge on a computer.": "這個瀏覽器不能錄分頁聲音，請使用電腦版 Chrome 或 Edge。", "Nothing was shared, so there is no sound to record.": "沒有分享任何內容，所以沒有聲音可錄。",
+  "Connection lost. Recording continues and the audio will be sent when you are back online. Keep this page open.": "連線中斷。錄音會繼續，恢復連線後會自動送出。請保持這個頁面開啟。",
+  "Sharing stopped, so the recording has ended.": "分享已停止，錄音隨之結束。", "Sending the last of the audio": "正在送出最後一段音訊", "Keep this page open.": "請保持這個頁面開啟。", "Waiting for a connection": "等待連線",
+  "The end of your recording has not been sent yet. Keep this page open and try again when you are back online.": "錄音的最後部分還未送出。請保持這個頁面開啟，恢復連線後再試。", "Try again": "再試一次",
+  "Sid is writing your notes": "Sid 正在寫你的筆記", "Transcribing, sticking points to slides, and writing flashcards and a quiz. This usually takes a minute or two.": "正在轉寫、把重點貼到簡報上，並編寫閃卡和測驗。通常需要一兩分鐘。",
+  "Notes are ready": "筆記準備好了", "The notes could not be written. Open the lecture to try again.": "筆記未能完成。請開啟課堂再試。", "Still working. The notes will appear in the lecture when ready.": "仍在處理中。完成後筆記會出現在課堂裡。",
+  /* settings */
+  "Name": "名字", "Language usually spoken in class": "課堂通常使用的語言", "Show 中文解釋 under each point by default": "預設在每個重點下顯示中文解釋", "Interface language": "介面語言", "Save settings": "儲存設定", "Settings saved": "已儲存設定",
+  "Plan and usage": "方案與用量", "Plans and prices are not decided yet. This space is reserved for them.": "方案和價錢尚未決定，這個位置預留給它們。", "Your plan": "你的方案", "Choose this plan": "選擇這個方案", "Checkout is not connected yet.": "付款功能尚未接通。",
+  "Sign out": "登出", "This device will no longer remember you.": "這部裝置將不再記住你。",
+  /* errors */
+  "That did not load": "載入失敗", "Page not found": "找不到頁面", "That address does not match anything in Sidenote.": "這個網址在 Sidenote 裡找不到對應的內容。", "Go to home": "回到主頁", "Something went wrong. Try again.": "出了點問題，請再試一次。", "Today": "今天",
+  /* phone layout */
+  "Main": "主選單", "Return to the recording": "返回錄音", "Record": "錄音", "Upload": "上載", "Online class": "網上課堂",
+  /* recording playback */
+  "Recording of this lecture": "這堂課的錄音", "Play recording": "播放錄音", "Pause recording": "暫停播放", "Position in the recording": "錄音位置",
+  "Back 15 seconds": "後退 15 秒", "Forward 15 seconds": "前進 15 秒", "Playback speed": "播放速度", "Download recording": "下載錄音",
+  "The recording could not be played.": "錄音無法播放。", "Sample build: playback is simulated, so there is no sound.": "示範版本：播放是模擬的，所以沒有聲音。",
+  "Tap a timestamp to read the lecturer's exact words, or play the recording from that moment.": "點一下時間標記，就能看到老師的原話，或者從那一刻開始播放錄音。",
+  "Anyone with the link can read the notes, transcript, flashcards and quiz. The recording stays private. They cannot see your other lectures.": "任何有連結的人都可以看這份筆記、逐字稿、閃卡和測驗。錄音不會分享，他們也看不到你的其他課堂。",
+  "Anyone with the link can read the notes, transcript, flashcards and quiz, and play the recording. They cannot see your other lectures.": "任何有連結的人都可以看這份筆記、逐字稿、閃卡和測驗，也可以播放錄音，但看不到你的其他課堂。",
+  "The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.": "錄音、筆記、閃卡、測驗和已分享的連結都會被移除，而且無法復原。",
+  /* lectures whose notes are missing */
+  "Not written": "未能完成", "Not finished": "未完成", "These notes could not be written": "這份筆記未能完成", "Your recording is safe. Sid can try again from it.": "你的錄音還在，Sid 可以用它再試一次。",
+  "This lecture is being recorded": "這堂課正在錄音", "The notes are written when you end the recording.": "結束錄音後就會整理筆記。",
+  "This recording was not finished": "這段錄音沒有完成", "The page was closed before the recording ended. Sid can still write notes from the part that was saved.": "頁面在錄音結束前被關閉了。Sid 仍然可以用已儲存的部分整理筆記。",
+  "Make notes from what was saved": "用已儲存的部分整理筆記", "This usually takes a minute or two.": "通常需要一兩分鐘。",
+  "The notes could not be written. You can try again from the lecture.": "筆記未能完成，可以在課堂頁再試一次。",
+  /* recording */
+  "End or discard the recording before signing out.": "請先結束或捨棄錄音，再登出。", "The microphone stopped. End the recording to keep what you have so far.": "麥克風停止了。請結束錄音，以保留目前錄到的內容。",
+  "Sidenote could not save the audio just now. Recording continues and it will keep trying. Keep this page open.": "Sidenote 暫時未能儲存音訊。錄音會繼續，並會不斷重試。請保持這個頁面開啟。", "Connection": "連線",
+  "The end of your recording has not been sent yet. Keep this page open and try again in a moment.": "錄音的最後部分還未送出。請保持這個頁面開啟，稍後再試。",
+  "Slides did not upload. The notes will be made without them.": "簡報未能上載，這堂課的筆記不會包含簡報。", "The server sent a reply Sidenote could not read.": "伺服器的回覆無法讀取。",
+  "No code? Ask a classmate who uses Sidenote.": "沒有邀請碼？問問用過 Sidenote 的同學。",
+  /* how long recordings are kept */
+  "The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.": "這堂課的錄音已不再保留。筆記、逐字稿、閃卡和測驗仍然在這裡。", "See plans": "查看方案",
+  /* 中文解釋 in Traditional or Simplified */
+  "Show 中文解釋 in": "中文解釋顯示為", "Chinese characters": "中文字體"
+};
+const zhTok = t => { let m; return t === "Today" ? "今天" : (m = t.match(/^week (\d+)$/)) ? "第 " + m[1] + " 週" : (m = t.match(/^(\d+) min$/)) ? m[1] + " 分鐘" : null; };
+const ZHR = [
+  [/^Recording stopped for about (\d+) seconds while Sidenote was in the background\. Keep this page open with the screen on\.$/, m => "Sidenote 在背景時，錄音停了大約 " + m[1] + " 秒。請保持這個頁面開啟、螢幕亮著。"],
+  [/^Recording stopped for about (\d+) min while Sidenote was in the background\. Keep this page open with the screen on\.$/, m => "Sidenote 在背景時，錄音停了大約 " + m[1] + " 分鐘。請保持這個頁面開啟、螢幕亮著。"],
+  [/^The recording of this lecture is kept until (.+?), which is today\. The notes stay after that\.$/, m => "這堂課的錄音保留到" + m[1] + "，也就是今天。之後筆記仍會保留。"],
+  [/^The recording of this lecture is kept until (.+?), (\d+) more days?\. The notes stay after that\.$/, m => "這堂課的錄音保留到" + m[1] + "，還有 " + m[2] + " 天。之後筆記仍會保留。"],
+  [/^Recording kept until (.+)\.$/, m => "錄音保留到" + m[1] + "。"],
+  [/^Recordings are kept for (\d+) days? on your plan\.$/, m => "你的方案會保留錄音 " + m[1] + " 天。"],
+  [/^Hi (.+)\. Nothing here yet\.$/, m => "你好，" + m[1] + "。這裡還沒有內容。"],
+  [/^Hi (.+)$/, m => "你好，" + m[1]],
+  [/^(\d+) lectures? this week$/, m => "本週 " + m[1] + " 堂課"],
+  [/^(\d+) lectures?$/, m => m[1] + " 堂課"],
+  [/^(\d+) days?$/, m => m[1] + " 天"],
+  [/^(\d+) of (\d+) correct$/, m => "答對 " + m[1] + "／" + m[2] + " 題"],
+  [/^(\d+) min$/, m => m[1] + " 分鐘"],
+  [/^(\d+) of (\d+) recording minutes used today$/, m => "今天已用 " + m[1] + "／" + m[2] + " 分鐘錄音時間"],
+  [/^A recording(?: of (.+?))? was interrupted at ([\d:]+), before its notes were made\.$/, m => (m[1] ? m[1] + " 的" : "") + "一段錄音在 " + m[2] + " 中斷，筆記尚未整理。"],
+  [/^All (\d+) lectures? in one revision sheet and a mock exam, weighted towards what the lecturer flagged\.$/, m => "把全部 " + m[1] + " 堂課整合成一份溫習重點和一份模擬試題，側重老師強調過的內容。"],
+  [/^(Midterm|Deadline|Exam hint|Quiz|Final) at ([\d:]+)$/, m => m[2] + " 的" + ZH[m[1]]],
+  [/^Open transcript at ([\d:]+)$/, m => "在逐字稿開啟 " + m[1]],
+  [/^Said at ([\d:]+)$/, m => "老師在 " + m[1] + " 提到"],
+  [/^Downloaded (.+)$/, m => "已下載 " + m[1]],
+  [/^Flashcards \((\d+)\)$/, m => "閃卡（" + m[1] + "）"],
+  [/^Quiz \((\d+)\)$/, m => "測驗（" + m[1] + "）"],
+  [/^Keys 1 to (\d+) answer\. Enter continues\.$/, m => "按 1 至 " + m[1] + " 鍵作答，按 Enter 繼續。"],
+  [/^Next up: (.+) for (.+), (today|in (\d+) days?)\.$/, m => "下一個：" + m[2] + " 的" + (ZH[m[1].charAt(0).toUpperCase() + m[1].slice(1)] || m[1]) + "，" + (m[3] === "today" ? "今天" : m[4] + " 天後") + "。"],
+  [/^No lectures in (.+) yet$/, m => m[1] + " 還沒有課堂"],
+  [/^Open (.+) week (\d+)$/, m => "開啟 " + m[1] + " 第 " + m[2] + " 週"],
+  [/^Recording (.+)$/, m => "正在錄音 " + m[1]],
+  [/^Paused (.+)$/, m => "已暫停 " + m[1]],
+  [/^Retry the (\d+) you missed$/, m => "重做答錯的 " + m[1] + " 題"],
+  [/^Card (\d+) of (\d+)$/, m => "第 " + m[1] + "／" + m[2] + " 張"],
+  [/^Slide (\d+) of (\d+)$/, m => "第 " + m[1] + "／" + m[2] + " 頁"],
+  [/^Slide (\d+)$/, m => "第 " + m[1] + " 頁"],
+  [/^Week (\d+)$/, m => "第 " + m[1] + " 週"],
+  [/^Tap the card to flip it\. (\d+) of (\d+) marked as known\.$/, m => "點一下卡片翻面。已標記 " + m[1] + "／" + m[2] + " 張為記得。"],
+  [/^(.+) shared these notes with you\. Read only\.$/, m => m[1] + " 與你分享了這份筆記（只供閱讀）。"],
+  [/^Sample build: this transcript is sample text\. The microphone is (.+)\.$/, m => { const n = m[1].match(/every (\d+) seconds/); return "示範版本：這裡的逐字稿是示例文字。麥克風" + (n ? "正在真實錄音，每 " + n[1] + " 秒把音訊交給上載函式" : "沒有在錄音") + "。"; }],
+  [/^(.+) The sample transcript below still plays so you can see the screen\.$/, m => trs(m[1]) + "下方仍會播放示例逐字稿，方便你查看畫面。"],
+  [/^MP3, M4A, WAV, MP4\. Up to (\d+) MB\.$/, m => "MP3、M4A、WAV、MP4，最大 " + m[1] + " MB。"],
+  [/^That file is larger than (\d+) MB\.$/, m => "檔案超過 " + m[1] + " MB。"],
+  [/^\/ (.+)$/, m => "/ " + trs(m[1])],
+  [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]
+];
+
+function trs(s) { if (LANG === "en" || !s) return s; const k = s.replace(/\s+/g, " ").trim(); if (!k) return s; let o = ZH[k];
+  if (o == null) for (const [re, fn] of ZHR) { const m = k.match(re); if (m) { o = fn(m); break; } }
+  return o == null ? s : s.match(/^\s*/)[0] + o + s.match(/\s*$/)[0]; }
+function tr(root) { if (!root) return; const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+  for (const n of nodes) { const p = n.parentElement; if (!p || p.closest("[data-notr],script,style,textarea")) continue; if (n.__en == null) n.__en = n.nodeValue; const v = LANG === "en" ? n.__en : trs(n.__en); if (v !== n.nodeValue) n.nodeValue = v; }
+  root.querySelectorAll("[placeholder],[aria-label],[title]").forEach(el => { if (el.closest("[data-notr]")) return; ["placeholder", "aria-label", "title"].forEach(a => { if (!el.hasAttribute(a)) return; const k = "__" + a; if (el[k] == null) el[k] = el.getAttribute(a); const v = LANG === "en" ? el[k] : trs(el[k]); if (v !== el.getAttribute(a)) el.setAttribute(a, v); }); }); }
+function setLang(l) { LANG = l === "zh" ? "zh" : "en"; store.set("lang", LANG); document.documentElement.lang = LANG === "zh" ? "zh-Hant" : "en"; render(); tr(document.body); }
+const langBtn = () => `<button class="lang" data-notr onclick="setLang(LANG==='en'?'zh':'en')" aria-label="Switch language">${LANG === "en" ? "中文" : "EN"}</button>`;
+
+/* ---------- router ---------- */
+const PUBLIC = ["", "s", "signin"];
+async function route() {
+  closeModal();
+  const h = location.hash.replace(/^#\/?/, ""), parts = h.split("/"), a = parts[0] || "", b = parts[1] ? decodeURIComponent(parts[1]) : "";
+  if (!PUBLIC.includes(a) && !S.token) { S.next = location.hash; location.hash = "#/signin"; return; }
+  if (a === "signin" && S.token) { location.hash = "#/home"; return; }
+  if (a === "live" && !live.active) { location.hash = "#/new"; return; }
+  const changed = R.a !== a || R.b !== b; R = { a, b }; const seq = ++routeSeq; S.error = null;
+  if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [] }); pendingPos = 0; }
+  const needHome = !PUBLIC.includes(a) && !S.homeLoaded, needLec = a === "lecture" && !(b in S.detail), needSh = a === "s" && !S.shared[b], needPack = a === "pack" && !S.pack[b], needPlans = a === "settings" && !S.plans;
+  if (needHome || needLec || needSh || needPack || needPlans) $("#app").innerHTML = S.homeLoaded && !PUBLIC.includes(a) ? shell(skeleton(), "") : `<div class="center">${sid(56, "wow")}</div>`;
+  try {
+    if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault; }
+    if (needLec) { const r = await api.getLecture(b); S.detail[b] = r.detail; const i = S.lectures.findIndex(x => x.id === b); if (i < 0) S.lectures.unshift(r.lecture); else S.lectures[i] = r.lecture; }
+    if (needSh) S.shared[b] = await api.getShared(b);
+    if (needPack) S.pack[b] = await api.getReviewPack(b);
+    if (needPlans) S.plans = await api.getPlans().catch(() => ({ plans: [], current: null }));   // Settings still opens when the plans endpoint is not there yet
+    if (changed && a === "lecture" && S.detail[b] && S.detail[b].progress) state.known = new Set(S.detail[b].progress.known || []);
+  } catch (e) { S.error = e.message || String(e); }
+  if (seq === routeSeq) render();
+}
+function render() {
+  const { a, b } = R, app = $("#app");
+  if (S.error) { const card = problem("That did not load", esc(S.error), `<button class="btn primary" onclick="route()">Try again</button>`); app.innerHTML = S.token && S.homeLoaded && !PUBLIC.includes(a) ? shell(card, "") : `<div class="pub" style="min-height:100vh;background:var(--bg)"><nav class="pub-nav">${logo("#/")}</nav><div class="wrap" style="max-width:720px">${card}</div></div>`; }
+  else app.innerHTML = a === "home" ? home() : a === "course" ? coursePage(b) : a === "courses" ? coursesPage() : a === "lecture" ? lecturePage(b) : a === "s" ? sharedPage(b) : a === "new" ? newPage() : a === "live" ? livePage() : a === "pack" ? packPage(b) : a === "settings" ? settingsPage() : a === "signin" ? signinPage() : a === "" ? landing() : shell(problem("Page not found", "That address does not match anything in Sidenote."), "");
+  if (CONFIG.USE_MOCK && a !== "") app.insertAdjacentHTML("beforeend", `<div class="mock-pill">Sample data</div>`);
+  tr(app);
+  afterRender();
+}
+window.addEventListener("hashchange", route);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#overlay .modal:not([onclick])")) closeModal(); });
+if (CONFIG.USE_MOCK) mockDb.prep();
+session.load();
+document.documentElement.lang = LANG === "zh" ? "zh-Hant" : "en"; net(); tr(document.body);
+(async () => { await idb.open(); await findOrphan(); route(); })();
+</script>
+</body>
+</html>

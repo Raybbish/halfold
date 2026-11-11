@@ -1,0 +1,30 @@
+{
+  "name": "sidenote-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Sidenote front end: the single-file sidenote.html moved to React + TypeScript, same look and behaviour.",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "test": "node tests/run-all.js",
+    "test:legacy": "node tests/run-all.js --target=legacy"
+  },
+  "dependencies": {
+    "react": "~19.2.9",
+    "react-dom": "~19.2.9"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "@types/react-dom": "~19.2.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "playwright": "^1.65.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8"
+  }
+}
