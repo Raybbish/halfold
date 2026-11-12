@@ -16,35 +16,32 @@ import { openModal } from "./Overlay";
 import { css } from "./css";
 import { val } from "./form";
 
-/* data-notr: the button itself is never translated, so its aria-label stays "Switch language" in both languages, as before. */
-export const LangBtn = () => <button className="lang" data-notr="" onClick={() => setLang(LANG === "en" ? "zh" : "en")} aria-label="Switch language">{LANG === "en" ? "中文" : "EN"}</button>;
+/* The button's text is the name of the other language, so it stays as it is (data-notr); its label is translated. */
+export const LangBtn = () => <button className="lang" data-notr="" onClick={() => setLang(LANG === "en" ? "zh" : "en")} aria-label={t("Switch language")}>{LANG === "en" ? "中文" : "EN"}</button>;
 
-/* raw: draw the English text untranslated. sidenote.html put the loading skeleton on the page without translating it,
-   so in Chinese the shell around the skeleton briefly showed English. Kept as it was; listed in the difference list. */
-export function Shell({ active, raw, children }: { active: string; raw?: boolean; children: ReactNode }) {
-  const tt = raw ? (s: string) => s : t;
+export function Shell({ active, children }: { active: string; children: ReactNode }) {
   const dn = LANG === "zh" ? ["一", "二", "三", "四", "五"] : ["M", "T", "W", "T", "F"], w = S.week, recOn = live.active && R.a !== "live";
   return <div className="shell">
     <aside className="side">
-      <div style={css("display:flex;align-items:center;justify-content:space-between;gap:8px")}><Logo href="#/home" raw={raw} /><LangBtn /></div>
-      <a className="btn primary new" href="#/new">{tt("New lecture")}</a>
-      <a className={`n ${active === "home" ? "on" : ""}`} href="#/home">{tt("Home")}</a>
-      <a className={`n ${active === "settings" ? "on" : ""}`} href="#/settings">{tt("Settings")}</a>
-      <div className="lbl">{tt("Courses")}</div>
-      {S.courses.map(c => <a key={c.id} className={`n c ${active === c.id ? "on" : ""}`} href={"#/course/" + encodeURIComponent(c.id)}><i className="cdot" style={{ background: colorOf(c) }}></i>{tt(c.code)}<span className="ct num">{S.lectures.filter(l => l.course === c.id).length}</span></a>)}
-      <button className="n c addc" onClick={addCourseModal}>{tt("Add a course")}</button>
-      {w ? <div className="streak"><b className="num">{tt(plural(w.lectures, "lecture") + " this week")}</b><div className="small">{tt("One more and Sid gets a gold corner.")}</div>
+      <div style={css("display:flex;align-items:center;justify-content:space-between;gap:8px")}><Logo href="#/home" /><LangBtn /></div>
+      <a className="btn primary new" href="#/new">{t("New lecture")}</a>
+      <a className={`n ${active === "home" ? "on" : ""}`} href="#/home">{t("Home")}</a>
+      <a className={`n ${active === "settings" ? "on" : ""}`} href="#/settings">{t("Settings")}</a>
+      <div className="lbl">{t("Courses")}</div>
+      {S.courses.map(c => <a key={c.id} className={`n c ${active === c.id ? "on" : ""}`} href={"#/course/" + encodeURIComponent(c.id)}><i className="cdot" style={{ background: colorOf(c) }}></i>{t(c.code)}<span className="ct num">{S.lectures.filter(l => l.course === c.id).length}</span></a>)}
+      <button className="n c addc" onClick={addCourseModal}>{t("Add a course")}</button>
+      {w ? <div className="streak"><b className="num">{t(plural(w.lectures, "lecture") + " this week")}</b><div className="small">{t("One more and Sid gets a gold corner.")}</div>
         <div className="days" data-notr="">{dn.map((x, i) => <span key={i} className={w.days && w.days[i] ? "d" : ""}>{x}</span>)}</div></div> : null}
     </aside>
-    <header className="mtop"><Logo href="#/home" raw={raw} />{CONFIG.USE_MOCK ? <span className="mtag">{tt("Sample data")}</span> : null}<span className="sp"></span><LangBtn /><a className={`ico ${active === "settings" ? "on" : ""}`} href="#/settings" aria-label={tt("Settings")}>{ICON.settings}</a></header>
+    <header className="mtop"><Logo href="#/home" />{CONFIG.USE_MOCK ? <span className="mtag">{t("Sample data")}</span> : null}<span className="sp"></span><LangBtn /><a className={`ico ${active === "settings" ? "on" : ""}`} href="#/settings" aria-label={t("Settings")}>{ICON.settings}</a></header>
     <main className="main"><div className="inner">
-      {live.active && R.a !== "live" ? <a className="pill-rec" href="#/live"><i></i>{tt("Recording " + live.courseCode + " ")}<span className="clk num">{fmt(live.sec)}</span>{tt(" Return")}</a> : null}
-      <OrphanNotice tt={tt} />
+      {live.active && R.a !== "live" ? <a className="pill-rec" href="#/live"><i></i>{t("Recording " + live.courseCode + " ")}<span className="clk num">{fmt(live.sec)}</span>{t(" Return")}</a> : null}
+      <OrphanNotice />
       {children}</div></main>
-    {R.a === "live" ? null : <nav className="mnav" aria-label={tt("Main")}>
-      <a className={`t ${active === "home" ? "on" : ""}`} href="#/home">{ICON.home}{tt("Home")}</a>
-      {recOn ? <a className="go btn dark" href="#/live" aria-label={tt("Return to the recording")}><i className="dot"></i><span className="clk num">{fmt(live.sec)}</span></a> : <a className="go btn primary" href="#/new">{ICON.plus}{tt("New lecture")}</a>}
-      <a className={`t ${active === "courses" || course(active) ? "on" : ""}`} href="#/courses">{ICON.courses}{tt("Courses")}</a></nav>}
+    {R.a === "live" ? null : <nav className="mnav" aria-label={t("Main")}>
+      <a className={`t ${active === "home" ? "on" : ""}`} href="#/home">{ICON.home}{t("Home")}</a>
+      {recOn ? <a className="go btn dark" href="#/live" aria-label={t("Return to the recording")}><i className="dot"></i><span className="clk num">{fmt(live.sec)}</span></a> : <a className="go btn primary" href="#/new">{ICON.plus}{t("New lecture")}</a>}
+      <a className={`t ${active === "courses" || course(active) ? "on" : ""}`} href="#/courses">{ICON.courses}{t("Courses")}</a></nav>}
   </div>;
 }
 
@@ -55,9 +52,9 @@ export function Problem({ title, text, btn }: { title: string; text: string; btn
 }
 
 /* A recording cut off by a closed tab (see features/recording/orphan.ts). */
-function OrphanNotice({ tt }: { tt: (s: string) => string }) {
+function OrphanNotice() {
   const o = S.orphan; if (!o || live.active) return null;
-  return <div className="alert" style={css("align-items:center;flex-wrap:wrap")}><span className="tag amber">{tt("Unfinished")}</span><span>{tt("A recording" + (o.code ? " of " + o.code : "") + " was interrupted at " + fmt(o.sec) + ", before its notes were made.")}</span><span style={css("margin-left:auto;display:flex;gap:14px")}><button className="ts" onClick={recoverOrphan}>{tt("Make notes from it")}</button><button className="ts" style={css("color:var(--red)")} onClick={dropOrphan}>{tt("Discard it")}</button></span></div>;
+  return <div className="alert" style={css("align-items:center;flex-wrap:wrap")}><span className="tag amber">{t("Unfinished")}</span><span>{t("A recording" + (o.code ? " of " + o.code : "") + " was interrupted at " + fmt(o.sec) + ", before its notes were made.")}</span><span style={css("margin-left:auto;display:flex;gap:14px")}><button className="ts" onClick={recoverOrphan}>{t("Make notes from it")}</button><button className="ts" style={css("color:var(--red)")} onClick={dropOrphan}>{t("Discard it")}</button></span></div>;
 }
 
 export function addCourseModal() {

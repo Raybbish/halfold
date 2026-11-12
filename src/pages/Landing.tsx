@@ -9,6 +9,9 @@ import { css } from "../ui/css";
 const StickyNote = ({ c, rot, d, pos, ts, children }: { c: string; rot: number; d: number; pos: string; ts: string; children: ReactNode }) =>
   <div className="sticky-w" style={css(`--c:${c};--rot:${rot}deg;--d:${d}s;${pos}`)}><div className="sticky"><b className="num">{ts}</b>{children}</div></div>;
 
+/* A sentence with an emphasised part, translated as a whole. "*" marks the emphasis in both languages. */
+const Emph = ({ s }: { s: string }) => <>{t(s).split("*").map((p, i) => i % 2 ? <i key={i}>{p}</i> : p)}</>;
+
 export function Landing() {
   return <div className="pub">
     <div className="dots">
@@ -25,7 +28,7 @@ export function Landing() {
         <div className="stage" aria-label={t("A lecture slide with sidenotes attached")}>
           <div className="rec"><i></i><span className="num">{t("Recording 12:48")}</span></div>
           <div className="slide"><h4>{t("Opportunity cost")}</h4><ul><li>{t("Definition")}</li><li>{t("Explicit and implicit costs")}</li><li>{t("Sunk costs")}</li></ul><span className="pg">{t("Slide 4 of 27")}</span></div>
-          <StickyNote c="#FFD93B" rot={4} d={.25} pos="right:0;top:36px" ts="6:48">{t("A year here costs the tuition ")}<i>{t("plus")}</i>{t(" the salary you did not earn.")}</StickyNote>
+          <StickyNote c="#FFD93B" rot={4} d={.25} pos="right:0;top:36px" ts="6:48"><Emph s="A year here costs the tuition *plus* the salary you did not earn." /></StickyNote>
           <StickyNote c="#FFB5A8" rot={-5} d={.5} pos="left:0;top:250px" ts="0:18">{t("Midterm Thu 26 Nov. Chapters 1 to 4. One A4 page allowed.")}</StickyNote>
           <StickyNote c="#A6EBD1" rot={3} d={.75} pos="right:4%;top:290px" ts="14:20">{t("Concert ticket example: the $400 is gone either way.")}</StickyNote>
         </div>

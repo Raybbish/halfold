@@ -40,7 +40,7 @@ export function App() {
   useLayoutEffect(afterRender);
   const { a, b } = R;
   let body: ReactNode = null;
-  if (view.loader === "shell") body = <Shell active="" raw><Skeleton /></Shell>;
+  if (view.loader === "shell") body = <Shell active=""><Skeleton /></Shell>;
   else if (view.loader === "center") body = <div className="center"><Sid size={56} mood="wow" /></div>;
   else if (view.loader === null) {
     if (S.error) {

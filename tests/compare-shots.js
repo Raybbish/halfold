@@ -8,8 +8,11 @@ const pw = require('playwright');
 // Anti-aliasing noise: a few pixels along an edge that differ slightly. The original file differs from itself this way
 // from run to run (rounded card corners in full-page phone screenshots), so such pairs are reported, but marked as noise.
 const isNoise = r => r.diff > 0 && r.diff <= 60 && r.maxDelta <= 8 && r.size[0] === r.size[2] && r.size[1] === r.size[3];
+// Differences made on purpose after the migration (tests/known-differences.js).
+const KNOWN = require('./known-differences');
+const expectedReason = (id, pixels) => (KNOWN.find(k => k.match.test(id) && (!k.maxPixels || pixels <= k.maxPixels)) || {}).reason || null;
 
-async function compare(dirA, dirB, diffDir) {
+async function compare(dirA, dirB, diffDir, prefix = '') {
   const names = fs.readdirSync(dirA).filter(n => n.endsWith('.png')).sort();
   fs.mkdirSync(diffDir, { recursive: true });
   const browser = await pw.chromium.launch(); const page = await browser.newPage();
@@ -39,17 +42,17 @@ async function compare(dirA, dirB, diffDir) {
       return { diff, maxDelta, total: w * h, size: [ia.width, ia.height, ib.width, ib.height], box: diff ? [x0, y0, x1, y1] : null, png: btoa(s) };
     }, ['data:image/png;base64,' + a.toString('base64'), 'data:image/png;base64,' + b.toString('base64')]);
     if (r.diff) fs.writeFileSync(path.join(diffDir, n), Buffer.from(r.png, 'base64'));
-    rows.push({ name: n, diff: r.diff, maxDelta: r.maxDelta, total: r.total, size: r.size, box: r.box, noise: isNoise(r) });
+    rows.push({ name: n, diff: r.diff, maxDelta: r.maxDelta, total: r.total, size: r.size, box: r.box, noise: isNoise(r), expected: isNoise(r) ? null : expectedReason(prefix + n, r.diff) });
   }
   await browser.close();
   return rows;
 }
 
-module.exports = { compare, isNoise };
+module.exports = { compare, isNoise, expectedReason };
 
 if (require.main === module) {
   const [a, b, d] = process.argv.slice(2);
   compare(a, b, d).then(rows => {
-    for (const r of rows) console.log(r.missing ? `MISSING  ${r.name}` : `${r.diff ? (r.noise ? 'NOISE' : 'DIFF') : 'SAME'}  ${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)} sizes ${JSON.stringify(r.size)}` : ''}`);
+    for (const r of rows) console.log(r.missing ? `MISSING  ${r.name}` : `${r.diff ? (r.noise ? 'NOISE' : r.expected ? 'EXPECTED' : 'DIFF') : 'SAME'}  ${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)} sizes ${JSON.stringify(r.size)}` : ''}${r.expected ? '  (' + r.expected + ')' : ''}`);
   });
 }

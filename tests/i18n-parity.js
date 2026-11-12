@@ -57,8 +57,12 @@ function run(target) {
 const a = run('legacy'), b = run('dist');
 let pass = 0, total = 0;
 const check = (name, ok, detail) => { total++; if (ok) pass++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail).slice(0, 800)}`); };
-check(`the dictionary has the same ${a.keys.length} keys`, JSON.stringify(a.keys) === JSON.stringify(b.keys));
-const bad = a.keys.filter((k, i) => a.zh.dict[i] !== b.zh.dict[i] || a.zh.dictSpaced[i] !== b.zh.dictSpaced[i]);
+// Keys are compared by name: entries added after the migration (e.g. the landing page's example notes) are listed, not failed.
+const byKey = r => Object.fromEntries(r.keys.map((k, i) => [k, [r.zh.dict[i], r.zh.dictSpaced[i]]]));
+const ma = byKey(a), mb = byKey(b), added = b.keys.filter(k => !(k in ma)), missing = a.keys.filter(k => !(k in mb));
+check(`all ${a.keys.length} keys of sidenote.html's dictionary are still there` + (added.length ? ` (${added.length} added since the migration)` : ''), missing.length === 0, missing);
+if (added.length) console.log('      added: ' + added.map(k => JSON.stringify(k)).join(', '));
+const bad = a.keys.filter(k => mb[k] && (ma[k][0] !== mb[k][0] || ma[k][1] !== mb[k][1]));
 check(`trs() matches sidenote.html for all ${a.keys.length} dictionary keys (also with surrounding whitespace)`, bad.length === 0, bad);
 const badS = SAMPLES.map((s, i) => [s, a.zh.samples[i], b.zh.samples[i]]).filter(x => x[1] !== x[2]);
 check(`trs() matches sidenote.html for ${SAMPLES.length} sentences covering every ZHR pattern`, badS.length === 0, badS);
