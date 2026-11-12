@@ -1,6 +1,7 @@
 /* SAMPLE DATA: used only by the mock branches of `api`. Times are seconds from the start of the recording.
    The literal below is lines 460-537 of sidenote.html, copied as they are. */
 import type { Course, Detail, Lecture, Settings, Slide, Upcoming, Week } from "../types";
+import { abortError, type UploadOptions } from "./http";
 
 interface MockLecture extends Lecture { full?: boolean; unshared?: boolean }
 interface MockUpcoming extends Omit<Upcoming, "date"> { day: string; mon: string; date?: string }
@@ -98,6 +99,16 @@ const SAMPLE = {
   }
 };
 export const DATA = SAMPLE as unknown as MockData;
+
+/* Sample build only: an upload of `size` bytes that takes `ms`, reports progress in ten steps and can be cancelled. */
+export async function fakeUpload(size: number, ms: number, opts: UploadOptions) {
+  for (let i = 1; i <= 10; i++) {
+    if (opts.signal && opts.signal.aborted) throw abortError();
+    await new Promise(r => setTimeout(r, ms / 10));
+    if (opts.signal && opts.signal.aborted) throw abortError();
+    if (opts.onProgress) opts.onProgress(Math.round(size * i / 10), size);
+  }
+}
 
 export const mockDb = {
   ready: false,

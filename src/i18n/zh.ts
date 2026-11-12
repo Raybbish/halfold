@@ -94,6 +94,8 @@ export const ZH: Record<string, string> = {
   "You have used today's recording minutes. Upload a recording instead, or come back tomorrow.": "你已用完今天的錄音時間。可以改為上載錄音，或明天再來。",
   "A recording is already running. End it before starting another.": "已有錄音正在進行，請先結束再開始新的。", "Slides need to be a PDF.": "簡報必須是 PDF。", "Slides did not upload. You can add them later.": "簡報未能上載，可以之後再加。",
   "Uploading": "上載中", "Keep this page open until the upload finishes.": "上載完成前請保持這個頁面開啟。",
+  /* upload progress and cancelling (added after the migration) */
+  "Cancel upload": "取消上載", "Upload cancelled.": "已取消上載。", "Upload progress": "上載進度",
   "Before you record": "錄音之前", "Check that recording is allowed in this class. Ask the lecturer if you are not sure.": "確認這堂課容許錄音。不確定的話，請先問老師。", "Sit where you can hear the lecturer clearly.": "坐在聽得清楚老師的位置。",
   "On a phone, keep this page open and the screen on.": "用手機時，請保持這個頁面開啟、螢幕亮著。", "Not now": "暫時不要",
   /* recording */
@@ -182,6 +184,7 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^(.+) The sample transcript below still plays so you can see the screen\.$/, m => trs(m[1]) + "下方仍會播放示例逐字稿，方便你查看畫面。"],
   [/^MP3, M4A, WAV, MP4\. Up to (\d+) MB\.$/, m => "MP3、M4A、WAV、MP4，最大 " + m[1] + " MB。"],
   [/^That file is larger than (\d+) MB\.$/, m => "檔案超過 " + m[1] + " MB。"],
+  [/^([\d.]+ MB) of ([\d.]+ MB) uploaded$/, m => "已上載 " + m[1] + "／" + m[2]],   // added after the migration
   [/^\/ (.+)$/, m => "/ " + trs(m[1])],
   [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]
 ];

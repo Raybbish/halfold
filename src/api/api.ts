@@ -4,8 +4,8 @@
 import { CONFIG } from "../config";
 import { wait } from "../lib/helpers";
 import { S } from "../state/app";
-import { http, form1 } from "./http";
-import { DATA } from "./mock";
+import { http, form1, upload, type UploadOptions } from "./http";
+import { DATA, fakeUpload } from "./mock";
 import type {
   CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, NewLecture, Plans, Point, ProgressUpdate,
   ReviewPack, SessionReply, SettingsUpdate, SharedReply, StatusReply, UrlReply, PackHint, PackTopic, PackQuestion
@@ -53,10 +53,10 @@ export const api = {
     if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/chunks", form1("audio", blob, { seq }));
     return { segments: [], alerts: [] };
   },
-  /* POST /lectures/:id/recording (multipart: file) */
-  async uploadRecording(id: string, file: File): Promise<null> { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/recording", form1("file", file)); await wait(900); return null; },
+  /* POST /lectures/:id/recording (multipart: file)   opts: progress reports and cancelling, see UploadOptions */
+  async uploadRecording(id: string, file: File, opts: UploadOptions = {}): Promise<null> { if (!CONFIG.USE_MOCK) return upload("/lectures/" + id + "/recording", form1("file", file), opts); await fakeUpload(file.size, 900, opts); return null; },
   /* POST /lectures/:id/slides (multipart: file, PDF) */
-  async uploadSlides(id: string, file: File): Promise<null> { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/slides", form1("file", file)); await wait(300); return null; },
+  async uploadSlides(id: string, file: File, opts: UploadOptions = {}): Promise<null> { if (!CONFIG.USE_MOCK) return upload("/lectures/" + id + "/slides", form1("file", file), opts); await fakeUpload(file.size, 300, opts); return null; },
   /* POST /lectures/:id/link {url} */
   async attachLink(id: string, url: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/link", { url }); await wait(600); return null; },
   /* POST /lectures/:id/catch-up -> {points:[string]}   summary of the last five minutes of a live recording */

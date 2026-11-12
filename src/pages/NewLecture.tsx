@@ -9,7 +9,7 @@ import { mb } from "../lib/helpers";
 import { store } from "../lib/store";
 import { bump } from "../lib/bus";
 import { LANGS, R, S, course, nf } from "../state/app";
-import { act, busy, closeModal, toast } from "../state/overlay";
+import { act, busy, closeModal, toast, uploadDialog, uploadProgress } from "../state/overlay";
 import { t } from "../i18n";
 import { live, beginRecording } from "../features/recording/recorder";
 import { finalize } from "../features/recording/finish";
@@ -71,12 +71,28 @@ function submitNew() {
     try {
       const lec = await api.createLecture({ courseId: nf.courseId!, title: nf.title.trim(), language: nf.lang!, source: nf.mode });
       if (recMode) { const code = course(nf.courseId)!.code; if (nf.slides) api.uploadSlides(lec.id, nf.slides).catch(() => toast("Slides did not upload. The notes will be made without them.")); await beginRecording(lec, code, nf.mode); done(); location.hash = "#/live"; return; }
-      busy("Uploading", "Keep this page open until the upload finishes.");
-      if (nf.mode === "upload") await api.uploadRecording(lec.id, nf.file!); else await api.attachLink(lec.id, nf.link.trim());
-      if (nf.slides) await api.uploadSlides(lec.id, nf.slides);
+      if (nf.mode === "upload") { if (!(await sendFiles(lec.id, nf.file!, nf.slides))) return; }
+      else { busy("Uploading", "Keep this page open until the upload finishes."); await api.attachLink(lec.id, nf.link.trim()); if (nf.slides) await api.uploadSlides(lec.id, nf.slides); }
       done(); await finalize(lec.id, 0);
     } finally { nf.busy = false; if (R.a === "new") bump(); }   // enable the button again if the page is still showing (after an error)
   });
+}
+
+/* Upload the recording and the slides with one progress bar for both. Cancel stops the upload and deletes the lecture
+   that was just created for it, so no empty lecture is left; the form keeps the files for another try.
+   Resolves false when the student cancelled. */
+async function sendFiles(id: string, file: File, slides: File | null) {
+  const total = file.size + (slides ? slides.size : 0), stop = new AbortController();
+  uploadDialog(total, () => stop.abort());
+  try {
+    /* The browser counts the bytes of the whole request (the file plus a little form framing): scale that to the file's share of the bar. */
+    await api.uploadRecording(id, file, { signal: stop.signal, onProgress: (sent, of) => uploadProgress(file.size * sent / of, total) });
+    if (slides) await api.uploadSlides(id, slides, { signal: stop.signal, onProgress: (sent, of) => uploadProgress(file.size + slides.size * sent / of, total) });
+    return true;
+  } catch (e) {
+    if ((e as Error).name !== "AbortError") throw e;
+    api.deleteLecture(id).catch(() => {}); closeModal(); toast("Upload cancelled."); return false;
+  }
 }
 
 /* Shown once, before the first recording on this device. */
