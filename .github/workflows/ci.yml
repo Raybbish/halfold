@@ -1,0 +1,70 @@
+# Runs every check against the build on each pull request and on each push to main: type check and build,
+# the committed dist/ is current, the 102 checks, sideways scrolling, print view, screenshots compared with
+# sidenote.html, and the sample-data API and dictionary compared with sidenote.html. About 20 minutes.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Build and checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Type check and build, no warnings
+        run: |
+          npm run build 2>&1 | tee build.log
+          if grep -qi warn build.log; then echo "::error::the build printed warnings"; exit 1; fi
+
+      - name: Committed dist/ matches the build
+        run: |
+          if ! git diff --quiet -- dist; then
+            git status --short -- dist
+            echo "::error::dist/ is out of date: run npm run build and commit dist/"
+            exit 1
+          fi
+
+      - name: Checks, sideways scrolling, print view, screenshots against sidenote.html
+        run: npm test -- --no-build
+
+      - name: Sample-data API and dictionary match sidenote.html
+        run: |
+          node tests/api-parity.js
+          node tests/i18n-parity.js
+
+      - name: Keep logs, screenshots and diff images
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-output
+          path: |
+            tests/output/
+            build.log
+          retention-days: 14

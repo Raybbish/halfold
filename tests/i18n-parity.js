@@ -70,3 +70,4 @@ check('dayMon() matches in English and Chinese', JSON.stringify(a.en.dayMon) ===
 check('<html lang> is zh-Hant in Chinese, and English text is untouched after switching back', a.zh.htmlLang === b.zh.htmlLang && b.zh.htmlLang === 'zh-Hant' && a.backToEn && b.backToEn);
 check('no page errors', !a.pageErrors.length && !b.pageErrors.length, [a.pageErrors, b.pageErrors]);
 console.log(`\n${pass} of ${total} checks passed`);
+process.exitCode = pass === total ? 0 : 1;   // a failed check fails the run (CI)
