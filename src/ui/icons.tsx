@@ -16,4 +16,4 @@ export function Sid({ size = 28, mood = "plain", color = "#FFD93B" }: { size?: n
   const mouth = mood === "smile" ? <path d="M12.5 18.5q3.5 3 7 0" fill="none" stroke="#16233B" strokeWidth="1.8" strokeLinecap="round" /> : mood === "wow" ? <ellipse cx="16" cy="20" rx="2" ry="2.4" fill="#16233B" /> : mood === "sad" ? <path d="M12.5 20.5q3.5 -3 7 0" fill="none" stroke="#16233B" strokeWidth="1.8" strokeLinecap="round" /> : null;
   return <svg className="sid" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h26v17l-9 9H3z" fill={color} stroke="#16233B" strokeWidth="2" strokeLinejoin="round" /><path d="M29 20h-9v9" fill="#fff" fillOpacity=".55" stroke="#16233B" strokeWidth="2" strokeLinejoin="round" /><circle className="eye" cx="11.5" cy="13" r="2.1" fill="#16233B" /><circle className="eye" cx="20.5" cy="13" r="2.1" fill="#16233B" />{mouth}</svg>;
 }
-export const Logo = ({ href, raw }: { href: string; raw?: boolean }) => <a className="logo" href={href}><Sid size={28} />{raw ? "sidenote" : t("sidenote")}</a>;
+export const Logo = ({ href }: { href: string }) => <a className="logo" href={href}><Sid size={28} />{t("sidenote")}</a>;

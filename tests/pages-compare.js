@@ -84,13 +84,13 @@ function run(target, w, zh) {
 }
 
 (async () => {
-  let same = 0, noise = 0, total = 0;
+  let same = 0, noise = 0, expected = 0, total = 0;
   for (const [w, zh] of [[375, 0], [375, 1], [1280, 0], [1280, 1]]) {
     const tag = `${w}-${zh ? 'zh' : 'en'}`;
     const SELF = process.argv.includes('--self'), e1 = run('legacy', w, zh), e2 = run(SELF ? 'legacy2' : 'dist', w, zh);
     if (e1.length || e2.length) console.log(`errors ${tag}:`, JSON.stringify({ legacy: e1, dist: e2 }));
-    const rows = await compare(path.join(OUT, 'legacy', tag), path.join(OUT, SELF ? 'legacy2' : 'dist', tag), path.join(OUT, 'diff', tag));
-    for (const r of rows) { total++; if (!r.missing && !r.diff) same++; else { if (r.noise) noise++; console.log(`${r.missing ? 'MISSING' : r.noise ? 'NOISE' : 'DIFF'}  ${tag}/${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)} sizes ${JSON.stringify(r.size)}` : ''}`); } }
+    const rows = await compare(path.join(OUT, 'legacy', tag), path.join(OUT, SELF ? 'legacy2' : 'dist', tag), path.join(OUT, 'diff', tag), tag + '/');
+    for (const r of rows) { total++; if (!r.missing && !r.diff) same++; else { if (r.noise) noise++; else if (r.expected) expected++; console.log(`${r.missing ? 'MISSING' : r.noise ? 'NOISE' : r.expected ? 'EXPECTED' : 'DIFF'}  ${tag}/${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)} sizes ${JSON.stringify(r.size)}` : ''}${r.expected ? '  (' + r.expected + ')' : ''}`); } }
   }
-  console.log(`\n${same} of ${total} screenshots identical, ${noise} differ only by anti-aliasing noise, ${total - same - noise} differ`);
+  console.log(`\n${same} of ${total} screenshots identical, ${noise} differ only by anti-aliasing noise, ${expected} differ on purpose (tests/known-differences.js), ${total - same - noise - expected} differ`);
 })();

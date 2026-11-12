@@ -73,9 +73,9 @@ function run(script, target, extraEnv = {}) {
       line(`shots5.js (phone ${phone} px) on ${t === 'legacy' ? 'sidenote.html' : 'the build'}: no console or page errors`, /no console\/page errors/.test(r.out) && r.code === 0, /no console\/page errors/.test(r.out) ? '' : r.out.slice(0, 600));
     }
     const rows = await compare(path.join(OUT, 'legacy', tag), path.join(OUT, 'dist', tag), path.join(OUT, 'diff-' + tag));
-    const differ = rows.filter(r => r.missing || (r.diff && !r.noise)), noisy = rows.filter(r => r.noise);
-    rows.forEach(r => { if (r.missing || r.diff) console.log(`   ${r.missing ? 'MISSING' : r.noise ? 'NOISE' : 'DIFF'}  ${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)}` : ''}`); });
-    line(`screenshots (phone ${phone} px, desktop 1280 px): ${rows.length - differ.length - noisy.length} of ${rows.length} identical to sidenote.html` + (noisy.length ? `, ${noisy.length} differ only by anti-aliasing noise` : ''), differ.length === 0, differ.length ? 'diff images in tests/output/diff-' + tag + '/' : '');
+    const differ = rows.filter(r => r.missing || (r.diff && !r.noise && !r.expected)), noisy = rows.filter(r => r.noise), expected = rows.filter(r => r.expected);
+    rows.forEach(r => { if (r.missing || r.diff) console.log(`   ${r.missing ? 'MISSING' : r.noise ? 'NOISE' : r.expected ? 'EXPECTED' : 'DIFF'}  ${r.name}${r.diff ? `  ${r.diff} px, max channel delta ${r.maxDelta}, in box ${JSON.stringify(r.box)}` : ''}${r.expected ? '  (' + r.expected + ')' : ''}`); });
+    line(`screenshots (phone ${phone} px, desktop 1280 px): ${rows.length - differ.length - noisy.length - expected.length} of ${rows.length} identical to sidenote.html` + (noisy.length ? `, ${noisy.length} differ only by anti-aliasing noise` : '') + (expected.length ? `, ${expected.length} differ on purpose (tests/known-differences.js)` : ''), differ.length === 0, differ.length ? 'diff images in tests/output/diff-' + tag + '/' : '');
   }
 
   console.log('\n' + summary.join('\n'));

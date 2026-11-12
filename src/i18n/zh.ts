@@ -25,6 +25,13 @@ export const ZH: Record<string, string> = {
   "Flashcards and a quiz": "閃卡和測驗", "Written from your lecture, not a generic textbook. Wrong answers link back to the moment it was taught.": "內容來自你上的那堂課，不是通用教科書。答錯的題目會連回老師講解的那一刻。",
   "One link for the whole class": "一條連結，全班受用", "Drop the notes in the course group chat. Classmates read them without an account, and the next person records the next lecture.": "把筆記丟進課程群組。同學不用登記就能看，下一堂課自然有人接著錄。",
   "did anyone get what she said about the midterm": "有人聽到她說期中考的事嗎", "sidenote link to ECON 1001 week 9": "Sidenote 連結：ECON 1001 第 9 週", "you are a legend": "你是我的救星",
+  /* landing: the example notes on the sticky notes and in the feature grid (added after the migration). "*" marks the
+     emphasised part. The mock slide and the lecturer's quotes stay in English: they show English-taught lectures. */
+  "A year here costs the tuition *plus* the salary you did not earn.": "讀一年大學的成本，是學費*加上*你沒賺到的薪金。",
+  "Midterm Thu 26 Nov. Chapters 1 to 4. One A4 page allowed.": "期中考：11月26日（四），第 1 至 4 章，可帶一頁 A4 筆記。",
+  "Concert ticket example: the $400 is gone either way.": "演唱會門票的例子：那 $400 去不去都收不回來。",
+  "Slide 4. Opportunity cost is the best alternative you gave up.": "第 4 頁：機會成本是你放棄了的最佳選擇。",
+  "Sidenote. Includes the salary you did not earn.": "旁註：還包括你沒賺到的薪金。",
   "Three ways to get a lecture in": "三種方法把課堂放進來",
   "Record on your laptop": "用手提電腦錄音", "Open Sidenote in a tab and keep working. Recording continues in the background.": "在分頁開著 Sidenote，照常做你的事，錄音會在背景繼續。",
   "Record on your phone": "用手機錄音", "Face up on the desk, with this page open and the screen on.": "螢幕朝上放在桌上，保持這個頁面開啟、螢幕亮著。",

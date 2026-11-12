@@ -8,7 +8,7 @@ import { api } from "../api/api";
 import { mb } from "../lib/helpers";
 import { store } from "../lib/store";
 import { bump } from "../lib/bus";
-import { LANGS, S, course, nf } from "../state/app";
+import { LANGS, R, S, course, nf } from "../state/app";
 import { act, busy, closeModal, toast } from "../state/overlay";
 import { t } from "../i18n";
 import { live, beginRecording } from "../features/recording/recorder";
@@ -58,13 +58,14 @@ export function NewLecture() {
 }
 
 function submitNew() {
+  if (nf.busy) return;   // already sending: a second click or Enter must not create a second lecture
   if (!nf.courseId) { nf.err = "Add a course first."; return bump(); }
   if (nf.mode === "upload" && !nf.file) { nf.err = "Choose the recording to upload."; return bump(); }
   if (nf.mode === "link" && !/^https?:\/\/\S+\.\S+/.test(nf.link.trim())) { nf.err = "Paste the full link, starting with https://"; return bump(); }
   const recMode = nf.mode === "record" || nf.mode === "tab";
   if (recMode && S.usage && S.usage.minutesToday >= S.usage.minutesLimit) { nf.err = "You have used today's recording minutes. Upload a recording instead, or come back tomorrow."; return bump(); }
   if (recMode && !store.get("recTip")) return recTipModal();
-  nf.err = ""; nf.busy = true;
+  nf.err = ""; nf.busy = true; bump();   // grey out the button while the lecture is being created
   const done = () => { Object.assign(nf, { title: "", file: null, slides: null, link: "", busy: false }); };
   act(async () => {
     try {
@@ -74,7 +75,7 @@ function submitNew() {
       if (nf.mode === "upload") await api.uploadRecording(lec.id, nf.file!); else await api.attachLink(lec.id, nf.link.trim());
       if (nf.slides) await api.uploadSlides(lec.id, nf.slides);
       done(); await finalize(lec.id, 0);
-    } finally { nf.busy = false; }
+    } finally { nf.busy = false; if (R.a === "new") bump(); }   // enable the button again if the page is still showing (after an error)
   });
 }
 
