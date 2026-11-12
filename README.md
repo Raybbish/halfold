@@ -118,6 +118,17 @@ npm run test:legacy
 | `node tests/i18n-parity.js` | 词典每个键、每条 `ZHR` 规则的翻译结果与原文件相同 |
 | `node tests/pages-compare.js` | 每个页面和弹窗的整页截图，375/1280 宽、中英文，与原文件逐像素对比 |
 
+### GitHub 上的自动检查（CI）
+
+`.github/workflows/ci.yml` 在每个 Pull Request 和每次推送到 `main` 时，在 GitHub 的 Ubuntu 机器上自动跑一遍，大约 20 分钟：
+
+1. 类型检查和构建，有警告也算失败；
+2. 仓库里提交的 `dist/` 和这次构建结果一致（`dist/` 是直接部署的，改了源码要记得重新构建并提交）；
+3. `npm test`：102 项检查、横向滚动、打印、截图对比；
+4. `tests/api-parity.js` 和 `tests/i18n-parity.js`。
+
+失败时，日志、截图和差异图会作为 `test-output` 附件保存 14 天，在那次运行的页面上下载。
+
 ### 检查脚本改了什么
 
 原脚本原样保存在 `tests/original/`。`tests/` 下的版本只改了四处，`check(...)` 断言一行没动：

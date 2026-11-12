@@ -54,4 +54,5 @@ async function run(target) {
     console.log(`${ok ? 'PASS' : 'FAIL'}  mock ${k} matches sidenote.html` + (ok ? '' : '  -> ' + JSON.stringify({ legacy: a[k], dist: b[k] }).slice(0, 600)));
   }
   console.log(`\n${pass} of ${total} checks passed`);
+  process.exitCode = pass === total ? 0 : 1;   // a failed check fails the run (CI)
 })();
