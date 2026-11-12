@@ -1,6 +1,6 @@
 # Sidenote 前端（sidenote-web）
 
-`sidenote.html` 单文件前端搬到 React + TypeScript 的工程。界面、文案、接口、本机存储和地址都与原文件一致，见“验收结果”。原文件冻结在 `reference/sidenote.html`，对接文档在 `reference/INTEGRATION.md`。
+`sidenote.html` 单文件前端搬到 React + TypeScript 的工程。界面、文案、接口、本机存储和地址都与原文件一致，见“验收结果”。原文件冻结在 `reference/sidenote.html`，对接文档在 `reference/INTEGRATION.md`；迁移之后新增的接口和接口的新用法见 [API-CHANGES.md](API-CHANGES.md)。
 
 迁移中发现但没改的问题、实现上和原文件不同的地方、真机走查的结果，都在 [DIFFERENCES.md](DIFFERENCES.md)。
 
@@ -18,7 +18,7 @@
 
 同一套检查对原文件也全过（`npm run test:legacy`），所以上面的结果可以直接和原文件对照。
 
-验收之后修了几个原文件里就有的问题（中文骨架屏闪英文、落地页示例笔记没有中文、新建课堂可以连点提交、语言按钮的读屏标签），见 [DIFFERENCES.md](DIFFERENCES.md) 第 1 节。所以现在的截图对比里，中文落地页会和原文件不同，`tests/known-differences.js` 把它列为有意的差异，不算失败。
+验收之后修了原文件里就有的问题，见 [DIFFERENCES.md](DIFFERENCES.md) 第 1 节；还加了新功能：上传进度和取消、改课程和删课程、把课堂移到别的课程，接口见 [API-CHANGES.md](API-CHANGES.md)。所以现在的截图对比里有几张会和原文件不同：中文落地页（示例笔记有了中文）、课程页（多了 “Edit course” 按钮）、讲座页的 More 菜单（多了 “Move to another course”）。`tests/known-differences.js` 把它们列为有意的差异并写明原因，不算失败；每张都设了像素上限，差得更多仍算失败。
 
 ## 本地运行
 
@@ -110,10 +110,11 @@ npm test
 npm run test:legacy
 ```
 
-对构建产物还会多跑两个脚本，测的都是迁移之后的改动，原文件没有：
+对构建产物还会多跑三个脚本，测的都是迁移之后的改动，原文件没有：
 
 - `tests/upload.js`（13 项）：上传录音时的进度条和取消按钮；
-- `tests/backend-text.js`（13 项）：后端给的内容（课程编号和名称、章节名、课件页码标签、选中的文件名）原样显示、不翻译，以及 6 个用不到的旧词典键已删掉。
+- `tests/backend-text.js`（13 项）：后端给的内容（课程编号和名称、章节名、课件页码标签、选中的文件名）原样显示、不翻译，以及 6 个用不到的旧词典键已删掉；
+- `tests/courses.js`（18 项）：改课程编号和名称、删课程（有课堂和没有课堂、录音中不能删）、把课堂移到别的课程，中文界面，以及真后端模式下发出的请求和出错时的表现。
 
 另外三个迁移时用的对比脚本，单独运行：
 
@@ -129,7 +130,7 @@ npm run test:legacy
 
 1. 类型检查和构建，有警告也算失败；
 2. 仓库里提交的 `dist/` 和这次构建结果一致（`dist/` 是直接部署的，改了源码要记得重新构建并提交）；
-3. `npm test`：102 项检查、迁移后加的 26 项（上传功能、后端内容不翻译）、横向滚动、打印、截图对比；
+3. `npm test`：102 项检查、迁移后加的 44 项（上传功能、后端内容不翻译、管理课程）、横向滚动、打印、截图对比；
 4. `tests/api-parity.js` 和 `tests/i18n-parity.js`。
 
 失败时，日志、截图和差异图会作为 `test-output` 附件保存 14 天，在那次运行的页面上下载。
@@ -162,8 +163,8 @@ src/
     recording/        recorder、outbox、orphan、tabAudio、finish
     export.ts         Markdown、Anki、逐字稿、打印、日历
   ui/                 icons（图标和 Sid）、Overlay（画弹窗）、Shell（外壳、骨架屏、语言按钮）、useStore、css、form
-  pages/              Landing SignIn Home Course ReviewPack Settings Lecture Shared NewLecture Live
-    lecture/          Notes Slides Transcript Cards Quiz 五个标签页，parts（要点、时间轴、工具栏）、actions（按钮动作）
+  pages/              Landing SignIn Home Course ReviewPack Settings Lecture Shared NewLecture Live；courseActions（改课程、删课程）
+    lecture/          Notes Slides Transcript Cards Quiz 五个标签页，parts（要点、时间轴、工具栏）、actions（按钮动作，包括移动课堂）
 tests/                检查脚本、harness、对比脚本；original/ 是没改过的原脚本
 reference/            冻结的 sidenote.html 和 INTEGRATION.md
 ```

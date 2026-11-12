@@ -6,13 +6,14 @@ import { Sid } from "../ui/icons";
 import { Shell, Problem } from "../ui/Shell";
 import { css } from "../ui/css";
 import { statusTag } from "./Home";
+import { editCourseModal } from "./courseActions";
 
 export function Course({ id }: { id: string }) {
   const c = course(id); if (!c) return <Shell active="home"><Problem title="This course does not exist" text="It may have been removed." /></Shell>;
   const ls = S.lectures.filter(l => l.course === id);
   return <Shell active={id}>
     <div className="crumb"><a href="#/home">{t("Home")}</a>{t(" / ") + c.code}</div>
-    <div className="page-h"><div className="hello"><i className="cdot" style={css(`background:${colorOf(c)};width:44px;height:44px;border-radius:12px`)}></i><div><h1>{c.code}</h1><p className="muted" style={css("margin-top:4px")} data-notr="">{c.name}</p></div></div><a className="btn primary" href="#/new" onClick={() => { nf.courseId = c.id; }}>{t("New lecture")}</a></div>
+    <div className="page-h"><div className="hello"><i className="cdot" style={css(`background:${colorOf(c)};width:44px;height:44px;border-radius:12px`)}></i><div><h1>{c.code}</h1><p className="muted" style={css("margin-top:4px")} data-notr="">{c.name}</p></div></div><div style={css("display:flex;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={() => editCourseModal(c.id)}>{t("Edit course")}</button><a className="btn primary" href="#/new" onClick={() => { nf.courseId = c.id; }}>{t("New lecture")}</a></div></div>
     {ls.length ? <><div style={css("padding:18px 20px;margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--yellow-soft);border:2px solid var(--ink);border-radius:var(--r-lg)")}>
       <Sid size={44} mood="wow" /><div className="grow" style={css("min-width:220px")}><b style={css("color:var(--ink);font-size:18px")}>{t("Exam review pack")}</b><div className="small">{t("All " + plural(ls.length, "lecture") + " in one revision sheet and a mock exam, weighted towards what the lecturer flagged.")}</div></div>
       <a className="btn dark" href={"#/pack/" + encodeURIComponent(c.id)}>{t("Open review pack")}</a></div>
