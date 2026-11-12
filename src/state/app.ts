@@ -1,6 +1,6 @@
 /* ---------- store: everything the screens read ----------
    Module-level objects, as in sidenote.html. Code changes them and then calls bump() (lib/bus.ts) to redraw. */
-import type { Course, Detail, Lecture, Plans, ReviewPack, Settings, SharedReply, Source, Upcoming, Usage, User, Week } from "../types";
+import type { Course, Detail, Lecture, NoteHit, Plans, Point, ReviewPack, Settings, SharedReply, Source, Upcoming, Usage, User, Week } from "../types";
 import type { StoredChunk } from "../lib/idb";
 import { CONFIG } from "../config";
 import { PALETTE, mins, ymd } from "../lib/helpers";
@@ -34,7 +34,8 @@ export const session = {
 
 /* ---------- screen state ---------- */
 export type Tab = "notes" | "slides" | "transcript" | "cards" | "quiz";
-export const state = { tab: "notes" as Tab, onlyOff: false, zh: false, pos: 0, hit: null as number | null, fc: 0, flip: false, known: new Set<number>(), qi: 0, picked: null as number | null, score: 0, done: false, q: "", tq: "", edit: false, order: null as number[] | null, wrong: [] as number[] };
+export const state = { tab: "notes" as Tab, onlyOff: false, zh: false, pos: 0, hit: null as number | null, fc: 0, flip: false, known: new Set<number>(), qi: 0, picked: null as number | null, score: 0, done: false, q: "", tq: "", edit: false, order: null as number[] | null, wrong: [] as number[],
+  found: null as Point | null, goFound: false };   // found: the point a search result opened, shown marked; goFound: scroll to it once
 
 /* The current route, #/a/b. route() updates it in place. */
 export const R = { a: "", b: "" };
@@ -47,6 +48,12 @@ export function setCur(c: Cur) { cur = c; }
 /* A timestamp link elsewhere (exam radar, review pack) opens the lecture with the recording at that second. */
 export let pendingPos = 0;
 export function setPendingPos(t: number) { pendingPos = t; }
+/* A search result on the home page opens the lecture at that point of the notes (added after the migration). */
+export let pendingPoint: NoteHit | null = null;
+export function setPendingPoint(h: NoteHit | null) { pendingPoint = h; }
+/* The point a search result means: the same text, or else the same timestamp. */
+export const findPoint = (d: Detail, h: NoteHit): Point | null => { const all = d.sections.flatMap(s => s.points);
+  return all.find(p => p.text === h.text) || (h.t != null ? all.find(p => p.t === h.t) : undefined) || null; };
 
 /* What #app shows while route() is loading. "blank" until the first route; null = the page itself. */
 export const view = { loader: "blank" as "blank" | "shell" | "center" | null };

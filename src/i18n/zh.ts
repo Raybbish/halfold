@@ -106,6 +106,9 @@ export const ZH: Record<string, string> = {
   "Add slides": "加入簡報", "No slides for this lecture yet.": "這堂課還沒有簡報。", "Slides added": "已加入簡報",
   "Sid is putting the notes under the slides": "Sid 正在把筆記放到簡報下", "This usually takes a minute or two. Your own notes and edits stay.": "通常需要一兩分鐘。你自己加的筆記和修改都會保留。",
   "The slides could not be added. The notes are as they were.": "未能加入簡報，筆記維持原樣。", "Still working. The notes will be under the slides when ready.": "仍在處理中。完成後筆記會放到簡報下。",
+  /* searching the notes of every lecture (added after the migration) */
+  "Found in the notes": "在筆記裡找到", "Searching the notes": "正在搜尋筆記",
+  "The notes could not be searched just now. Try again in a moment.": "暫時無法搜尋筆記，請稍後再試。",
   "Before you record": "錄音之前", "Check that recording is allowed in this class. Ask the lecturer if you are not sure.": "確認這堂課容許錄音。不確定的話，請先問老師。", "Sit where you can hear the lecturer clearly.": "坐在聽得清楚老師的位置。",
   "On a phone, keep this page open and the screen on.": "用手機時，請保持這個頁面開啟、螢幕亮著。", "Not now": "暫時不要",
   /* recording */

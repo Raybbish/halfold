@@ -8,7 +8,7 @@ import { http, form1, upload, type UploadOptions } from "./http";
 import { DATA, fakeUpload, fileUnderSlides, mockSlides, withoutSlides } from "./mock";
 import type {
   CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, NewLecture, Plans, Point, ProgressUpdate,
-  ReviewPack, SessionReply, SettingsUpdate, SharedReply, StatusReply, UrlReply, PackHint, PackTopic, PackQuestion
+  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, UrlReply, PackHint, PackTopic, PackQuestion
 } from "../types";
 
 export const api = {
@@ -129,6 +129,12 @@ export const api = {
   async deleteCourse(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/courses/" + id); await wait(300);
     const gone = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)); DATA.courses = DATA.courses.filter(c => c.id !== id); DATA.lectures = DATA.lectures.filter(l => !gone.has(l.id));
     DATA.upcoming = DATA.upcoming.filter(u => !gone.has(u.lecture)); gone.forEach(x => delete DATA.details[x]); delete DATA.packs[id]; return null; },
+  /* GET /search?q= -> {results:[{lecture, text, t}]}  points in the notes of every lecture, at most 20 (added after the migration).
+     Sample build: every word of the query has to be in the point, in any order. */
+  async searchNotes(q: string): Promise<SearchReply> { if (!CONFIG.USE_MOCK) return http("GET", "/search?q=" + encodeURIComponent(q)); await wait(250);
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean), results: SearchReply["results"] = [];
+    DATA.lectures.forEach(l => { const d = DATA.details[l.id]; if (d) d.sections.forEach(s => s.points.forEach(p => { const x = p.text.toLowerCase(); if (words.length && words.every(w => x.includes(w))) results.push({ lecture: l.id, text: p.text, t: p.t }); })); });
+    return { results: results.slice(0, 20) }; },
   /* POST /courses/:id/review-pack -> {status} */
   async makeReviewPack(courseId: string): Promise<{ status: string }> { if (!CONFIG.USE_MOCK) return http("POST", "/courses/" + courseId + "/review-pack"); await wait(400); DATA.packs[courseId] = "ready"; return { status: "processing" }; },
   /* PUT /lectures/:id/progress {known:[cardIndex], quizScore} */
