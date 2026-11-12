@@ -71,6 +71,16 @@ sidenote.example.com {
 
 检查脚本用 `page.addInitScript` 设同一个 `window.SIDENOTE_CONFIG`。
 
+## 真机走查包
+
+验收第 5 项要在真机上把原文件和新工程各走一遍。下面的命令生成部署包：两个版本各一个 HTTPS 站点，外加 Caddyfile 和走查说明。
+
+```bash
+npm run walkthrough -- --old=old.<你的域名> --new=new.<你的域名>
+```
+
+有后端时加 `--api=127.0.0.1:8000`，两个版本一起切到真后端。部署步骤、走查步骤和记录表见 [deploy/walkthrough/README.md](deploy/walkthrough/README.md)。
+
 ## 跑检查
 
 第一次先装 Playwright 自带的浏览器：

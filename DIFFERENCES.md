@@ -65,6 +65,8 @@
 
 ### 准备
 
+走查包已经备好：`npm run walkthrough -- --old=<旧版域名> --new=<新版域名>` 生成 `deploy/walkthrough/out/sidenote-walkthrough.tar.gz`，里面有两个版本、Caddyfile 和给走查人员的说明（`deploy/walkthrough/README.md`）。有后端时加 `--api=<后端地址>`，两个版本会一起切到真后端。下面几条是它为什么这样做。
+
 - **必须用 HTTPS。** 手机浏览器只在安全来源（HTTPS 或 localhost）下允许用麦克风，用电脑局域网 IP 加 http 打开是录不了音的。最简单的做法是部署到一个有证书的测试域名，Caddy 会自动申请证书。
 - **两个版本放在不同的域名下**，例如 `old.<测试域名>` 放 `reference/sidenote.html`（改名为 `index.html`），`new.<测试域名>` 放 `dist/`。放在同一个域名下，两边会共用 `sidenote.*` 的 localStorage 和 IndexedDB 库，未完成录音的标记会互相干扰。
 - 有后端就接真后端（`USE_MOCK: false`），这样才能验证分段上传、结束后生成笔记和真实回放。没有后端时用示例模式：麦克风是真的在录，但分段交给的是假的上传函数，回放是模拟的，这一点要记在结果里。

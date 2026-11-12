@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "node tests/run-all.js",
-    "test:legacy": "node tests/run-all.js --target=legacy"
+    "test:legacy": "node tests/run-all.js --target=legacy",
+    "walkthrough": "node deploy/walkthrough/make-bundle.js"
   },
   "dependencies": {
     "react": "~19.2.9",
