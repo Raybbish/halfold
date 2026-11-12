@@ -7,9 +7,9 @@
 // (a moved or missing element touches thousands of pixels) still fails.
 module.exports = [
   {
-    match: /(^|\/)(m|d)-(en|zh)-(15-live|16-home-while-recording)\.png$/,
+    match: /(^|\/)(m|d)-(en|zh)-(15-live|16-home-while-recording|17-settings)\.png$/,
     maxPixels: 300,
-    reason: 'recording screen: the clock and the microphone level bar show live values, so each run captures a different second or level'
+    reason: 'taken while a recording runs: the clock (and on the recording screen the microphone level bar) show live values, so each run captures a different second or level'
   },
   {
     match: /(^|\/)(m|d)-zh-01-landing\.png$|^(375|1280)-zh\/landing\.png$/,

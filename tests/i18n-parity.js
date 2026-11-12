@@ -58,12 +58,23 @@ const a = run('legacy'), b = run('dist');
 let pass = 0, total = 0;
 const check = (name, ok, detail) => { total++; if (ok) pass++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail).slice(0, 800)}`); };
 // Keys are compared by name: entries added after the migration (e.g. the landing page's example notes) are listed, not failed.
+// Keys removed on purpose after the migration: sidenote.html itself no longer used them (DIFFERENCES.md part 1, item 4).
+const REMOVED = [
+  "Tap a timestamp and read the lecturer's exact words.",
+  'Anyone with the link can read the notes, flashcards and quiz. They cannot see your other lectures.',
+  'The notes, flashcards, quiz and any shared link will be removed. This cannot be undone.',
+  'Slides did not upload. You can add them later.',
+  'The end of your recording has not been sent yet. Keep this page open and try again when you are back online.',
+  'The notes could not be written. Open the lecture to try again.'
+];
 const byKey = r => Object.fromEntries(r.keys.map((k, i) => [k, [r.zh.dict[i], r.zh.dictSpaced[i]]]));
-const ma = byKey(a), mb = byKey(b), added = b.keys.filter(k => !(k in ma)), missing = a.keys.filter(k => !(k in mb));
-check(`all ${a.keys.length} keys of sidenote.html's dictionary are still there` + (added.length ? ` (${added.length} added since the migration)` : ''), missing.length === 0, missing);
+const ma = byKey(a), mb = byKey(b), added = b.keys.filter(k => !(k in ma)), missing = a.keys.filter(k => !(k in mb) && !REMOVED.includes(k));
+const removed = REMOVED.filter(k => k in ma && !(k in mb)), kept = a.keys.length - removed.length;
+check(`all ${kept} keys of sidenote.html's dictionary that are in use are still there` + (added.length ? ` (${added.length} added since the migration)` : '') + (removed.length ? ` (${removed.length} unused keys removed)` : ''), missing.length === 0, missing);
 if (added.length) console.log('      added: ' + added.map(k => JSON.stringify(k)).join(', '));
+if (removed.length) console.log('      removed: ' + removed.map(k => JSON.stringify(k)).join(', '));
 const bad = a.keys.filter(k => mb[k] && (ma[k][0] !== mb[k][0] || ma[k][1] !== mb[k][1]));
-check(`trs() matches sidenote.html for all ${a.keys.length} dictionary keys (also with surrounding whitespace)`, bad.length === 0, bad);
+check(`trs() matches sidenote.html for all ${kept} dictionary keys (also with surrounding whitespace)`, bad.length === 0, bad);
 const badS = SAMPLES.map((s, i) => [s, a.zh.samples[i], b.zh.samples[i]]).filter(x => x[1] !== x[2]);
 check(`trs() matches sidenote.html for ${SAMPLES.length} sentences covering every ZHR pattern`, badS.length === 0, badS);
 check('dayMon() matches in English and Chinese', JSON.stringify(a.en.dayMon) === JSON.stringify(b.en.dayMon) && JSON.stringify(a.zh.dayMon) === JSON.stringify(b.zh.dayMon), { legacy: [a.en.dayMon, a.zh.dayMon], dist: [b.en.dayMon, b.zh.dayMon] });

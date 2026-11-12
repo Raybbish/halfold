@@ -22,7 +22,7 @@ function LecList() {
   return <>{ls.map(l => { const c = course(l.course); return <li key={l.id}><i className="cdot" style={{ background: colorOf(c) }}></i><div className="grow"><a className="t" data-notr="" href={"#/lecture/" + encodeURIComponent(l.id)}>{l.title}</a><div className="small muted">{t(meta({ ...l, duration: 0 }, c))}</div></div>{statusTag(l) || <span className="small muted num">{l.duration ? t(mins(l.duration)) : ""}</span>}</li>; })}</>;
 }
 
-export const CourseCards = () => <>{S.courses.map(c => <a key={c.id} href={"#/course/" + encodeURIComponent(c.id)}><div className="top" style={{ background: colorOf(c) }}>{t(c.code)}</div><div className="bot"><div className="small" style={css("font-weight:600;color:var(--ink)")} data-notr="">{c.name}</div><div className="small muted" style={css("margin-top:4px")}>{t(plural(S.lectures.filter(l => l.course === c.id).length, "lecture"))}</div></div></a>)}<button className="addcard" onClick={addCourseModal}>{t("Add a course")}</button></>;
+export const CourseCards = () => <>{S.courses.map(c => <a key={c.id} href={"#/course/" + encodeURIComponent(c.id)}><div className="top" style={{ background: colorOf(c) }}>{c.code}</div><div className="bot"><div className="small" style={css("font-weight:600;color:var(--ink)")} data-notr="">{c.name}</div><div className="small muted" style={css("margin-top:4px")}>{t(plural(S.lectures.filter(l => l.course === c.id).length, "lecture"))}</div></div></a>)}<button className="addcard" onClick={addCourseModal}>{t("Add a course")}</button></>;
 
 export function Home() {
   const up = S.upcoming.filter(u => daysLeft(u.date) >= 0).sort((a, b) => +new Date(a.date) - +new Date(b.date)), w = S.week, n = up[0]; S._up = up;

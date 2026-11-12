@@ -61,5 +61,5 @@ export function LecturePage({ id }: { id: string }) {
   const l = lecture(id); if (!l) return <Shell active="home"><Problem title="This lecture does not exist" text="It may have been deleted." /></Shell>;
   const c = course(l.course);
   setCur({ l, c, d: S.detail[id], shared: false });
-  return <Shell active={c ? c.id : ""}><div className="crumb"><a href="#/home">{t("Home")}</a>{c ? <>{t(" / ")}<a href={"#/course/" + encodeURIComponent(c.id)}>{t(c.code)}</a></> : null}{l.week ? t(" / Week " + l.week) : null}</div><LectureBody /></Shell>;
+  return <Shell active={c ? c.id : ""}><div className="crumb"><a href="#/home">{t("Home")}</a>{c ? <>{t(" / ")}<a href={"#/course/" + encodeURIComponent(c.id)}>{c.code}</a></> : null}{l.week ? t(" / Week " + l.week) : null}</div><LectureBody /></Shell>;
 }

@@ -28,7 +28,7 @@ export function Shell({ active, children }: { active: string; children: ReactNod
       <a className={`n ${active === "home" ? "on" : ""}`} href="#/home">{t("Home")}</a>
       <a className={`n ${active === "settings" ? "on" : ""}`} href="#/settings">{t("Settings")}</a>
       <div className="lbl">{t("Courses")}</div>
-      {S.courses.map(c => <a key={c.id} className={`n c ${active === c.id ? "on" : ""}`} href={"#/course/" + encodeURIComponent(c.id)}><i className="cdot" style={{ background: colorOf(c) }}></i>{t(c.code)}<span className="ct num">{S.lectures.filter(l => l.course === c.id).length}</span></a>)}
+      {S.courses.map(c => <a key={c.id} className={`n c ${active === c.id ? "on" : ""}`} href={"#/course/" + encodeURIComponent(c.id)}><i className="cdot" style={{ background: colorOf(c) }}></i>{c.code}<span className="ct num">{S.lectures.filter(l => l.course === c.id).length}</span></a>)}
       <button className="n c addc" onClick={addCourseModal}>{t("Add a course")}</button>
       {w ? <div className="streak"><b className="num">{t(plural(w.lectures, "lecture") + " this week")}</b><div className="small">{t("One more and Sid gets a gold corner.")}</div>
         <div className="days" data-notr="">{dn.map((x, i) => <span key={i} className={w.days && w.days[i] ? "d" : ""}>{x}</span>)}</div></div> : null}
