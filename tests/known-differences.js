@@ -24,5 +24,10 @@ module.exports = [
     match: /(^|\/)(m|d)-(en|zh)-09-more\.png$|^(375|1280)-(en|zh)\/more\.png$/,
     maxPixels: 100000,
     reason: 'lecture More menu: a Move to another course button (added after the migration)'
+  },
+  {
+    match: /(^|\/)(m|d)-(en|zh)-18-after-end\.png$/,
+    maxPixels: 100000,
+    reason: 'notes of a lecture recorded without slides: sample mode now makes them without slides (no slide labels, no sidenote marks), as a real backend does; sidenote.html gave every new lecture the full sample notes'
   }
 ];

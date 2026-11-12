@@ -102,6 +102,10 @@ export const ZH: Record<string, string> = {
   "The lecture in this course will be deleted too, with its recording, notes, flashcards, quiz and shared link. This cannot be undone.": "這門課裡的課堂也會一併刪除，包括錄音、筆記、閃卡、測驗和已分享的連結，而且無法復原。",
   "End the recording before deleting this course.": "請先結束錄音，再刪除這門課。",
   "Move to another course": "移到其他課程", "Move lecture": "移動課堂",
+  /* adding slides after the lecture (added after the migration) */
+  "Add slides": "加入簡報", "No slides for this lecture yet.": "這堂課還沒有簡報。", "Slides added": "已加入簡報",
+  "Sid is putting the notes under the slides": "Sid 正在把筆記放到簡報下", "This usually takes a minute or two. Your own notes and edits stay.": "通常需要一兩分鐘。你自己加的筆記和修改都會保留。",
+  "The slides could not be added. The notes are as they were.": "未能加入簡報，筆記維持原樣。", "Still working. The notes will be under the slides when ready.": "仍在處理中。完成後筆記會放到簡報下。",
   "Before you record": "錄音之前", "Check that recording is allowed in this class. Ask the lecturer if you are not sure.": "確認這堂課容許錄音。不確定的話，請先問老師。", "Sit where you can hear the lecturer clearly.": "坐在聽得清楚老師的位置。",
   "On a phone, keep this page open and the screen on.": "用手機時，請保持這個頁面開啟、螢幕亮著。", "Not now": "暫時不要",
   /* recording */

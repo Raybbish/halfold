@@ -5,7 +5,7 @@ import { CONFIG } from "../config";
 import { wait } from "../lib/helpers";
 import { S } from "../state/app";
 import { http, form1, upload, type UploadOptions } from "./http";
-import { DATA, fakeUpload } from "./mock";
+import { DATA, fakeUpload, fileUnderSlides, mockSlides, withoutSlides } from "./mock";
 import type {
   CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, NewLecture, Plans, Point, ProgressUpdate,
   ReviewPack, SessionReply, SettingsUpdate, SharedReply, StatusReply, UrlReply, PackHint, PackTopic, PackQuestion
@@ -56,7 +56,9 @@ export const api = {
   /* POST /lectures/:id/recording (multipart: file)   opts: progress reports and cancelling, see UploadOptions */
   async uploadRecording(id: string, file: File, opts: UploadOptions = {}): Promise<null> { if (!CONFIG.USE_MOCK) return upload("/lectures/" + id + "/recording", form1("file", file), opts); await fakeUpload(file.size, 900, opts); return null; },
   /* POST /lectures/:id/slides (multipart: file, PDF) */
-  async uploadSlides(id: string, file: File, opts: UploadOptions = {}): Promise<null> { if (!CONFIG.USE_MOCK) return upload("/lectures/" + id + "/slides", form1("file", file), opts); await fakeUpload(file.size, 300, opts); return null; },
+  async uploadSlides(id: string, file: File, opts: UploadOptions = {}): Promise<null> { if (!CONFIG.USE_MOCK) return upload("/lectures/" + id + "/slides", form1("file", file), opts); await fakeUpload(file.size, 300, opts);
+    /* Slides for a lecture that already has notes: the notes are filed under them, so the lecture is processing again. */
+    mockSlides.add(id); const l = DATA.lectures.find(x => x.id === id), d = DATA.details[id]; if (l && d && !d.slides.length) l.status = "processing"; return null; },
   /* POST /lectures/:id/link {url} */
   async attachLink(id: string, url: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/link", { url }); await wait(600); return null; },
   /* POST /lectures/:id/catch-up -> {points:[string]}   summary of the last five minutes of a live recording */
@@ -73,7 +75,9 @@ export const api = {
   /* GET /lectures/:id/status -> {status:"processing"|"ready"|"failed"} */
   async getStatus(id: string): Promise<StatusReply> {
     if (!CONFIG.USE_MOCK) return http("GET", "/lectures/" + id + "/status");
-    await wait(1500); const l = DATA.lectures.find(x => x.id === id); if (l) l.status = "ready"; DATA.details[id] = DATA.detail; return { status: "ready" };
+    await wait(1500); const l = DATA.lectures.find(x => x.id === id); if (l) l.status = "ready";
+    const prev = DATA.details[id];   // notes with slides stay; slides sent later are filed in; no slides sent: notes without slides
+    DATA.details[id] = prev && prev.slides.length ? prev : mockSlides.has(id) ? (prev ? fileUnderSlides(prev) : DATA.detail) : withoutSlides(DATA.detail); return { status: "ready" };
   },
   /* POST /lectures/:id/retry -> {status}   write the notes again from the kept recording, after status "failed" */
   async retryLecture(id: string): Promise<StatusReply> {
