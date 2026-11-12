@@ -129,3 +129,18 @@ export const mockDb = {
     DATA.feed = 0; DATA.packs = {};
   }
 };
+
+/* Slides in sample mode (added after the migration). Notes made for a lecture whose slides were never sent come without
+   slides, as a real backend would make them; sending slides later files the existing points under them. Kept apart from
+   DATA so the sample data itself stays as it was in sidenote.html. */
+export const mockSlides = new Set<string>();   // lectures whose slides were sent in this session
+export function withoutSlides(d: Detail): Detail {
+  return { ...d, slides: [], sections: d.sections.map(s => { const c = { ...s, points: s.points.map(p => ({ ...p, slide: null, off: false })) }; delete c.slides; return c; }) };
+}
+/* Keeps the points as they are (text, edits, points the student added) and gives each one the slide it belongs to,
+   found by its timestamp in the full sample notes. */
+export function fileUnderSlides(d: Detail): Detail {
+  const full = DATA.detail;
+  return { ...d, slides: full.slides, sections: d.sections.map((s, i) => { const f = full.sections[i];
+    return { ...s, ...(f && f.slides ? { slides: f.slides } : {}), points: s.points.map(p => { const fp = f && p.t != null ? f.points.find(x => x.t === p.t) : undefined; return fp ? { ...p, slide: fp.slide, off: fp.off } : p; }) }; }) };
+}

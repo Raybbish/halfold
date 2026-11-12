@@ -4,11 +4,12 @@ import { CONFIG } from "../../config";
 import { api } from "../../api/api";
 import { bump } from "../../lib/bus";
 import { R, S, course, cur, dayMon, state, type Tab } from "../../state/app";
-import { act, closeModal, toast } from "../../state/overlay";
+import { act, busy, closeModal, toast, uploadDialog, uploadProgress } from "../../state/overlay";
 import { route } from "../../state/router";
 import { t } from "../../i18n";
 import { pl, plSeek, segAt } from "../../features/player/player";
 import { doExport } from "../../features/export";
+import { pollNotes } from "../../features/recording/finish";
 import { openModal } from "../../ui/Overlay";
 import { css } from "../../ui/css";
 import { val } from "../../ui/form";
@@ -43,13 +44,40 @@ export function onLectureKey(e: KeyboardEvent) {
   else if (state.tab === "quiz" && !state.done) { if (/^[1-9]$/.test(e.key)) pick(+e.key - 1); else if (e.key === "Enter" && tag !== "BUTTON") nextQ(); }
 }
 
-/* ---------- More menu: exports, rename, move, delete ---------- */
+/* ---------- More menu: exports, add slides, rename, move, delete ---------- */
 export function moreMenu() { const au = C().d && C().d!.audio; openModal(() => <><h3 data-notr="">{C().l.title}</h3>{au && au.keptUntil && !au.expired ? <p className="small muted" style={css("margin-top:6px")}>{t("Recording kept until " + dayMon(au.keptUntil) + ".")}</p> : null}
   <div style={css("display:grid;gap:8px;margin-top:14px")}><button className="btn plain" onClick={() => doExport("pdf")}>{t("Print or save notes as PDF")}</button><button className="btn plain" onClick={() => doExport("md")}>{t("Download notes as Markdown")}</button><button className="btn plain" onClick={() => doExport("anki")}>{t("Download flashcards for Anki")}</button><button className="btn plain" onClick={() => doExport("txt")}>{t("Download transcript as text")}</button>{C().d && C().d!.audio && C().d!.audio!.url ? <a className="btn plain" href={C().d!.audio!.url!} download="">{t("Download recording")}</a> : null}
-    <button className="btn plain" onClick={renameModal}>{t("Rename")}</button>{S.courses.some(c => c.id !== C().l.course) ? <button className="btn plain" onClick={moveModal}>{t("Move to another course")}</button> : null}<button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
+    {C().d && !C().d!.slides.length ? <button className="btn plain" onClick={() => { closeModal(); pickSlides(); }}>{t("Add slides")}</button> : null}<button className="btn plain" onClick={renameModal}>{t("Rename")}</button>{S.courses.some(c => c.id !== C().l.course) ? <button className="btn plain" onClick={moveModal}>{t("Move to another course")}</button> : null}<button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
 function renameModal() { openModal(() => <><h3>{t("Rename lecture")}</h3><form onSubmit={e => { e.preventDefault(); doRename(e.currentTarget); }}><label className="field"><span>{t("Title")}</span><input name="t" defaultValue={C().l.title} required maxLength={120} /></label>
   <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button type="button" className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary">{t("Save title")}</button></div></form></>); }
 function doRename(f: HTMLFormElement) { const title = val(f, "t").trim(); if (!title) return; act(async () => { await api.renameLecture(C().l.id, title); C().l.title = title; closeModal(); toast("Title saved"); bump(); }); }
+/* ---------- adding slides after the lecture (added after the migration) ----------
+   For a lecture whose notes were made without slides. The PDF is sent with the same upload as on New lecture (progress
+   bar, Cancel); the backend then files the existing points under the slides, keeping the student's own notes and edits,
+   and reports "processing" until that is done. The lecture is read again at the end: if it still has no slides, adding
+   them failed and the notes are as they were. */
+export function pickSlides() {
+  const old = document.getElementById("slidesPick"); if (old) old.remove();   // left over when the last picker was closed without a file
+  const i = document.createElement("input"); i.type = "file"; i.accept = "application/pdf,.pdf"; i.id = "slidesPick"; i.hidden = true;
+  i.onchange = () => { const f = i.files && i.files[0]; i.remove(); if (f) addSlides(f); };
+  document.body.appendChild(i); i.click();
+}
+function addSlides(f: File) {
+  if (!/pdf$/i.test(f.type || f.name)) { toast("Slides need to be a PDF."); return; }
+  if (f.size > CONFIG.MAX_UPLOAD_MB * 1048576) { toast("That file is larger than " + CONFIG.MAX_UPLOAD_MB + " MB."); return; }
+  const id = C().l.id, stop = new AbortController();
+  act(async () => {
+    uploadDialog(f.size, () => stop.abort());
+    try { await api.uploadSlides(id, f, { signal: stop.signal, onProgress: (sent, of) => uploadProgress(f.size * sent / of, f.size) }); }
+    catch (e) { if ((e as Error).name !== "AbortError") throw e; closeModal(); toast("Upload cancelled."); return; }
+    busy("Sid is putting the notes under the slides", "This usually takes a minute or two. Your own notes and edits stay.");
+    const status = await pollNotes(id);
+    if (status === "processing") { delete S.detail[id]; closeModal(); toast("Still working. The notes will be under the slides when ready."); return; }
+    const r = await api.getLecture(id); S.detail[id] = r.detail; const i = S.lectures.findIndex(x => x.id === id); if (i >= 0) S.lectures[i] = r.lecture;
+    closeModal(); toast(r.detail && r.detail.slides.length ? "Slides added" : "The slides could not be added. The notes are as they were."); bump();
+  });
+}
+
 /* Moving a lecture to another course (added after the migration). The review packs of both courses are dropped from
    the store, so they load again with the lecture in its new place. */
 function moveModal() { const others = S.courses.filter(c => c.id !== C().l.course);
