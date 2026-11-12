@@ -115,6 +115,16 @@ export const api = {
   async renameLecture(id: string, title: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/lectures/" + id, { title }); const l = DATA.lectures.find(x => x.id === id); if (l) l.title = title; return null; },
   /* DELETE /lectures/:id */
   async deleteLecture(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/lectures/" + id); DATA.lectures = DATA.lectures.filter(x => x.id !== id); return null; },
+  /* PATCH /lectures/:id {course} -- moves the lecture to another of the student's courses (added after the migration) */
+  async moveLecture(id: string, courseId: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/lectures/" + id, { course: courseId }); await wait(300);
+    const l = DATA.lectures.find(x => x.id === id), c = DATA.courses.find(x => x.id === courseId); if (l && c) { l.course = courseId; DATA.upcoming.forEach(u => { if (u.lecture === id) u.course = c.code; }); } return null; },
+  /* PATCH /courses/:id {code, name} (added after the migration) */
+  async updateCourse(id: string, code: string, name: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/courses/" + id, { code, name }); await wait(300);
+    const c = DATA.courses.find(x => x.id === id); if (c) { const ids = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)); DATA.upcoming.forEach(u => { if (ids.has(u.lecture)) u.course = code; }); c.code = code; c.name = name; } return null; },
+  /* DELETE /courses/:id -- the course and every lecture in it (added after the migration) */
+  async deleteCourse(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/courses/" + id); await wait(300);
+    const gone = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)); DATA.courses = DATA.courses.filter(c => c.id !== id); DATA.lectures = DATA.lectures.filter(l => !gone.has(l.id));
+    DATA.upcoming = DATA.upcoming.filter(u => !gone.has(u.lecture)); gone.forEach(x => delete DATA.details[x]); delete DATA.packs[id]; return null; },
   /* POST /courses/:id/review-pack -> {status} */
   async makeReviewPack(courseId: string): Promise<{ status: string }> { if (!CONFIG.USE_MOCK) return http("POST", "/courses/" + courseId + "/review-pack"); await wait(400); DATA.packs[courseId] = "ready"; return { status: "processing" }; },
   /* PUT /lectures/:id/progress {known:[cardIndex], quizScore} */

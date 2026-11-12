@@ -96,6 +96,12 @@ export const ZH: Record<string, string> = {
   "Uploading": "上載中", "Keep this page open until the upload finishes.": "上載完成前請保持這個頁面開啟。",
   /* upload progress and cancelling (added after the migration) */
   "Cancel upload": "取消上載", "Upload cancelled.": "已取消上載。", "Upload progress": "上載進度",
+  /* editing and deleting a course, moving a lecture (added after the migration) */
+  "Edit course": "編輯課程", "Save course": "儲存課程", "Course saved": "已儲存課程", "Delete course": "刪除課程", "Keep course": "保留課程", "Course deleted": "課程已刪除",
+  "This course has no lectures.": "這門課還沒有課堂。",
+  "The lecture in this course will be deleted too, with its recording, notes, flashcards, quiz and shared link. This cannot be undone.": "這門課裡的課堂也會一併刪除，包括錄音、筆記、閃卡、測驗和已分享的連結，而且無法復原。",
+  "End the recording before deleting this course.": "請先結束錄音，再刪除這門課。",
+  "Move to another course": "移到其他課程", "Move lecture": "移動課堂",
   "Before you record": "錄音之前", "Check that recording is allowed in this class. Ask the lecturer if you are not sure.": "確認這堂課容許錄音。不確定的話，請先問老師。", "Sit where you can hear the lecturer clearly.": "坐在聽得清楚老師的位置。",
   "On a phone, keep this page open and the screen on.": "用手機時，請保持這個頁面開啟、螢幕亮著。", "Not now": "暫時不要",
   /* recording */
@@ -185,6 +191,9 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^MP3, M4A, WAV, MP4\. Up to (\d+) MB\.$/, m => "MP3、M4A、WAV、MP4，最大 " + m[1] + " MB。"],
   [/^That file is larger than (\d+) MB\.$/, m => "檔案超過 " + m[1] + " MB。"],
   [/^([\d.]+ MB) of ([\d.]+ MB) uploaded$/, m => "已上載 " + m[1] + "／" + m[2]],   // added after the migration
+  [/^The (\d+) lectures in this course will be deleted too, with their recordings, notes, flashcards, quizzes and shared links\. This cannot be undone\.$/, m => "這門課裡的 " + m[1] + " 堂課也會一併刪除，包括錄音、筆記、閃卡、測驗和已分享的連結，而且無法復原。"],   // added after the migration
+  [/^Delete (.+)\?$/, m => "刪除 " + m[1] + "？"],   // added after the migration: the course code is put back as it is
+  [/^Moved to (.+)$/, m => "已移到 " + m[1]],   // added after the migration
   [/^\/ (.+)$/, m => "/ " + trs(m[1])],
   [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]
 ];

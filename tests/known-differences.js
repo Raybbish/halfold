@@ -14,5 +14,15 @@ module.exports = [
   {
     match: /(^|\/)(m|d)-zh-01-landing\.png$|^(375|1280)-zh\/landing\.png$/,
     reason: 'Chinese landing page: the example notes (sticky notes, feature grid) are translated now; sidenote.html left them in English'
+  },
+  {
+    match: /(^|\/)(m|d)-(en|zh)-12-course\.png$|^(375|1280)-(en|zh)\/course\.png$/,
+    maxPixels: 25000,
+    reason: 'course page: an Edit course button next to New lecture (editing and deleting courses, added after the migration)'
+  },
+  {
+    match: /(^|\/)(m|d)-(en|zh)-09-more\.png$|^(375|1280)-(en|zh)\/more\.png$/,
+    maxPixels: 100000,
+    reason: 'lecture More menu: a Move to another course button (added after the migration)'
   }
 ];

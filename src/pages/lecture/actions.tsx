@@ -3,7 +3,7 @@
 import { CONFIG } from "../../config";
 import { api } from "../../api/api";
 import { bump } from "../../lib/bus";
-import { R, S, cur, dayMon, state, type Tab } from "../../state/app";
+import { R, S, course, cur, dayMon, state, type Tab } from "../../state/app";
 import { act, closeModal, toast } from "../../state/overlay";
 import { route } from "../../state/router";
 import { t } from "../../i18n";
@@ -43,13 +43,23 @@ export function onLectureKey(e: KeyboardEvent) {
   else if (state.tab === "quiz" && !state.done) { if (/^[1-9]$/.test(e.key)) pick(+e.key - 1); else if (e.key === "Enter" && tag !== "BUTTON") nextQ(); }
 }
 
-/* ---------- More menu: exports, rename, delete ---------- */
+/* ---------- More menu: exports, rename, move, delete ---------- */
 export function moreMenu() { const au = C().d && C().d!.audio; openModal(() => <><h3 data-notr="">{C().l.title}</h3>{au && au.keptUntil && !au.expired ? <p className="small muted" style={css("margin-top:6px")}>{t("Recording kept until " + dayMon(au.keptUntil) + ".")}</p> : null}
   <div style={css("display:grid;gap:8px;margin-top:14px")}><button className="btn plain" onClick={() => doExport("pdf")}>{t("Print or save notes as PDF")}</button><button className="btn plain" onClick={() => doExport("md")}>{t("Download notes as Markdown")}</button><button className="btn plain" onClick={() => doExport("anki")}>{t("Download flashcards for Anki")}</button><button className="btn plain" onClick={() => doExport("txt")}>{t("Download transcript as text")}</button>{C().d && C().d!.audio && C().d!.audio!.url ? <a className="btn plain" href={C().d!.audio!.url!} download="">{t("Download recording")}</a> : null}
-    <button className="btn plain" onClick={renameModal}>{t("Rename")}</button><button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
+    <button className="btn plain" onClick={renameModal}>{t("Rename")}</button>{S.courses.some(c => c.id !== C().l.course) ? <button className="btn plain" onClick={moveModal}>{t("Move to another course")}</button> : null}<button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
 function renameModal() { openModal(() => <><h3>{t("Rename lecture")}</h3><form onSubmit={e => { e.preventDefault(); doRename(e.currentTarget); }}><label className="field"><span>{t("Title")}</span><input name="t" defaultValue={C().l.title} required maxLength={120} /></label>
   <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button type="button" className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary">{t("Save title")}</button></div></form></>); }
 function doRename(f: HTMLFormElement) { const title = val(f, "t").trim(); if (!title) return; act(async () => { await api.renameLecture(C().l.id, title); C().l.title = title; closeModal(); toast("Title saved"); bump(); }); }
+/* Moving a lecture to another course (added after the migration). The review packs of both courses are dropped from
+   the store, so they load again with the lecture in its new place. */
+function moveModal() { const others = S.courses.filter(c => c.id !== C().l.course);
+  openModal(() => <><h3>{t("Move to another course")}</h3><form onSubmit={e => { e.preventDefault(); doMove(val(e.currentTarget, "c")); }}>
+    <label className="field"><span>{t("Course")}</span><select name="c" defaultValue={others[0].id}>{others.map(c => <option key={c.id} value={c.id}>{c.code + (c.name ? ", " + c.name : "")}</option>)}</select></label>
+    <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button type="button" className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary">{t("Move lecture")}</button></div></form></>); }
+function doMove(courseId: string) { const to = course(courseId); if (!to) return;
+  act(async () => { const l = C().l, from = l.course; await api.moveLecture(l.id, courseId); l.course = courseId;
+    S.upcoming.forEach(u => { if (u.lecture === l.id) u.course = to.code; }); delete S.pack[from]; delete S.pack[courseId];
+    closeModal(); toast("Moved to " + to.code); bump(); }); }
 function deleteModal() { openModal(() => <><h3>{t("Delete this lecture?")}</h3><p className="muted">{t("The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.")}</p>
   <div style={css("display:flex;gap:10px;justify-content:flex-end;margin-top:16px")}><button className="btn plain" onClick={closeModal}>{t("Keep lecture")}</button><button className="btn dark" onClick={doDelete}>{t("Delete lecture")}</button></div></>); }
 function doDelete() { act(async () => { const id = C().l.id, c = C().c; await api.deleteLecture(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id]; closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
