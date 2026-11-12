@@ -82,6 +82,9 @@ export interface ChunkReply { segments: Line[]; alerts: Alert[] }
 export interface StatusReply { status: LectureStatus }
 export interface CatchUpReply { points: string[] }
 export interface UrlReply { url: string | null }
+/* GET /search?q= (added after the migration): points in the notes of every lecture that match */
+export interface NoteHit { lecture: string; text: string; t: number | null }
+export interface SearchReply { results: NoteHit[] }
 export interface NewLecture { courseId: string; title: string; language: string; source: Source }
 export interface SettingsUpdate { name: string; classLanguage: string; zhDefault: boolean; zhScript?: ZhScript }
 export interface ProgressUpdate { known: number[]; quizScore: number | null }

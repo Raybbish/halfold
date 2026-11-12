@@ -7,7 +7,7 @@ import { bump } from "../lib/bus";
 import { plStop } from "../features/player/player";
 import { live } from "../features/recording/recorder";
 import { closeModal } from "./overlay";
-import { R, S, session, setPendingPos, pendingPos, state, view } from "./app";
+import { R, S, findPoint, session, setPendingPoint, setPendingPos, pendingPoint, pendingPos, state, view } from "./app";
 
 export const PUBLIC = ["", "s", "signin"];
 let routeSeq = 0;
@@ -19,7 +19,8 @@ export async function route() {
   if (a === "signin" && S.token) { location.hash = "#/home"; return; }
   if (a === "live" && !live.active) { location.hash = "#/new"; return; }
   const changed = R.a !== a || R.b !== b; Object.assign(R, { a, b }); const seq = ++routeSeq; S.error = null;
-  if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [] }); setPendingPos(0); }
+  if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [], found: null, goFound: false }); setPendingPos(0); }
+  const hit = changed && a === "lecture" && pendingPoint && pendingPoint.lecture === b ? pendingPoint : null; setPendingPoint(null);
   const needHome = !PUBLIC.includes(a) && !S.homeLoaded, needLec = a === "lecture" && !(b in S.detail), needSh = a === "s" && !S.shared[b], needPack = a === "pack" && !S.pack[b], needPlans = a === "settings" && !S.plans;
   /* While loading: the app's shell with a skeleton, or Sid in the middle of an empty page. */
   if (needHome || needLec || needSh || needPack || needPlans) { view.loader = S.homeLoaded && !PUBLIC.includes(a) ? "shell" : "center"; bump(); }
@@ -30,6 +31,7 @@ export async function route() {
     if (needPack) S.pack[b] = await api.getReviewPack(b);
     if (needPlans) S.plans = await api.getPlans().catch(() => ({ plans: [], current: null }));   // Settings still opens when the plans endpoint is not there yet
     if (changed && a === "lecture" && S.detail[b] && S.detail[b]!.progress) state.known = new Set(S.detail[b]!.progress!.known || []);
+    if (hit && S.detail[b]) { state.found = findPoint(S.detail[b]!, hit); state.goFound = !!state.found; }
   } catch (e) { S.error = (e as Error).message || String(e); }
   if (seq === routeSeq) { view.loader = null; bump(); }
 }

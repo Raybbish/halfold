@@ -1,6 +1,7 @@
 // One command for every check:  npm test   (or: node tests/run-all.js [--target=dist|legacy] [--no-build] [--only=real5,zhcheck] [--no-shots])
 //   1. builds the app (npm run build: tsc --noEmit and vite build) unless --no-build or --target=legacy
-//   2. the four check scripts: real5.js (65), zhscript.js (16), real3.js (11), zhcheck.js (10); on the build also upload.js (13)
+//   2. the four check scripts: real5.js (65), zhscript.js (16), real3.js (11), zhcheck.js (10); on the build also upload.js (13),
+//      backend-text.js (13), courses.js (18), slides-later.js (15) and search.js (20)
 //   3. overflow5.js (no sideways scrolling at 8 widths, English and Chinese) and printcheck.js (print view)
 //   4. shots5.js against the original file and against the build, compared pixel by pixel (animations off)
 // Output (screenshots, logs, diff images) goes to tests/output/.
@@ -15,11 +16,12 @@ const opt = n => { const a = process.argv.find(x => x.startsWith('--' + n + '=')
 const TARGET = opt('target') || 'dist';
 const ONLY = opt('only') ? opt('only').split(',') : null;
 const want = n => !ONLY || ONLY.includes(n);
-const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 13, 'backend-text': 13, courses: 18, 'slides-later': 15 };
+const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 13, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20 };
 // The four acceptance scripts run on both the build and the original. upload.js (upload progress and Cancel),
 // backend-text.js (backend text is never translated), courses.js (editing and deleting courses, moving lectures) and
-// slides-later.js (adding slides after the lecture) test changes made after the migration, which the original does not have, so they run on the build only.
-const SCRIPTS = TARGET === 'dist' ? ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later'] : ['real5', 'zhscript', 'real3', 'zhcheck'];
+// slides-later.js (adding slides after the lecture) and search.js (searching the notes of every lecture) test changes made
+// after the migration, which the original does not have, so they run on the build only.
+const SCRIPTS = TARGET === 'dist' ? ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search'] : ['real5', 'zhscript', 'real3', 'zhcheck'];
 
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });
