@@ -1,0 +1,27 @@
+/* The notes model behind one interface (NOTES: DeepSeek in phase 1), so it can be swapped or stubbed in tests. */
+import type { Line } from "../../../src/types";
+import type { ClassLanguage } from "../config";
+
+export interface NotesInput {
+  courseCode: string;
+  courseName: string;
+  title: string;
+  date: string;                       // "Thursday 2026-11-12": lets the model turn "next Tuesday" into a date
+  language: ClassLanguage;
+  duration: number;                   // seconds
+  lines: Line[];
+  slides: { n: number; text: string }[];   // empty when no slides were sent
+  zh: "hant" | "hans" | null;         // which script the Chinese explanations are written in; null = none
+}
+
+export interface TokenUsage { inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number }
+
+/* One call to the model. `repair` asks again after a reply that was not usable, showing the model its reply and what was wrong. */
+export interface NotesCall { text: string; usage: TokenUsage; startedAt: Date }
+export interface NotesWriter {
+  readonly provider: string;
+  readonly model: string;
+  write(input: NotesInput, signal?: AbortSignal, repair?: { reply: string; problem: string }): Promise<NotesCall>;
+  /* List-price estimate in US dollars, for the cost log. */
+  usd(usage: TokenUsage, at: Date): { usd: number; meta: Record<string, unknown> };
+}
