@@ -16,6 +16,11 @@ function wav(seconds) {
 }
 const WAV = wav(300);
 
+// The date in Hong Kong (where the pages run) `days` from today, as YYYY-MM-DD. The /home fixture below is dated for
+// section 5's fixed clock (Thu 12 Nov 2026); sections that click an exam-radar item on the real clock use this instead,
+// since the radar hides items whose date has passed.
+const hkDate = days => new Date(Date.now() + days * 864e5).toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' });
+
 const DETAIL = () => ({ alerts: [{ t: 18, kind: 'Midterm', text: 'Midterm on Thu 26 Nov' }],
   sections: [{ title: 'Part one', start: 0, end: 150, points: [{ t: 30, text: 'First point', off: false, slide: null }, { t: 95, text: 'Second point', off: true, slide: null }] },
              { title: 'Part two', start: 150, end: 300, points: [{ t: 200, text: 'Third point', off: false, slide: null }] }],
@@ -58,7 +63,7 @@ const DETAIL = () => ({ alerts: [{ t: 18, kind: 'Midterm', text: 'Midterm on Thu
       if (p === '/plans') return opts.noPlans ? j({ message: 'Not found' }, 404) : j({ plans: opts.plans || [], current: opts.plans ? opts.plans[0].id : null });
       if (p === '/home') { if (be.home401) { be.home401 = false; return j({ message: 'expired' }, 401); }
         return j({ user: { name: 'Jasper' }, courses: [{ id: 'econ1001', code: 'ECON 1001', name: 'Micro' }], lectures: be.lectures,
-          upcoming: [{ date: '2026-11-12', kind: 'Midterm', text: 'Midterm', course: 'ECON 1001', lecture: 'econ-w9', t: 18 }, { date: '2026-11-11', kind: 'Deadline', text: 'PS4 (yesterday, HK time)', course: 'ECON 1001', lecture: 'econ-w9', t: 30 }],
+          upcoming: opts.upcoming || [{ date: '2026-11-12', kind: 'Midterm', text: 'Midterm', course: 'ECON 1001', lecture: 'econ-w9', t: 18 }, { date: '2026-11-11', kind: 'Deadline', text: 'PS4 (yesterday, HK time)', course: 'ECON 1001', lecture: 'econ-w9', t: 30 }],
           settings: { classLanguage: 'en', zhDefault: false } }); }
       if (m === 'POST' && p === '/lectures') { const id = 'lec' + (++n); be.lectures.unshift({ id, course: 'econ1001', title: 'New', date: 'Today', duration: 0, status: 'recording' }); log.push(`${at()} POST /lectures -> ${id}`); return j(be.lectures[0]); }
       if ((mm = p.match(/^\/lectures\/([^/]+)\/chunks$/))) {
@@ -187,7 +192,9 @@ const DETAIL = () => ({ alerts: [{ t: 18, kind: 'Midterm', text: 'Midterm on Thu
 
   console.log('\n=== 8. Playback with a real audio file (300 s WAV, Range requests) ===');
   for (const [label, viewport, ctx] of [['desktop', { width: 1280, height: 800 }, {}], ['phone', { width: 390, height: 780 }, { isMobile: true, hasTouch: true }]]) {
-    await session({ viewport, ctx }, async ({ page, login }) => {
+    // Runs on the real clock (playback needs real time), so the midterm it opens from the radar is dated two weeks from today.
+    const upcoming = [{ date: hkDate(14), kind: 'Midterm', text: 'Midterm', course: 'ECON 1001', lecture: 'econ-w9', t: 18 }];
+    await session({ viewport, ctx, upcoming }, async ({ page, login }) => {
       await login(); await page.goto(ORIGIN + '/#/lecture/econ-w9'); await page.waitForSelector('#pPlay');
       const st = () => page.evaluate(() => ({ t: pl.a.currentTime, paused: pl.a.paused, rate: pl.a.playbackRate, dur: pl.a.duration, cur: document.getElementById('pCur').textContent, head: document.querySelector('.tl .head').style.left, bar: document.getElementById('pBar').value, tab: state.tab, hit: state.hit, hitEl: (document.querySelector('.seg-line.hit') || {}).id }));
       await page.waitForFunction(() => pl.a && pl.a.readyState >= 1);
