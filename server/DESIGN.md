@@ -52,6 +52,8 @@
 通用：
 
 - 所有路径在 `/api` 下（前端 `API_BASE: "/api"`）。出错一律回 `{ "message": "..." }`，这句话会直接显示给用户。
+- JSON 请求体最大 64 KB，超过回 413（包括不用登录的 `POST /session`）。上传文件的请求最长可以持续 3 小时（Node 默认 5 分钟，慢网速传 500 MB 会被切断）。
+- 分享页的 `GET /shared/:id` 不用登录，本阶段一律回 404 和说明（不能回 401，否则前端会让读者“重新登录”）。
 - 除 `POST /session` 外都要 `Authorization: Bearer <token>`，token 无效或缺失回 401。
 - 别的用户的课程和课堂一律当作不存在，回 404。
 - 文件超过 `MAX_UPLOAD_MB`（默认 500，和前端一致）回 413。
@@ -62,8 +64,8 @@
 | `GET /home` | `user`、`courses`、`lectures`（新的在前）、`upcoming`（从笔记里带日期的考试和截止提示汇总，只给今天及以后的）、`settings`、`usage`、`today`（按 `APP_TIMEZONE`，默认香港）。`week` 本阶段不给 |
 | `POST /courses` `{code, name}` | `code` 必填，最长 20 字；`name` 最长 80 字。回 `course`，带一个配色 |
 | `POST /lectures` `{courseId, title, language, source}` | 检查课程、语言、来源。`record`、`tab` 先查当天现场录音分钟数，超了回 429 加说明；本阶段还不收分段，所以再回 501“录音功能还没开放，请上传录音”（不让前端开始录一堂存不下来的课）。`link` 回 501。`upload` 建课，状态 `recording`（和示例数据一致），回 `lecture` |
-| `POST /lectures/:id/recording` | 只在 `recording` 状态收。流式存成 `recording.<扩展名>`，收完用 `ffprobe` 确认有音轨，没有就删掉并回 415。同一堂课再传一次会覆盖 |
-| `POST /lectures/:id/slides` | 在 `recording` 或 `failed` 状态收（失败后补上课件再重试）。检查 `%PDF` 文件头，不是 PDF 回 415。笔记已生成后再传（补传课件）本阶段回 409 加说明 |
+| `POST /lectures/:id/recording` | 只在 `recording` 状态收。流式收完用 `ffprobe` 确认有音轨，没有就删掉并回 415。存成固定的文件名 `recording`（不带扩展名），这样 ffmpeg 按内容识别格式，上传的文件名改不了它的读法（比如把文件叫成 `.m3u8` 当播放列表读）。同一堂课再传一次会覆盖 |
+| `POST /lectures/:id/slides` | 在 `recording` 或 `failed` 状态收（失败后补上课件再重试）。检查 `%PDF` 文件头，不是 PDF 回 415。笔记已生成后再传（补传课件）本阶段回 409 加说明；这个检查放在文件收完之后，免得浏览器还在发送时就收到回复，把它当成网络错误 |
 | `POST /lectures/:id/finish` `{duration}` | 幂等：已经是 `processing` 或 `ready` 就原样回状态，不重复排队。没收到录音回 409“这堂课没有收到录音”。否则设 `processing` 并排队 |
 | `GET /lectures/:id/status` | `{status}` |
 | `POST /lectures/:id/retry` | 只在 `failed` 时排队重跑，其他状态原样回。已转写过的不再转写，只重跑写笔记 |
@@ -78,12 +80,14 @@
 
 1. **转码**：`ffmpeg` 把录音（视频则抽音轨）转成单声道 AAC 48 kbps 的 `audio.m4a`，带 faststart，可以拖动进度。这个文件用来转写，也留给下一阶段的回放。记下时长和文件大小（第 10 节要“转码后的回放文件每小时多大”）。
 2. **转写**：`Transcriber.transcribe(audio.m4a, language)` 返回带时间戳的词。原始返回存成 `transcript.raw.json` 方便对比，切好的句子存进数据库。切句：遇到句末标点且这一句超过 3 秒、停顿超过 1.2 秒或一句超过 25 秒就断开；中日韩字符之间不加空格。
-3. **课件**：有 `slides.pdf` 就逐页抽文字。
-4. **写笔记**：`NotesWriter.write(...)` 把课程、标题、日期、语言、时长、带秒数的逐字稿、课件文字交给 DeepSeek（JSON 输出模式、流式、开思考），要回 `sections`、`slides`、`alerts`（带 `date`）、`flashcards`、`quiz`。JSON 解析或校验不过，就把错误告诉模型再要一次，最多两次。
+3. **课件**：有 `slides.pdf` 就逐页抽文字。读不了（加了密码、文件损坏）就不用课件，照常写笔记，不让整堂课失败。
+4. **写笔记**：`NotesWriter.write(...)` 把课程、标题、日期、语言、时长、带秒数的逐字稿、课件文字交给 DeepSeek（JSON 输出模式、流式、开思考），要回 `sections`、`slides`、`alerts`（带 `date`）、`flashcards`、`quiz`。回复逐项读：数字写成字符串、`"true"`、用字母表示的答案都接受；某一项实在用不了（要点没有时间或文字、闪卡没有答案）就只丢这一项。整份回复不是 JSON、或者一个能用的要点都没有，才把错误告诉模型再要一次，最多两次。
 5. **整理和校验**：时间夹到 `[0, 时长]` 并取整；`section` 按时间排好、首尾相接、最后一段到时长为止；没有课件时 `slide: null`、`off: false`，`slides: []`；超出页数的 `slide` 改成 `null`；`section.slides` 由要点的页码算出（如 `Slides 3 to 6`）；`alerts.kind` 规范成 `Midterm`、`Deadline`、`Exam hint`、`Quiz`、`Final`；选项数或答案下标不对的测验题丢掉；中文解释转出另一种字体；逐字稿按 `t` 排序。最后用和 `Detail` 类型绑定的 zod schema 校验，不过就是 `failed`。
 6. 存 `detail`，带日期的提示存进 `upcoming`，状态改 `ready`。
 
 任何一步出错：状态 `failed`，错误原因记在数据库（不给前端看），日志里打印。
+
+调用转写服务和 DeepSeek 时，只重试对方明确拒绝的（429、5xx）和根本没送到的（连不上）。超时、回复读到一半断掉这类情况不重试：音频可能已经送到并计费，再试一次就付两次钱。
 
 ## 成本日志
 

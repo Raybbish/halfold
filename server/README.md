@@ -36,6 +36,8 @@ npm start                 # http://localhost:8787
 3. `npm run compare-stt -- --language en-yue 录音1.m4a 录音2.mp3`。默认跑 `elevenlabs:scribe_v3`、`elevenlabs:scribe_v2`、`deepgram:nova-3`，用 `--providers` 改。
 4. 看 `compare-out/summary.md` 和各家的逐字稿 `compare-out/<录音>/<服务>.txt`。然后在 `.env` 里设 `STT_PROVIDER`（以及 `ELEVENLABS_MODEL` 或 `DEEPGRAM_LANGUAGES`）。
 
+Deepgram 的语言设置还没验证：默认粤语课用 `zh-HK`，普通话夹英文和自动检测用 `multi`（混说模式），但 Deepgram 的文档没写清楚 `multi` 是否包括中文。切换到 Deepgram 之前，先用对比脚本确认，必要时把 `en-zh` 改成 `zh`。
+
 ## 文件
 
 ```

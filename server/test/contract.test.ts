@@ -148,3 +148,13 @@ test("POST /finish without a recording is a 409 with a message; endpoints not bu
     assert.equal(n.status, 404, `${m} ${p}`); isError(n);
   }
 });
+
+test("public and size rules: a shared link is a 404 (not a 401); a huge JSON body is a 413", async t => {
+  const s = setup(); t.after(() => s.close());
+  const shared = await s.call("GET", "/shared/abc");
+  assert.equal(shared.status, 404); isError(shared);
+  const big = await s.call("POST", "/session", { json: { inviteCode: "CODE-A", name: "x".repeat(200_000) } });
+  assert.equal(big.status, 413); isError(big);
+  const token = await s.signIn();
+  assert.equal((await s.call("POST", "/courses", { token, json: { code: "C", name: "y".repeat(100_000) } })).status, 413);
+});

@@ -1,33 +1,62 @@
-/* The model's JSON -> Detail. The reply is read leniently (numbers as strings, extra fields, missing lists) and then
-   tidied to the rules of INTEGRATION.md 3.2: times are whole seconds within the recording, sections follow one another,
-   slide numbers exist, alert kinds use the words the front end translates, quiz answers point at an option. What cannot
-   be repaired is dropped; no notes at all is an error. The result is checked against DetailSchema by the pipeline. */
-import { z } from "zod";
+/* The model's JSON -> Detail. The reply is read leniently, item by item: numbers given as strings, "true" for true, a
+   letter for a quiz answer, missing lists. An item that still cannot be used (a point with no time or text, a flashcard
+   with no answer) is dropped on its own, so one slip does not cost a whole second call. Then the notes are tidied to
+   the rules of INTEGRATION.md 3.2: times are whole seconds within the recording, sections follow one another, slide
+   numbers exist, alert kinds use the words the front end translates, quiz answers point at an option. No notes at all
+   is an error. The pipeline checks the result against DetailSchema. */
 import type { Alert, Detail, Line, Point, QuizQuestion, Section, Slide } from "../../../src/types";
 import { bothScripts } from "./zh";
 
-const n = z.coerce.number().finite();
-const text = z.string().transform(s => s.trim());
-const ModelPoint = z.object({ t: n, text, zh: z.string().nullish(), slide: n.nullish(), off: z.boolean().nullish() });
-const ModelSection = z.object({ title: text, start: n, end: n, points: z.array(ModelPoint) });
-export const ModelNotesSchema = z.object({
-  sections: z.array(ModelSection),
-  slides: z.array(z.object({ n, title: text })).nullish(),
-  alerts: z.array(z.object({ t: n, kind: text, text, date: z.string().nullish() })).nullish(),
-  flashcards: z.array(z.object({ q: text, a: text })).nullish(),
-  quiz: z.array(z.object({ q: text, opts: z.array(z.string()), a: n, why: z.string().nullish(), t: n.nullish() })).nullish()
-});
-export type ModelNotes = z.infer<typeof ModelNotesSchema>;
+export interface ModelPoint { t: number; text: string; zh: string | null; slide: number | null; off: boolean }
+export interface ModelSection { title: string; start: number | null; end: number | null; points: ModelPoint[] }
+export interface ModelNotes {
+  sections: ModelSection[];
+  slides: { n: number; title: string }[];
+  alerts: { t: number; kind: string; text: string; date: string | null }[];
+  flashcards: { q: string; a: string }[];
+  quiz: { q: string; opts: string[]; a: number | null; why: string | null; t: number | null }[];
+}
+
+type Obj = Record<string, unknown>;
+const obj = (v: unknown): Obj | null => v && typeof v === "object" && !Array.isArray(v) ? v as Obj : null;
+const items = <T>(v: unknown, read: (o: Obj) => T | null): T[] =>
+  (Array.isArray(v) ? v : []).map(x => { const o = obj(x); return o ? read(o) : null; }).filter((x): x is T => x !== null);
+const num = (v: unknown) => typeof v === "number" ? (Number.isFinite(v) ? v : null)
+  : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null;
+const str = (v: unknown) => typeof v === "string" ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : "";
+const yes = (v: unknown) => v === true || (typeof v === "string" && v.trim().toLowerCase() === "true");
+/* 1, "1" or "B" (for the second option). */
+const answer = (v: unknown, count: number) => {
+  const n = num(v); if (n !== null) return n;
+  const s = str(v).toUpperCase();
+  return /^[A-Z]$/.test(s) && s.charCodeAt(0) - 65 < count ? s.charCodeAt(0) - 65 : null;
+};
 
 /* Parses the model's reply. Throws an Error whose message can be shown to the model to correct itself. */
 export function parseModelNotes(reply: string): ModelNotes {
   let json: unknown;
   try { json = JSON.parse(reply.trim().replace(/^```(?:json)?\s*|\s*```$/g, "")); }
   catch (e) { throw new Error("it is not valid JSON (" + (e as Error).message + ")"); }
-  const r = ModelNotesSchema.safeParse(json);
-  if (!r.success) throw new Error("it does not have the fields asked for: " + r.error.issues.slice(0, 8).map(i => `${i.path.join(".") || "(top)"}: ${i.message}`).join("; "));
-  if (!r.data.sections.some(s => s.points.some(p => p.text))) throw new Error("it has no sections with points");
-  return r.data;
+  const top = obj(json);
+  if (!top || !Array.isArray(top.sections)) throw new Error('it does not have the fields asked for: "sections" must be a list');
+  const sections = items(top.sections, s => {
+    const points = items(s.points, p => {
+      const t = num(p.t), text = str(p.text);
+      return t === null || !text ? null : { t, text, zh: str(p.zh) || null, slide: num(p.slide), off: yes(p.off) };
+    });
+    return points.length ? { title: str(s.title), start: num(s.start), end: num(s.end), points } : null;
+  });
+  if (!sections.length) throw new Error("it has no sections with points (each point needs a time \"t\" and a \"text\")");
+  return {
+    sections,
+    slides: items(top.slides, s => { const n = num(s.n); return n === null ? null : { n, title: str(s.title) }; }),
+    alerts: items(top.alerts, a => { const t = num(a.t), text = str(a.text); return t === null || !text ? null : { t, kind: str(a.kind), text, date: str(a.date) || null }; }),
+    flashcards: items(top.flashcards, f => { const q = str(f.q), a = str(f.a); return q && a ? { q, a } : null; }),
+    quiz: items(top.quiz, q => {
+      const opts = (Array.isArray(q.opts) ? q.opts : []).map(str);
+      return { q: str(q.q), opts, a: answer(q.a, opts.length), why: str(q.why) || null, t: num(q.t) };
+    })
+  };
 }
 
 export interface BuildContext { duration: number; lines: Line[]; slidePages: { n: number; text: string }[]; zh: "hant" | "hans" | null }
@@ -50,7 +79,7 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
   const at = (x: number) => Math.min(end, Math.max(0, Math.round(x)));
   const pages = new Set(ctx.slidePages.map(p => p.n)), hasSlides = pages.size > 0;
 
-  const titles = new Map((m.slides || []).filter(s => pages.has(s.n) && s.title).map(s => [s.n, s.title.slice(0, 120)]));
+  const titles = new Map(m.slides.filter(s => pages.has(s.n) && s.title).map(s => [s.n, s.title.slice(0, 120)]));
   const slides: Slide[] = ctx.slidePages.map(p => ({ n: p.n, title: titles.get(p.n) || p.text.split("\n").map(x => x.trim()).find(Boolean)?.slice(0, 80) || `Slide ${p.n}`, image: null }));
 
   const sections: Section[] = m.sections
@@ -60,7 +89,8 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
         const zh = ctx.zh && p.zh && p.zh.trim() ? bothScripts(p.zh.trim(), ctx.zh) : {};
         return { t: at(p.t), text: p.text, ...zh, off: hasSlides ? !!p.off : false, slide };
       }).sort((a, b) => (a.t as number) - (b.t as number));
-      return { title: s.title || "Notes", start: at(s.start), end: at(s.end), points };
+      /* A section with no start begins at its first point; one with no end is closed below. */
+      return { title: s.title || "Notes", start: at(s.start ?? Math.min(...s.points.map(p => p.t))), end: s.end === null ? -1 : at(s.end), points };
     })
     .filter(s => s.points.length)
     .sort((a, b) => a.start - b.start);
@@ -74,20 +104,20 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
   });
 
   const dated: Dated[] = [];
-  const alerts: Alert[] = (m.alerts || []).filter(a => a.text).map(a => {
+  const alerts: Alert[] = m.alerts.filter(a => a.text).map(a => {
     const kind = KINDS[a.kind.toLowerCase()] || a.kind || "Exam hint", t = at(a.t), date = realDate(a.date);
     if (date) dated.push({ date, kind, text: a.text, t });
     return { t, kind, text: a.text };
   }).sort((a, b) => a.t - b.t);
 
-  const quiz: QuizQuestion[] = (m.quiz || []).map(q => ({ ...q, opts: q.opts.map(o => String(o).trim()) }))
-    .filter(q => q.q && q.opts.length >= 2 && q.opts.every(Boolean) && Number.isInteger(q.a) && q.a >= 0 && q.a < q.opts.length)
-    .map(q => ({ q: q.q, opts: q.opts, a: q.a, ...(q.why && q.why.trim() ? { why: q.why.trim() } : {}), t: q.t == null ? null : at(q.t) }));
+  const quiz: QuizQuestion[] = m.quiz
+    .filter(q => q.q && q.opts.length >= 2 && q.opts.every(Boolean) && q.a !== null && Number.isInteger(q.a) && q.a >= 0 && q.a < q.opts.length)
+    .map(q => ({ q: q.q, opts: q.opts, a: q.a!, ...(q.why ? { why: q.why } : {}), t: q.t === null ? null : at(q.t) }));
 
   const transcript = ctx.lines.filter(l => l.text.trim()).map(l => ({ t: at(l.t), text: l.text.trim() })).sort((a, b) => a.t - b.t);
 
   return {
-    detail: { alerts, sections, slides: hasSlides ? slides : [], transcript, flashcards: (m.flashcards || []).filter(f => f.q && f.a), quiz },
+    detail: { alerts, sections, slides: hasSlides ? slides : [], transcript, flashcards: m.flashcards, quiz },
     dated
   };
 }

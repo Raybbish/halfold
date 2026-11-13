@@ -52,7 +52,8 @@ test("a second recording replaces the first; a recording after finish is a 409",
   const token = await s.signIn(), id = await newLecture(s, token);
   assert.equal((await s.call("POST", `/lectures/${id}/recording`, { token, body: fileForm(FAKE_AUDIO + "1", "a.mp3") })).status, 204);
   assert.equal((await s.call("POST", `/lectures/${id}/recording`, { token, body: fileForm(FAKE_AUDIO + "2", "b.m4a") })).status, 204);
-  assert.deepEqual(fs.readdirSync(path.join(s.dir, "lectures", id)), ["recording.m4a"]);
+  assert.deepEqual(fs.readdirSync(path.join(s.dir, "lectures", id)), ["recording"]);   // a fixed name: ffmpeg reads it by content, not by the uploaded name
+  assert.equal(fs.readFileSync(path.join(s.dir, "lectures", id, "recording"), "utf8"), FAKE_AUDIO + "2");
   await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 10 } });
   await s.pipeline.idle();
   const again = await s.call("POST", `/lectures/${id}/recording`, { token, body: fileForm(FAKE_AUDIO, "c.mp3") });

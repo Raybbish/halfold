@@ -11,7 +11,7 @@ test("parseModelNotes: accepts fenced JSON and numbers as strings; explains what
   const m = parseModelNotes('```json\n{"sections":[{"title":"A","start":"0","end":"10","points":[{"t":"3","text":" x "}]}]}\n```');
   assert.equal(m.sections[0].points[0].t, 3); assert.equal(m.sections[0].points[0].text, "x");
   assert.throws(() => parseModelNotes("{nope"), /not valid JSON/);
-  assert.throws(() => parseModelNotes('{"notes": []}'), /does not have the fields asked for: sections/);
+  assert.throws(() => parseModelNotes('{"notes": []}'), /does not have the fields asked for: "sections" must be a list/);
   assert.throws(() => parseModelNotes('{"sections":[{"title":"A","start":0,"end":1,"points":[]}]}'), /no sections with points/);
 });
 
@@ -48,6 +48,34 @@ test("buildDetail: alerts use the front end's words and keep real dates only; br
   assert.deepEqual(detail.slides, []);
   assert.deepEqual([detail.sections[0].points[0].zhHant, detail.sections[0].points[0].zhHans], ["機會成本", "机会成本"]);
   DetailSchema.parse(detail);
+});
+
+test("parseModelNotes: one unusable item is dropped on its own, not the whole reply", () => {
+  const m = parseModelNotes(JSON.stringify({
+    sections: [
+      { title: "A", start: 0, points: [{ t: 5, text: "kept", off: "false", slide: "2" }, { text: "no time" }, { t: null, text: "null time" }, "junk"] },
+      { title: "B", start: "60", end: 120, points: [{ t: 70, text: "also kept", off: "true" }] },
+      { title: "Empty", start: 130, end: 140, points: [] }
+    ],
+    alerts: [{ t: 3, kind: null, text: "Quiz next week" }, { t: 4, kind: "Deadline" }],
+    flashcards: [{ q: "q1", a: "a1" }, { q: "q2" }],
+    quiz: [{ q: "numbers", opts: [3, 4, 5, 6], a: 1 }, { q: "letter", opts: ["w", "x", "y", "z"], a: "C" }, { q: "bad letter", opts: ["w", "x"], a: "D" }]
+  }));
+  assert.deepEqual(m.sections.map(s => [s.title, s.start, s.end, s.points.map(p => [p.t, p.text, p.off, p.slide])]),
+    [["A", 0, null, [[5, "kept", false, 2]]], ["B", 60, 120, [[70, "also kept", true, null]]]]);
+  assert.deepEqual(m.alerts, [{ t: 3, kind: "", text: "Quiz next week", date: null }]);
+  assert.deepEqual(m.flashcards, [{ q: "q1", a: "a1" }]);
+  assert.deepEqual(m.quiz.map(q => [q.opts, q.a]), [[["3", "4", "5", "6"], 1], [["w", "x", "y", "z"], 2], [["w", "x"], null]]);
+  const { detail } = buildDetail(m, { ...ctx, slidePages: [] });
+  assert.deepEqual(detail.sections.map(s => [s.start, s.end]), [[0, 60], [60, 120]]);
+  assert.deepEqual(detail.quiz.map(q => q.q), ["numbers", "letter"]);
+  assert.equal(detail.alerts[0].kind, "Exam hint");
+  DetailSchema.parse(detail);
+});
+
+test("buildDetail: a section with no start begins at its first point; the last one with no end runs to the end", () => {
+  const { detail } = buildDetail(parseModelNotes(JSON.stringify({ sections: [{ title: "Only", points: [{ t: 42, text: "x" }] }] })), { ...ctx, slidePages: [] });
+  assert.deepEqual([detail.sections[0].start, detail.sections[0].end], [42, 600]);
 });
 
 test("slideLabel", () => {

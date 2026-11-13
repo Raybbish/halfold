@@ -21,14 +21,21 @@ export class ProviderError extends Error {
   constructor(readonly provider: string, readonly status: number, detail: string) { super(`${provider} replied ${status}: ${detail.slice(0, 500)}`); }
 }
 
-/* Retries a request on 429 and 5xx (and network errors) with backoff; other errors are final. */
+/* Never reached the service, so nothing was charged: retrying is safe. */
+const NOT_SENT = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT"]);
+export function retryable(e: unknown) {
+  if (e instanceof ProviderError) return e.status === 429 || e.status >= 500;
+  const code = (e as { code?: string; cause?: { code?: string } })?.cause?.code ?? (e as { code?: string })?.code;
+  return !!code && NOT_SENT.has(code);
+}
+
+/* Retries a request the service refused (429, 5xx) or never received, with backoff. Anything else is final: a timeout or
+   a broken reply after the audio was sent may already have been charged, and a second try would be charged again. */
 export async function withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal, tries = 3): Promise<T> {
   for (let i = 1; ; i++) {
     try { return await fn(); }
     catch (e) {
-      const status = e instanceof ProviderError ? e.status : 0;
-      const retryable = !signal?.aborted && (status === 0 || status === 429 || status >= 500) && !(e instanceof Error && e.name === "AbortError");
-      if (!retryable || i >= tries) throw e;
+      if (signal?.aborted || !retryable(e) || i >= tries) throw e;
       await new Promise(r => setTimeout(r, 2000 * 2 ** (i - 1)));
     }
   }

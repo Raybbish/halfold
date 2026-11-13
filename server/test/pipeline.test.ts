@@ -147,3 +147,12 @@ test("the queue runs at most PIPELINE_CONCURRENCY lectures at once", async t => 
   assert.equal(s.stt.calls, 2);
   assert.equal(s.store.lecture(a)!.status, "ready"); assert.equal(s.store.lecture(b)!.status, "ready");
 });
+
+test("slides that cannot be read are left out: the notes are written without them", async t => {
+  const s = setup({ slides: async () => { throw new Error("PasswordException: No password given"); } }); t.after(() => s.close());
+  const token = await s.signIn(), id = await uploadedLecture(s, token, { slides: true });
+  await finish(s, token, id); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.notes.calls[0].input.slides, []);
+  assert.deepEqual(s.store.detail(id)!.slides, []);
+});

@@ -1,5 +1,4 @@
 /* The phase 1 endpoints (reference/INTEGRATION.md section 2, API-CHANGES.md section 2). Paths are under /api. */
-import path from "node:path";
 import fsp from "node:fs/promises";
 import { Hono } from "hono";
 import type { Config } from "./config";
@@ -31,6 +30,8 @@ export function publicRoutes({ store }: Deps) {
     if (name && name !== user.name) store.setUserName(user.id, name);
     return c.json({ token: store.createSession(user.id), user: { name: name || user.name } });
   });
+  /* Sharing is not built yet. The shared page asks without a token, so this must not be a 401 ("sign in again"). */
+  r.get("/shared/:id", c => c.json({ message: "This link is not shared." }, 404));
   return r;
 }
 
@@ -81,11 +82,10 @@ export function privateRoutes(deps: Deps) {
       if (l!.status !== "recording") fail(409, "This lecture already has a recording.");
       const info = await media.probe(got.tempPath);
       if (!info || !info.hasAudio) fail(415, "Sidenote could not find any audio in this file. Try an MP3, M4A, WAV or MP4 file.");
-      const ext = (path.extname(got.filename).toLowerCase().match(/^\.[a-z0-9]{1,5}$/) || [".bin"])[0];
-      const name = "recording" + ext;
-      if (l!.recording_file && l!.recording_file !== name) await files.remove(id, l!.recording_file);
-      await files.commit(got.tempPath, id, name);
-      store.setRecording(id, name);
+      /* Stored under a fixed name with no extension: ffmpeg then reads it by its content, as ffprobe just did, and a
+         file name such as x.m3u8 cannot make ffmpeg treat it as a playlist of other files. */
+      await files.commit(got.tempPath, id, "recording");
+      store.setRecording(id, "recording");
     } finally { await files.discard(got.tempPath); }
     /* Deleted between the check above and the move: the move recreated its folder. */
     if (!store.lecture(id)) await files.removeLecture(id);
@@ -98,7 +98,8 @@ export function privateRoutes(deps: Deps) {
       if (status === "processing") fail(409, "Sidenote is writing the notes for this lecture. Add the slides when the notes are ready.");
       if (status === "ready") fail(409, "Adding slides to a lecture that already has notes is not available yet.");
     };
-    check(mine(user.id, id).status);
+    mine(user.id, id);
+    /* The status is checked after the file has arrived: a reply sent while the browser is still sending can reach it as a network error. */
     const got = await receiveFile(c.req.raw, files, "file", config.maxUploadBytes);
     try {
       const l = store.userLecture(user.id, id) ?? fail(404, "This lecture was deleted while the file was uploading.");

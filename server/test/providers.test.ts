@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import { ElevenLabsScribe } from "../src/stt/elevenlabs";
 import { DeepgramNova } from "../src/stt/deepgram";
 import { DeepSeekWriter, isPeak } from "../src/notes/deepseek";
+import { ProviderError, retryable } from "../src/stt/types";
 import type { NotesInput } from "../src/notes/types";
 
 interface Seen { method: string; url: string; headers: http.IncomingHttpHeaders; body: Buffer }
@@ -136,4 +137,13 @@ test("DeepSeek prices: peak hours in UTC on weekdays, half price off-peak", () =
   const u = { inputTokens: 1_000_000, cachedInputTokens: 0, outputTokens: 1_000_000, reasoningTokens: 0 };
   assert.ok(Math.abs(ds.usd(u, new Date("2026-11-10T02:30:00Z")).usd - (1.32 + 3.96)) < 1e-9);
   assert.ok(Math.abs(ds.usd(u, new Date("2026-11-14T02:30:00Z")).usd - (1.32 + 3.96) / 2) < 1e-9);
+});
+
+test("retries only what was not charged: 429, 5xx, or a request that never reached the service", () => {
+  assert.equal(retryable(new ProviderError("x", 429, "")), true);
+  assert.equal(retryable(new ProviderError("x", 502, "")), true);
+  assert.equal(retryable(new ProviderError("x", 400, "")), false);
+  assert.equal(retryable(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } })), true);
+  assert.equal(retryable(Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_BODY_TIMEOUT" } })), false);   // the audio was sent
+  assert.equal(retryable(new SyntaxError("Unexpected end of JSON input")), false);
 });

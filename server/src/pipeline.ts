@@ -99,7 +99,12 @@ export class Pipeline implements Jobs {
     }
 
     /* 3. Slide text. */
-    const slidePages = l.has_slides && files.exists(id, "slides.pdf") ? await (this.d.slides || readSlides)(files.path(id, "slides.pdf")) : [];
+    let slidePages: { n: number; text: string }[] = [];
+    if (l.has_slides && files.exists(id, "slides.pdf")) {
+      /* Slides that cannot be read (password, damaged file) are left out rather than failing the lecture. */
+      try { slidePages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
+      catch (e) { console.warn(`[pipeline] ${id} slides could not be read, writing the notes without them: ${(e as Error).message}`); }
+    }
     this.check(id, signal);
 
     /* 4. Notes. A reply that cannot be used is shown back to the model once to be corrected. */
