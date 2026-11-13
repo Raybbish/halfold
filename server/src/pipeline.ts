@@ -12,6 +12,7 @@ import type { Transcriber } from "./stt/types";
 import { wordsToLines } from "./stt/lines";
 import type { NotesInput, NotesWriter, TokenUsage } from "./notes/types";
 import { buildDetail, parseModelNotes } from "./notes/normalize";
+import { cantoneseTraditional } from "./notes/zh";
 import { DetailSchema } from "./shapes";
 import { readSlides } from "./slides";
 import { promptDate } from "./time";
@@ -94,6 +95,8 @@ export class Pipeline implements Jobs {
       this.check(id, signal);
       await fsp.writeFile(path.join(path.dirname(audio), `transcript.${stt.provider}.json`), JSON.stringify(t.raw));
       lines = wordsToLines(t.words);
+      /* A Cantonese class reads in Traditional characters, as students in Hong Kong write. */
+      if (l.language === "en-yue" || (l.language === "auto" && t.detectedLanguage === "yue")) lines = lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) }));
       if (!lines.length) throw new Error("no speech was recognised in the recording");
       store.saveTranscript(id, stt.provider, stt.model, lines);
     }

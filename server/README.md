@@ -32,11 +32,20 @@ npm start                 # http://localhost:8787
 用真实课堂录音选转写服务：
 
 1. 准备几段录音，最好包括粤语夹英文和普通话夹英文的课，每段 5 到 10 分钟就够。
-2. 可选：在录音旁边放一份人工整理的逐字稿 `<同名>.ref.txt`，会多算一个错误率。英文按词算，中文按字算，繁简不算错。
+2. 可选：在录音旁边放一份人工整理的逐字稿 `<同名>.ref.txt`，会多算一个错误率。英文按词算，中文按字算，繁简不算错。数字的写法会算错（参考稿写 three、服务写 3 就算一个错），所以参考稿里的数字请用阿拉伯数字写。
 3. `npm run compare-stt -- --language en-yue 录音1.m4a 录音2.mp3`。默认跑 `elevenlabs:scribe_v3`、`elevenlabs:scribe_v2`、`deepgram:nova-3`，用 `--providers` 改。
 4. 看 `compare-out/summary.md` 和各家的逐字稿 `compare-out/<录音>/<服务>.txt`。然后在 `.env` 里设 `STT_PROVIDER`（以及 `ELEVENLABS_MODEL` 或 `DEEPGRAM_LANGUAGES`）。
 
-Deepgram 的语言设置还没验证：默认粤语课用 `zh-HK`，普通话夹英文和自动检测用 `multi`（混说模式），但 Deepgram 的文档没写清楚 `multi` 是否包括中文。切换到 Deepgram 之前，先用对比脚本确认，必要时把 `en-zh` 改成 `zh`。
+2026-11-13 用一段 62 秒的英文夹粤语录音（macOS 语音合成，不是真实课堂）试过：
+
+| 服务 | 错误率 | 说明 |
+|---|---|---|
+| ElevenLabs `scribe_v3`（粤语 + 英文） | 4.6% | 字和 v2 一样，差别全在数字写法（写成 1、3、100）；粤语写成简体，流程里会转成繁体 |
+| ElevenLabs `scribe_v2`（自动识别） | 1.0% | |
+| Deepgram `nova-3`，`zh-HK` | 73% | 英文几乎全部丢掉 |
+| Deepgram `nova-3`，`multi` | 73% | 开头的英文之后，大部分英文和一部分粤语都丢了 |
+
+所以粤语夹英文的课先不要用 Deepgram。普通话夹英文还没试。真实课堂有口音、噪音和更快的语速，请用真实录音再比一次。
 
 ## 文件
 

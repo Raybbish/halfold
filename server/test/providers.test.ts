@@ -103,6 +103,7 @@ test("DeepSeek: a streamed JSON reply with usage; JSON mode, thinking and the pr
   assert.equal(body.reasoning_effort, "high"); assert.equal(body.max_tokens, 1000);
   assert.equal(body.messages.length, 2);
   assert.match(body.messages[0].content, /JSON/); assert.match(body.messages[0].content, /Traditional Chinese \(as used in Hong Kong\)/);
+  assert.match(body.messages[0].content, /standard written Chinese \(書面語\), not spoken Cantonese/);
   assert.match(body.messages[1].content, /\[1\] Hello/); assert.match(body.messages[1].content, /Lecture date: Tuesday 2026-11-10/);
   /* A repair call shows the model its reply and the problem. */
   await ds.write(input, undefined, { reply: "{bad", problem: "it is not valid JSON" });

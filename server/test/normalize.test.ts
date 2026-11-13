@@ -106,3 +106,10 @@ test("mixedErrorRate: English by word, Chinese by character, 繁 and 简 the sam
   assert.equal(mixedErrorRate("机会成本 is the cost", "机会成本 is a cost"), 1 / 7);
   assert.deepEqual(mix("我哋 learn economics"), { tokens: 4, chinese: 2, other: 2 });
 });
+
+test("cantoneseTraditional: Simplified Cantonese from speech-to-text becomes Hong Kong Traditional, 係 included", async () => {
+  const { cantoneseTraditional } = await import("../src/notes/zh");
+  assert.equal(cantoneseTraditional("即系话，你拣咗一样嘢，就系机会成本。"), "即係話，你揀咗一樣嘢，就係機會成本。");
+  assert.equal(cantoneseTraditional("我系经济系学生，系咪？唔系。关系好重要。"), "我係經濟系學生，係咪？唔係。關係好重要。");
+  assert.equal(cantoneseTraditional("opportunity cost 都系 important"), "opportunity cost 都係 important");
+});

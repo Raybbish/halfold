@@ -37,21 +37,26 @@ const k = (n: number) => (n / 1000).toFixed(1) + "k";
 console.log("每堂课\n");
 console.log(["时间", "课堂", "录音(分)", "转写", "转写$", "笔记模型", "次数", "输入tok(缓存)", "输出tok(思考)", "笔记$", "课件页", "中文", "合计$"].join("\t"));
 for (const l of list) console.log([l.when, l.id, (l.audioSeconds / 60).toFixed(1), l.stt, usd(l.sttUsd), l.notesModel, l.attempts, `${k(l.inTok)}(${k(l.cachedTok)})`,
-  `${k(l.outTok)}(${k(l.reasoningTok)})`, usd(l.notesUsd), l.slidePages, l.zh ?? "off", usd(l.sttUsd + l.notesUsd)].join("\t"));
+  `${k(l.outTok)}(${k(l.reasoningTok)})`, usd(l.notesUsd), l.attempts ? l.slidePages : "-", l.attempts ? l.zh ?? "off" : "-", usd(l.sttUsd + l.notesUsd)].join("\t"));
 
-/* Section 10 of INTEGRATION.md. Per-lecture figures are scaled to a 90-minute lecture. */
+/* Section 10 of INTEGRATION.md. Per-lecture figures are scaled to a 90-minute lecture, from recordings of at least 20
+   minutes only: part of a notes call does not grow with the length (the instructions, the model's thinking), so scaling
+   up a one-minute test would overstate it many times. */
+const LONG_ENOUGH = 20 * 60;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const per90 = (ls: Lecture[]) => { const min = sum(ls.map(l => l.audioSeconds)) / 60; return min ? sum(ls.map(l => l.notesUsd)) / min * 90 : NaN; };
 const withAudio = list.filter(l => l.audioSeconds > 0 && l.sttUsd > 0);
 const byStt = new Map<string, Lecture[]>(); for (const l of withAudio) byStt.set(l.stt, [...(byStt.get(l.stt) || []), l]);
-const written = list.filter(l => l.attempts > 0 && l.audioSeconds > 0);
+const written = list.filter(l => l.attempts > 0 && l.audioSeconds >= LONG_ENOUGH);
+const short = list.filter(l => l.attempts > 0 && l.audioSeconds > 0 && l.audioSeconds < LONG_ENOUGH);
 const slides = written.filter(l => l.slidePages > 0), noSlides = written.filter(l => !l.slidePages);
 const zhOn = written.filter(l => l.zh), zhOff = written.filter(l => !l.zh);
 const sizes = list.map(l => l.audioBytesPerHour).filter((x): x is number => x != null);
-const show = (n: number) => Number.isFinite(n) ? usd(n) : "(还没有数据)";
+const show = (n: number) => Number.isFinite(n) ? usd(n) : "(还没有 20 分钟以上的课)";
 console.log("\n第 10 节需要的数字\n");
 for (const [name, ls] of byStt) console.log(`转写成本（${name}）：每小时录音 ${usd(sum(ls.map(l => l.sttUsd)) / (sum(ls.map(l => l.audioSeconds)) / 3600))}，共 ${(sum(ls.map(l => l.audioSeconds)) / 3600).toFixed(2)} 小时`);
-console.log(`生成笔记、闪卡、测验：每堂 90 分钟的课 ${show(per90(written))}（${written.length} 堂）`);
+console.log(`生成笔记、闪卡、测验：每堂 90 分钟的课 ${show(per90(written))}（${written.length} 堂 20 分钟以上的课）`);
+if (short.length) console.log(`  不到 20 分钟的课不算在内（${short.length} 堂，平均每堂笔记 ${usd(sum(short.map(l => l.notesUsd)) / short.length)}）`);
 console.log(`有课件 vs 没课件：${show(per90(slides))}（${slides.length} 堂） vs ${show(per90(noSlides))}（${noSlides.length} 堂）`);
 console.log(`有中文解释 vs 没有：${show(per90(zhOn))}（${zhOn.length} 堂） vs ${show(per90(zhOff))}（${zhOff.length} 堂）`);
 console.log(`转码后的回放文件：每小时 ${sizes.length ? (sum(sizes) / sizes.length / 1048576).toFixed(1) + " MB" : "(还没有数据)"}`);

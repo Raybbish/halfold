@@ -25,7 +25,7 @@ const fixtures = process.argv[3] ? path.resolve(process.argv[3]) : null;
 const app = new Hono();
 if (fixtures) app.get("/__fixtures/:name", c => {
   const f = path.join(fixtures, path.basename(c.req.param("name")));
-  return fs.existsSync(f) ? c.body(fs.readFileSync(f)) : c.notFound();
+  return fs.existsSync(f) ? c.body(fs.readFileSync(f), 200, { "Access-Control-Allow-Origin": "*" }) : c.notFound();   // other local servers may fetch them
 });
 app.route("/", createApp({ config, store, files, media, jobs: pipeline }));
 serve({ fetch: app.fetch, port }, () => console.log(`stub server on http://localhost:${port} (data in ${dir}); invite code STUB`));

@@ -4,6 +4,15 @@ import * as OpenCC from "opencc-js";
 
 let toHans: ((s: string) => string) | null = null, toHant: ((s: string) => string) | null = null;
 
+/* Speech-to-text writes Cantonese in Simplified characters; students in Hong Kong read Traditional. OpenCC gets 系 right
+   in most phrases (就係, 關係, 經濟系) but not in a few spoken Cantonese ones, fixed here. */
+const CANTONESE_HAI = /(即|唔|都|但|真|只|而|先|又|仲|就)系|系(咪|唔系|咗|嘅|度|喇|呀|啊|嘛|囉|咩|就)/g;
+let cnToHk: ((s: string) => string) | null = null;
+export function cantoneseTraditional(text: string) {
+  cnToHk ??= OpenCC.Converter({ from: "cn", to: "hk" });
+  return cnToHk(text).replace(CANTONESE_HAI, m => m.replace(/系/g, "係"));
+}
+
 export function bothScripts(text: string, written: "hant" | "hans") {
   if (written === "hant") { toHans ??= OpenCC.Converter({ from: "hk", to: "cn" }); return { zhHant: text, zhHans: toHans(text) }; }
   toHant ??= OpenCC.Converter({ from: "cn", to: "hk" });
