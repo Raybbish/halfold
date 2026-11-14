@@ -8,9 +8,11 @@ import { setZhScript, zhScript, zhText } from "../../i18n/zhScript";
 import { css } from "../../ui/css";
 import { jump, editPoint, delPoint } from "./actions";
 
-/* One point of the notes. Backend text keeps data-notr; "Sidenote" marks a point said in class but not on the slides. */
-export function Point({ p, si, pi }: { p: P; si: number; pi: number }) { const own = cur && !cur.shared && state.edit;
-  return <div className={`pt ${p.off ? "off" : ""}${state.found === p ? " found" : ""}`}>{p.t != null ? <button className="ts" onClick={() => jump(+p.t!)} aria-label={t("Open transcript at " + fmt(p.t))}>{fmt(p.t)}</button> : <span className="tag grey">{t("You")}</span>}<div className="body">{p.off ? <><span className="tag sn">{t("Sidenote")}</span>{" "}</> : null}<span data-notr="">{p.text}</span>{state.zh && zhText(p) ? <div className="zh" data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{zhText(p)}</div> : null}{own ? <div className="pt-acts"><button className="ts" onClick={() => editPoint(si, pi)}>{t("Edit")}</button><button className="ts" style={css("color:var(--red)")} onClick={() => delPoint(si, pi)}>{t("Delete")}</button></div> : null}</div></div>; }
+/* One point of the notes. Backend text keeps data-notr; "Sidenote" marks a point said in class but not on the slides.
+   "You" marks a point the student added to their own lecture (mine). A point someone else added, on the shared page or
+   in a saved copy, has no time either; an empty cell keeps its text in line. */
+export function Point({ p, si, pi }: { p: P; si: number; pi: number }) { const own = cur && !cur.shared && state.edit, you = cur && !cur.shared && p.mine;
+  return <div className={`pt ${p.off ? "off" : ""}${state.found === p ? " found" : ""}`}>{p.t != null ? <button className="ts" onClick={() => jump(+p.t!)} aria-label={t("Open transcript at " + fmt(p.t))}>{fmt(p.t)}</button> : you ? <span className="tag grey">{t("You")}</span> : <span />}<div className="body">{p.off ? <><span className="tag sn">{t("Sidenote")}</span>{" "}</> : null}<span data-notr="">{p.text}</span>{state.zh && zhText(p) ? <div className="zh" data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{zhText(p)}</div> : null}{own ? <div className="pt-acts"><button className="ts" onClick={() => editPoint(si, pi)}>{t("Edit")}</button><button className="ts" style={css("color:var(--red)")} onClick={() => delPoint(si, pi)}>{t("Delete")}</button></div> : null}</div></div>; }
 
 /* The lecture as a coloured bar, one colour per topic, with ! where an exam or deadline was mentioned. The head is
    moved by the player without a redraw (plTick). */

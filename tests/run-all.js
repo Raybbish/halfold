@@ -16,12 +16,12 @@ const opt = n => { const a = process.argv.find(x => x.startsWith('--' + n + '=')
 const TARGET = opt('target') || 'dist';
 const ONLY = opt('only') ? opt('only').split(',') : null;
 const want = n => !ONLY || ONLY.includes(n);
-const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 13, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20 };
+const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 13, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6 };
 // The four acceptance scripts run on both the build and the original. upload.js (upload progress and Cancel),
 // backend-text.js (backend text is never translated), courses.js (editing and deleting courses, moving lectures) and
-// slides-later.js (adding slides after the lecture) and search.js (searching the notes of every lecture) test changes made
-// after the migration, which the original does not have, so they run on the build only.
-const SCRIPTS = TARGET === 'dist' ? ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search'] : ['real5', 'zhscript', 'real3', 'zhcheck'];
+// slides-later.js (adding slides after the lecture), search.js (searching the notes of every lecture) and sharing.js (stopping
+// sharing, and who a point without a time belongs to) test changes made after the migration, which the original does not have, so they run on the build only.
+const SCRIPTS = TARGET === 'dist' ? ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing'] : ['real5', 'zhscript', 'real3', 'zhcheck'];
 
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });
