@@ -4,7 +4,7 @@
    every reply. Objects are strict: a misspelt field is an error, not something the front end silently ignores. */
 import { z } from "zod";
 import type {
-  Alert, Audio, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, Point, QuizQuestion, Section, SessionReply,
+  Alert, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, Point, QuizQuestion, Section, SessionReply,
   Settings, Slide, StatusReply, Upcoming, Usage, User, Week
 } from "../../src/types";
 
@@ -62,3 +62,6 @@ export const SessionReplySchema: z.ZodType<SessionReply> = z.strictObject({ toke
 export const LectureReplySchema: z.ZodType<LectureReply> = z.strictObject({ lecture: LectureSchema, detail: DetailSchema.nullable() });
 export const StatusReplySchema: z.ZodType<StatusReply> = z.strictObject({ status: StatusSchema });
 export const ErrorReplySchema = z.strictObject({ message: z.string().min(1) });
+/* Phase 2: live recording. */
+export const ChunkReplySchema: z.ZodType<ChunkReply> = z.strictObject({ segments: z.array(LineSchema), alerts: z.array(AlertSchema) });
+export const CatchUpReplySchema: z.ZodType<CatchUpReply> = z.strictObject({ points: z.array(z.string().min(1)).min(1) });

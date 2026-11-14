@@ -6,7 +6,7 @@ import { bodyLimit } from "hono/body-limit";
 import { onError } from "./http/errors";
 import { privateRoutes, publicRoutes, type AppEnv, type Deps } from "./routes";
 
-/* The front end reads window.SIDENOTE_CONFIG at start (src/config.ts). The example share is hidden: phase 1 has no shared pages. */
+/* The front end reads window.SIDENOTE_CONFIG at start (src/config.ts). The example share is hidden: there are no shared pages yet. */
 export const WEB_CONFIG = { USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: null };
 
 export function createApp(deps: Deps) {
@@ -15,9 +15,9 @@ export function createApp(deps: Deps) {
 
   const api = new Hono<AppEnv>();
   /* JSON requests are small. Without a limit, one huge body to the public sign-in endpoint would be read into memory.
-     File uploads stream to disk with their own limit (MAX_UPLOAD_MB). */
+     File uploads stream to disk with their own limits (MAX_UPLOAD_MB, and MAX_CHUNK_MB for a piece of a live recording). */
   const small = bodyLimit({ maxSize: 64 * 1024, onError: c => c.json({ message: "The request is too large." }, 413) });
-  api.use("*", (c, next) => /\/(recording|slides)$/.test(c.req.path) ? next() : small(c, next));
+  api.use("*", (c, next) => /\/(recording|slides|chunks)$/.test(c.req.path) ? next() : small(c, next));
   api.route("/", publicRoutes(deps));
   /* Every other endpoint needs the token from POST /session. A 401 makes the front end sign in again. */
   api.use("*", async (c, next) => {

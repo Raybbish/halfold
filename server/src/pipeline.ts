@@ -1,8 +1,10 @@
 /* Recording -> notes, for lectures in status "processing". Runs in this process with a small queue. Each step keeps
    its result (audio.m4a, the transcript), so a retry after a failure only redoes what failed: a second transcription
    would be paid for twice. Deleting a lecture aborts its run, and a run never writes notes for a lecture that is gone. */
+import fs from "node:fs";
 import path from "node:path";
 import fsp from "node:fs/promises";
+import { pipeline as pump } from "node:stream/promises";
 import type { Config } from "./config";
 import type { Store, LectureRow } from "./db";
 import type { FileStore } from "./files";
@@ -23,6 +25,7 @@ export interface PipelineDeps {
 }
 
 const AUDIO = "audio.m4a";
+export const isLive = (l: Pick<LectureRow, "source">) => l.source === "record" || l.source === "tab";
 const NOTES_ATTEMPTS = 2;
 class Gone extends Error {}
 
@@ -69,12 +72,14 @@ export class Pipeline implements Jobs {
 
   private async process(l: LectureRow, signal: AbortSignal) {
     const { store, files, media, stt, config } = this.d, id = l.id;
+    /* 0. A live recording: the pieces the browser sent, joined in order into one file. */
+    if (!l.recording_file && isLive(l)) { await this.assemble(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
     if (!l.recording_file) throw new Error("no recording");
 
     /* 1. One seekable speech file from whatever was uploaded. Written to a temp path first: a half-made file never counts. */
     if (!files.exists(id, AUDIO)) {
       const tmp = files.tempPath() + ".m4a";
-      try { await media.toSpeechAudio(files.path(id, l.recording_file), tmp, signal); this.check(id, signal); await files.commit(tmp, id, AUDIO); }
+      try { await media.toSpeechAudio(files.path(id, l.recording_file), tmp, { signal, fillGaps: isLive(l) }); this.check(id, signal); await files.commit(tmp, id, AUDIO); }
       finally { await files.discard(tmp); }
     }
     const audio = files.path(id, AUDIO);
@@ -137,6 +142,28 @@ export class Pipeline implements Jobs {
     /* 5. Save; does nothing if the lecture was deleted meanwhile. */
     this.check(id, signal);
     store.saveNotes(id, detailOut.detail, detailOut.dated);
+  }
+
+  /* Joins the chunks of a live recording in the order they were recorded (seq) into the file "recording", then drops the
+     chunks. A chunk that never arrived leaves a gap that ffmpeg fills with silence (toSpeechAudio fillGaps), so the
+     rest keeps its time. Without the first chunk (it carries the header) nothing can be read. */
+  private async assemble(l: LectureRow, signal: AbortSignal) {
+    const { store, files } = this.d, id = l.id, seqs = store.chunkSeqs(id);
+    if (seqs[0] !== 0) throw new Error(seqs.length ? "the first piece of the live recording never arrived" : "no audio was received");
+    const missing = seqs[seqs.length - 1] + 1 - seqs.length;
+    if (missing) console.warn(`[pipeline] ${id}: ${missing} piece(s) of the live recording never arrived; they become silence`);
+    const tmp = files.tempPath(), out = fs.createWriteStream(tmp);
+    try {
+      for (const seq of seqs) {
+        this.check(id, signal);
+        await pump(fs.createReadStream(path.join(files.chunkDir(id), files.chunkName(seq))), out, { end: false });
+      }
+      await new Promise<void>((ok, bad) => { out.once("error", bad); out.end(() => ok()); });
+      this.check(id, signal);
+      await files.commit(tmp, id, "recording");
+      store.setRecording(id, "recording");
+    } finally { out.destroy(); await files.discard(tmp); }
+    await files.removeChunks(id);
   }
 
   /* One model call, logged in the cost table whether or not its reply turns out usable. */

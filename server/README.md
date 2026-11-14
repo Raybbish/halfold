@@ -1,6 +1,6 @@
-# Sidenote 后端（第一阶段）
+# Sidenote 后端（第一、二阶段）
 
-把上传的课堂录音（可带 PDF 课件）变成笔记，前端用 `USE_MOCK: false` 就能显示。设计和取舍见 [DESIGN.md](DESIGN.md)，接口约定见 `../reference/INTEGRATION.md` 和 `../API-CHANGES.md`。
+把课堂录音（可带 PDF 课件）变成笔记，前端用 `USE_MOCK: false` 就能显示。录音可以上传，也可以在浏览器里现场录（实时逐字稿、考试提示、Catch me up）；写好笔记后可以回放。设计和取舍见 [DESIGN.md](DESIGN.md)，接口约定见 `../reference/INTEGRATION.md` 和 `../API-CHANGES.md`。
 
 需要 Node 22.12 以上和 `ffmpeg`（含 `ffprobe`）。
 
@@ -13,7 +13,9 @@ cp .env.example .env      # 填三个 key 和 INVITE_CODES
 npm start                 # http://localhost:8787
 ```
 
-`npm start` 用同一个地址提供 `/api` 和构建好的前端（`../dist`），并替前端把 `USE_MOCK` 关掉、`API_BASE` 设成 `/api`。改了前端要先在仓库根目录 `npm run build`。用 `.env` 里的邀请码登录，新建课程，上传一段录音，等笔记出现。
+`npm start` 用同一个地址提供 `/api` 和构建好的前端（`../dist`），并替前端把 `USE_MOCK` 关掉、`API_BASE` 设成 `/api`。改了前端要先在仓库根目录 `npm run build`。用 `.env` 里的邀请码登录，新建课程，上传一段录音或点 Record now 现场录，等笔记出现。
+
+现场录音要用麦克风，浏览器只在 `localhost` 或 HTTPS 下给麦克风。用手机试要先配 HTTPS（比如反向代理），并设 `PUBLIC_URL`。
 
 不想把 key 写进文件，也可以在启动时用环境变量给。
 
@@ -25,7 +27,7 @@ npm start                 # http://localhost:8787
 | `npm test` | 类型检查和全部测试（转写服务和 DeepSeek 用假实现，不花钱） |
 | `npm run invite -- add <code> [名字]` / `new` / `list` | 管理邀请码。一个码就是一个账号 |
 | `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字 |
-| `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/` |
+| `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
 
 ## 对比转写服务
 
@@ -47,28 +49,50 @@ npm start                 # http://localhost:8787
 
 所以粤语夹英文的课先不要用 Deepgram。普通话夹英文还没试。真实课堂有口音、噪音和更快的语速，请用真实录音再比一次。
 
+## 现场录音的设置
+
+都在 `.env` 里，都有默认值（见 `.env.example`）：
+
+| 设置 | 默认 | 作用 |
+|---|---|---|
+| `LIVE_RECORDING` | `on` | `off` 时不能开始现场录音（回 501，请学生上传） |
+| `LIVE_TRANSCRIPT` | `on` | 录音时实时转写：录音页的逐字稿、考试提示、Catch me up。`off` 省掉这部分转写费，笔记不受影响 |
+| `DAILY_LIVE_MINUTES` | 240 | 每个学生每天现场录音的分钟数。快用完时录音页会提醒，用完后停止保存，已保存的部分照常写笔记 |
+| `CATCHUP_MODEL` | `deepseek-flash` | Catch me up 用的模型，不开思考 |
+| `AUDIO_KEEP_DAYS` | 0 | 0 = 录音全部保留。设成 N，写好笔记的课 N 天后删掉录音（笔记保留） |
+| `PUBLIC_URL` | 空 | 前端和 API 不在同一个地址时，回放链接用这个地址开头 |
+
+现场录音每小时的转写费是上传录音的 2.12 倍：录音时实时转写一次，结束后为了写笔记再整段转写一次（15 秒一段的准确度差一些，尤其是粤语，见 DESIGN.md）。`npm run costs` 会列出实测的倍数和 Catch me up 每次的成本。
+
 ## 文件
 
 ```
 src/
   index.ts         启动
   app.ts           /api 和前端网页
-  routes.ts        11 个接口
+  routes.ts        接口
   shapes.ts        回复的 zod schema，和 ../src/types.ts 绑定
   db.ts            SQLite（node:sqlite）
   files.ts         课堂文件（本地磁盘）
   http/upload.ts   流式接收上传，中断不留文件
   media.ts         ffprobe / ffmpeg
-  pipeline.ts      录音 -> 笔记的队列
+  pipeline.ts      录音 -> 笔记的队列（现场录音先把分段拼起来）
+  live/            现场录音：每轮转写 transcriber.ts、切窗口 windows.ts、考试提示 alerts.ts
+  audio.ts         回放：签名链接、Range、保留期限
   stt/             转写服务：elevenlabs.ts、deepgram.ts、切句 lines.ts、对比打分 compare.ts
-  notes/           DeepSeek：提示词 prompt.ts、调用 deepseek.ts、整理和校验 normalize.ts、繁简 zh.ts
+  notes/           DeepSeek：提示词 prompt.ts、调用 deepseek.ts、整理和校验 normalize.ts、繁简 zh.ts、Catch me up catchup.ts
   slides.ts        PDF 每页的文字
 scripts/           invite、costs、compare-stt
-test/              契约、上传、流程、整理、服务商请求、ffmpeg 和网页
+test/              契约、上传、流程、整理、服务商请求、ffmpeg 和网页；现场录音（模拟浏览器）、真实分段、回放
+test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的 README
 ```
 
-数据在 `data/`（gitignore）：`sidenote.db`，以及 `lectures/<课堂 id>/` 下的原始录音、`audio.m4a`（转码后，用于转写和以后的回放）、`slides.pdf`、转写服务的原始返回。
+数据在 `data/`（gitignore）：`sidenote.db`，以及 `lectures/<课堂 id>/` 下的原始录音、`audio.m4a`（转码后，用于转写和回放）、`slides.pdf`、转写服务的原始返回；现场录音结束前，分段在 `chunks/` 里。
 
-## 第一阶段没做的
+## 还没做的
 
-现场录音的分段上传（`record`、`tab` 现在回 501，请学生上传录音）、Catch me up、回放（`detail` 不带 `audio`）、编辑笔记、分享、学习进度、复习包、课程管理、搜索、课后补传课件（回 409）、会员和付款、设置保存。这些接口现在回 404 加说明，前端会照常显示或忽略。
+- 视频链接（`attachLink` 回 501，请学生下载后上传）。
+- 编辑笔记、分享（分享页回 404）、学习进度、复习包、课程管理、搜索、课后补传课件（回 409）：第三阶段。
+- 会员和付款、正式登录、设置保存：第四阶段。
+
+这些接口现在回 404 加说明（个别回 409 或 501），前端会照常显示或忽略。

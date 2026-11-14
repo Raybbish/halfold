@@ -9,6 +9,8 @@ import type { AddressInfo } from "node:net";
 import { ElevenLabsScribe } from "../src/stt/elevenlabs";
 import { DeepgramNova } from "../src/stt/deepgram";
 import { DeepSeekWriter, isPeak } from "../src/notes/deepseek";
+import { DeepSeekCatchUp, readPoints } from "../src/notes/catchup";
+import { loadConfig } from "../src/config";
 import { ProviderError, retryable } from "../src/stt/types";
 import type { NotesInput } from "../src/notes/types";
 
@@ -147,4 +149,27 @@ test("retries only what was not charged: 429, 5xx, or a request that never reach
   assert.equal(retryable(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } })), true);
   assert.equal(retryable(Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_BODY_TIMEOUT" } })), false);   // the audio was sent
   assert.equal(retryable(new SyntaxError("Unexpected end of JSON input")), false);
+});
+
+test("Catch me up: deepseek-flash without thinking, the transcript with times; the points read; an unusable reply is an error with usage", async t => {
+  const srv = await fakeServer((_r, n) => ({ type: "text/event-stream", body: sse([
+    { choices: [{ delta: { content: n === 1 ? '{"points": ["Elasticity is the response of demand to price.", " ", 3, "Problem set 2 is due Friday."]}' : '{"summary": "x"}' }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 900, completion_tokens: 40 } }
+  ]) }));
+  t.after(srv.close);
+  const config = loadConfig({ DEEPSEEK_API_KEY: "ds-key" });
+  assert.equal(config.catchUp.model, "deepseek-flash"); assert.equal(config.catchUp.reasoningEffort, "none");
+  assert.deepEqual(config.catchUp.prices, { inputCacheHit: 0.006, inputCacheMiss: 0.3, output: 1.2 });
+  const cu = new DeepSeekCatchUp({ ...config.catchUp, baseUrl: srv.url });
+  const lines = [{ t: 61, text: "Elasticity measures how demand responds to price." }, { t: 125, text: "下星期五交 problem set 2。" }];
+  const r = await cu.sumUp({ courseCode: "ECON 1001", title: "Week 10", language: "en-yue", lines });
+  assert.deepEqual(r.points, ["Elasticity is the response of demand to price.", "Problem set 2 is due Friday."]);
+  assert.deepEqual(r.usage, { inputTokens: 900, cachedInputTokens: 0, outputTokens: 40, reasoningTokens: 0 });
+  const body = JSON.parse(srv.seen[0].body.toString());
+  assert.equal(body.model, "deepseek-flash"); assert.equal(body.reasoning_effort, "none"); assert.deepEqual(body.response_format, { type: "json_object" });
+  assert.match(body.messages[0].content, /English and Cantonese/);
+  assert.match(body.messages[1].content, /\[1:01\] Elasticity measures/); assert.match(body.messages[1].content, /\[2:05\] 下星期五交 problem set 2。/);
+  await assert.rejects(cu.sumUp({ courseCode: "", title: "W", language: "en", lines }), (e: Error & { usage?: unknown }) => /no points/.test(e.message) && !!e.usage);
+  assert.deepEqual(readPoints('["a", "b", "c", "d", "e"]'), ["a", "b", "c", "d"]);
+  assert.throws(() => readPoints("not json"), /not JSON/);
 });

@@ -1,4 +1,4 @@
-/* The phase 1 endpoints (reference/INTEGRATION.md section 2, API-CHANGES.md section 2). Paths are under /api. */
+/* The endpoints of phases 1 and 2 (reference/INTEGRATION.md section 2, API-CHANGES.md). Paths are under /api. */
 import fsp from "node:fs/promises";
 import { Hono } from "hono";
 import type { Config } from "./config";
@@ -9,19 +9,42 @@ import type { FileStore } from "./files";
 import type { Media } from "./media";
 import { fail, jsonBody } from "./http/errors";
 import { receiveFile } from "./http/upload";
-import { courseView, homeView, lectureView, liveMinutesToday } from "./views";
-import type { Source, StatusReply } from "../../src/types";
+import { courseView, homeView, lectureView, liveMinutesToday, liveSecondsToday } from "./views";
+import { AUDIO, audioView, linkIsValid, sendFile } from "./audio";
+import { isLive } from "./pipeline";
+import { heldWords, type LiveJobs } from "./live/transcriber";
+import { joinTokens } from "./stt/lines";
+import type { CatchUpWriter } from "./notes/catchup";
+import type { CatchUpReply, ChunkReply, Source, StatusReply } from "../../src/types";
 
 export interface Jobs { enqueue(lectureId: string): void; cancel(lectureId: string): void }
-export interface Deps { config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media }
+export interface Deps { config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter }
 export type AppEnv = { Variables: { user: UserRow } };
 
 const SOURCES: Source[] = ["record", "tab", "upload", "link"];
 const COLORS = ["#FF6B57", "#4C7DFF", "#2BB673", "#FFB020", "#9B5DE5", "#00B8D9", "#F15BB5", "#8D6E63"];
 const str = (v: unknown) => typeof v === "string" ? v.trim() : "";
 
+/* The live limit (DAILY_LIVE_MINUTES). The front end only checks it before a recording starts, and has no way to show a
+   message from a chunk reply's error: it would retry the chunk forever. So the student is told through the live alerts
+   (shown on the recording screen), and once the minutes are used up the next chunks get 410, which makes the front end
+   stop sending them; ending the recording then writes the notes from what was saved. */
+const WARN_SECONDS = 5 * 60;
+const LIMIT_REACHED = "Today's recording minutes are used up, so Sidenote has stopped saving this recording. End it to get notes for what was saved.";
+const limitSoon = (left: number) => `About ${Math.max(1, Math.round(left / 60))} recording minutes are left today. Sidenote stops saving this recording when they run out; end it then to get notes for what was saved.`;
+const NOTHING_YET = "Nothing has been said yet that Sid can sum up. Try again in a minute.";
+const CATCH_UP_SECONDS = 5 * 60;
+
+/* Waits for `p` at most `ms`, without keeping the process alive. */
+async function waitAtMost(p: Promise<unknown>, ms: number) {
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([p, new Promise<void>(r => { timer = setTimeout(r, ms); })]);
+  clearTimeout(timer);
+}
+
 /* Signing in is public. A wrong code is an ordinary error the sign-in page shows as it is (http.ts: anon requests). */
-export function publicRoutes({ store }: Deps) {
+export function publicRoutes(deps: Deps) {
+  const { store } = deps;
   const r = new Hono<AppEnv>();
   r.post("/session", async c => {
     const b = await jsonBody(c), code = str(b.inviteCode), name = str(b.name).slice(0, 60);
@@ -30,13 +53,25 @@ export function publicRoutes({ store }: Deps) {
     if (name && name !== user.name) store.setUserName(user.id, name);
     return c.json({ token: store.createSession(user.id), user: { name: name || user.name } });
   });
+  /* Playback. The <audio> element cannot send the token: the link carries a signature instead (audio.ts). */
+  r.on(["GET", "HEAD"], "/lectures/:id/audio", async c => {
+    const id = c.req.param("id");
+    if (!linkIsValid(deps.store, id, c.req.query("exp"), c.req.query("sig"))) fail(403, "This link to the recording has expired. Open the lecture again.");
+    const l = deps.store.lecture(id);
+    if (!l || l.audio_expired || !deps.files.exists(id, AUDIO)) fail(404, "This recording is no longer kept.");
+    const name = (l!.title.replace(/[\\/:*?"<>|\x00-\x1f]+/g, " ").trim() || "recording").slice(0, 80) + ".m4a";
+    return sendFile(c.req.raw, deps.files.path(id, AUDIO), "audio/mp4", {
+      "Cache-Control": "private, max-age=3600", "Content-Disposition": `inline; filename="recording.m4a"; filename*=UTF-8''${encodeURIComponent(name)}`
+    });
+  });
+
   /* Sharing is not built yet. The shared page asks without a token, so this must not be a 401 ("sign in again"). */
   r.get("/shared/:id", c => c.json({ message: "This link is not shared." }, 404));
   return r;
 }
 
 export function privateRoutes(deps: Deps) {
-  const { config, store, files, jobs, media } = deps;
+  const { config, store, files, jobs, media, live, catchUp } = deps;
   const r = new Hono<AppEnv>();
   const mine = (userId: string, id: string) => store.userLecture(userId, id) ?? fail(404, "This lecture does not exist.");
 
@@ -61,10 +96,11 @@ export function privateRoutes(deps: Deps) {
     if (!CLASS_LANGUAGES.includes(language)) fail(400, "Choose the language of the class.");
     if (!SOURCES.includes(source)) fail(400, "Choose how to add the lecture.");
     if (source === "record" || source === "tab") {
-      /* The daily limit is on live recording only (uploads are not counted), checked here and not only in the browser. */
+      /* The daily limit is on live recording only (uploads are not counted), checked here and not only in the browser,
+         and again on every chunk (a recording in progress counts too). */
       if (liveMinutesToday(store, user.id, config.timezone) >= config.dailyLiveMinutes) fail(429, "You have used today's recording minutes. Upload a recording instead, or come back tomorrow.");
-      /* Phase 1 has no chunk endpoint: refuse before the browser starts a recording that could not be saved. */
-      if (!config.liveRecording) fail(501, "Recording in Sidenote is not available yet. Record the lecture with another app and upload the file.");
+      /* LIVE_RECORDING=off: refuse before the browser starts a recording that could not be saved. */
+      if (!config.liveRecording) fail(501, "Recording in Sidenote is not available right now. Record the lecture with another app and upload the file.");
     }
     if (source === "link") fail(501, "Adding a link is not available yet. Download the recording and upload the file.");
     const title = str(b.title).slice(0, 200) || "Untitled lecture";
@@ -73,8 +109,9 @@ export function privateRoutes(deps: Deps) {
   });
 
   r.post("/lectures/:id/recording", async c => {
-    const user = c.get("user"), id = c.req.param("id");
-    if (mine(user.id, id).status !== "recording") fail(409, "This lecture already has a recording.");
+    const user = c.get("user"), id = c.req.param("id"), l0 = mine(user.id, id);
+    if (l0.status !== "recording") fail(409, "This lecture already has a recording.");
+    if (isLive(l0)) fail(409, "This lecture is being recorded in Sidenote. End the recording to get the notes.");
     const got = await receiveFile(c.req.raw, files, "file", config.maxUploadBytes);
     try {
       const l = store.userLecture(user.id, id);
@@ -114,13 +151,91 @@ export function privateRoutes(deps: Deps) {
     return c.body(null, 204);
   });
 
-  /* Idempotent: a lecture already processing or ready keeps its status and is not queued again. */
+  /* One piece of a live recording (multipart: audio, seq), every CHUNK_SECONDS. The reply carries the live transcript
+     lines and alerts that are new since the last reply. Sent twice (the first reply was lost): stored once, and the
+     reply repeats what the first one carried. 404 (the lecture was deleted) and 410 (no more audio taken) make the
+     front end drop the rest of this lecture's chunks; any other error makes it send the chunk again later. */
+  r.post("/lectures/:id/chunks", async c => {
+    const user = c.get("user"), id = c.req.param("id");
+    /* Everything is checked after the piece has arrived, even whether the lecture exists: a reply sent while the browser
+       is still sending can reach it as a network error, and the front end would send the piece again instead of
+       dropping the lecture's chunks on a 404. A piece is small (MAX_CHUNK_MB). */
+    const got = await receiveFile(c.req.raw, files, "audio", config.live.maxChunkBytes);
+    let seq: number;
+    try {
+      const l = mine(user.id, id);
+      if (!isLive(l)) fail(409, "This lecture is not being recorded in Sidenote.");
+      const raw = got.fields.seq ?? "";
+      if (!/^\d{1,6}$/.test(raw)) fail(400, "The piece of audio had no number (seq).");
+      seq = Number(raw);
+      const again = store.hasChunk(id, seq);
+      if (l.status !== "recording") {
+        if (again) return c.json<ChunkReply>({ segments: [], alerts: [] });
+        fail(410, "This recording has ended, so this piece of audio was not added.");
+      }
+      if (!again) {
+        if (l.live_limit >= 2) fail(410, LIMIT_REACHED);
+        if (l.chunk_bytes + got.bytes > config.maxUploadBytes) { store.setLiveLimit(id, 2); fail(410, `This recording has reached ${Math.round(config.maxUploadBytes / 1048576)} MB, so Sidenote has stopped saving it. End it to get notes for what was saved.`); }
+        await files.commitChunk(got.tempPath, id, seq);
+        store.addChunk(id, seq, got.bytes);
+        /* Deleted while the piece was being stored: the move recreated the folder. */
+        if (!store.lecture(id)) { await files.removeLecture(id); fail(404, "This lecture does not exist."); }
+      }
+    } finally { await files.discard(got.tempPath); }
+    /* Transcribe what is new; the reply waits a little for it, or the lines come with the next reply. */
+    await waitAtMost(live.kick(id), config.live.replyWaitMs);
+    const l = store.lecture(id);
+    if (!l) fail(404, "This lecture does not exist.");
+    const used = liveSecondsToday(store, user.id, config.timezone), limit = config.dailyLiveMinutes * 60;
+    if (l!.live_limit < 2 && used >= limit) { store.setLiveLimit(id, 2); store.addLiveAlert(id, { t: Math.floor(l!.live_audio), kind: "Recording", text: LIMIT_REACHED }); }
+    else if (l!.live_limit < 1 && used >= limit - WARN_SECONDS) { store.setLiveLimit(id, 1); store.addLiveAlert(id, { t: Math.floor(l!.live_audio), kind: "Recording", text: limitSoon(limit - used) }); }
+    return c.json<ChunkReply>(store.takeLive(id, seq!));
+  });
+
+  /* "Catch me up" on the recording screen: the last five minutes of the live transcript in a few sentences. */
+  r.post("/lectures/:id/catch-up", async c => {
+    const user = c.get("user"), id = c.req.param("id"), l0 = mine(user.id, id);
+    if (!isLive(l0)) fail(409, "Catch me up works while a lecture is being recorded.");
+    if (!config.live.transcript) fail(501, "Catch me up is not available right now. The notes will cover everything after the lecture.");
+    if (l0.status === "recording") await waitAtMost(live.kick(id), config.live.replyWaitMs);
+    const l = store.lecture(id) ?? fail(404, "This lecture does not exist.");
+    /* The live transcript, and the sentence the lecturer is in the middle of (held back from the live view until it ends). */
+    const all = store.liveLines(id), held = heldWords(l.live_held);
+    if (held.length) all.push({ t: Math.floor(held[0].start), text: joinTokens(held.map(w => w.text)) });
+    const end = Math.max(l.live_audio, all.length ? all[all.length - 1].t : 0);
+    const lines = all.filter(x => x.t >= end - CATCH_UP_SECONDS);
+    if (!lines.length) return c.json<CatchUpReply>({ points: [NOTHING_YET] });
+    const course = store.course(user.id, l.course_id);
+    const log = (u: { inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number }, at: Date, ok: boolean) => {
+      const price = catchUp.usd(u, at);
+      store.logCost({ lectureId: id, userId: user.id, stage: "catchup", provider: catchUp.provider, model: catchUp.model, inputTokens: u.inputTokens,
+        cachedInputTokens: u.cachedInputTokens, outputTokens: u.outputTokens, reasoningTokens: u.reasoningTokens, usd: price.usd,
+        meta: { ...price.meta, completed: ok, lines: lines.length, from: lines[0].t, to: end } });
+    };
+    try {
+      const call = await catchUp.sumUp({ courseCode: course?.code || "", title: l.title, language: l.language, lines }, c.req.raw.signal);
+      log(call.usage, call.startedAt, true);
+      return c.json<CatchUpReply>({ points: call.points });
+    } catch (e) {
+      const u = (e as { usage?: Parameters<typeof log>[0]; startedAt?: Date }).usage;
+      if (u) log(u, (e as { startedAt?: Date }).startedAt || new Date(), false);
+      console.warn(`[catch-up] ${id}: ${(e as Error).message}`);
+      fail(502, "Sid could not sum up the last few minutes just now. Try again in a moment.");
+    }
+  });
+
+  /* Idempotent: a lecture already processing or ready keeps its status and is not queued again. Also what "Make notes
+     from what was saved" calls for a live recording that was never ended (status recording). */
   r.post("/lectures/:id/finish", async c => {
     const user = c.get("user"), id = c.req.param("id"), l = mine(user.id, id);
     let duration: number | null = null;
     try { const b = await c.req.json(); if (typeof b?.duration === "number" && Number.isFinite(b.duration) && b.duration > 0) duration = b.duration; } catch { /* no body */ }
     if (l.status === "processing" || l.status === "ready") return c.json<StatusReply>({ status: l.status });
-    if (!l.recording_file) fail(409, "Sidenote did not receive a recording for this lecture. Delete it and upload the file again.");
+    if (isLive(l)) {
+      if (!l.recording_file && !store.hasChunk(id, 0)) fail(409, "Sidenote did not receive any audio for this lecture. Delete it and record again.");
+      /* The notes come from the whole recording, transcribed again in one go: the live rounds can stop. */
+      live.stop(id);
+    } else if (!l.recording_file) fail(409, "Sidenote did not receive a recording for this lecture. Delete it and upload the file again.");
     if (store.startProcessing(id, ["recording", "failed"], duration)) jobs.enqueue(id);
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? "processing" });
   });
@@ -130,13 +245,15 @@ export function privateRoutes(deps: Deps) {
   /* Writes the notes again from the kept recording. Only a failed lecture is queued; any other status is returned as it is. */
   r.post("/lectures/:id/retry", c => {
     const id = c.req.param("id"), l = mine(c.get("user").id, id);
-    if (l.status === "failed" && l.recording_file && store.startProcessing(id, ["failed"])) jobs.enqueue(id);
+    if (l.status === "failed" && (l.recording_file || (isLive(l) && store.hasChunk(id, 0))) && store.startProcessing(id, ["failed"])) jobs.enqueue(id);
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? l.status });
   });
 
   r.get("/lectures/:id", c => {
     const l = mine(c.get("user").id, c.req.param("id"));
-    return c.json({ lecture: lectureView(l, config.timezone), detail: l.status === "ready" ? store.detail(l.id) : null });
+    const detail = l.status === "ready" ? store.detail(l.id) : null;
+    if (detail) { const audio = audioView(config, store, files, l); if (audio) detail.audio = audio; }
+    return c.json({ lecture: lectureView(l, config.timezone), detail });
   });
 
   /* Also what "Cancel upload" calls. Removes the notes and every file; a running pipeline is stopped. */
@@ -144,7 +261,7 @@ export function privateRoutes(deps: Deps) {
     const id = c.req.param("id");
     mine(c.get("user").id, id);
     store.deleteLecture(id);
-    jobs.cancel(id);
+    jobs.cancel(id); live.stop(id);
     await files.removeLecture(id);
     return c.body(null, 204);
   });

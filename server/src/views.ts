@@ -16,12 +16,15 @@ export function lectureView(l: LectureRow, timeZone: string, now = new Date()): 
   };
 }
 
-/* Minutes of live recording (record, tab) the student started today, for the daily limit. Uploads do not count. */
-export function liveMinutesToday(store: Store, userId: string, timeZone: string, now = new Date()) {
+/* Seconds of live recording (record, tab) in the lectures the student started today, for the daily limit. Uploads do not
+   count. A recording in progress counts the audio received so far; a finished one its real length. */
+export function liveSecondsToday(store: Store, userId: string, timeZone: string, now = new Date()) {
   const today = localDate(now, timeZone), since = new Date(now.getTime() - 36 * 3600 * 1000).toISOString();
-  const secs = store.liveLecturesSince(userId, since).filter(l => localDate(new Date(l.created_at), timeZone) === today)
-    .reduce((n, l) => n + (l.duration ?? l.client_duration ?? 0), 0);
-  return Math.round(secs / 60);
+  return store.liveLecturesSince(userId, since).filter(l => localDate(new Date(l.created_at), timeZone) === today)
+    .reduce((n, l) => n + (l.duration ?? (l.live_audio > 0 ? l.live_audio : l.client_duration ?? 0)), 0);
+}
+export function liveMinutesToday(store: Store, userId: string, timeZone: string, now = new Date()) {
+  return Math.round(liveSecondsToday(store, userId, timeZone, now) / 60);
 }
 
 export function homeView(store: Store, config: Config, user: UserRow, now = new Date()): Home {
@@ -32,7 +35,8 @@ export function homeView(store: Store, config: Config, user: UserRow, now = new 
     lectures: store.lectures(user.id).map(l => lectureView(l, config.timezone, now)),
     upcoming: store.upcoming(user.id, today).map(u => ({ date: u.date, kind: u.kind, text: u.text, course: u.course_code, lecture: u.lecture_id, t: u.t })),
     settings: { classLanguage: user.class_language, zhDefault: !!user.zh_default, ...(user.zh_script === "hant" || user.zh_script === "hans" ? { zhScript: user.zh_script } : {}) },
-    usage: { minutesToday: liveMinutesToday(store, user.id, config.timezone, now), minutesLimit: config.dailyLiveMinutes },
+    usage: { minutesToday: liveMinutesToday(store, user.id, config.timezone, now), minutesLimit: config.dailyLiveMinutes,
+      ...(config.audioKeepDays > 0 ? { audioDays: config.audioKeepDays } : {}) },
     today
   };
 }

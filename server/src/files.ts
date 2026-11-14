@@ -15,6 +15,11 @@ export interface FileStore {
   remove(lectureId: string, name: string): Promise<void>;
   removeLecture(lectureId: string): Promise<void>;
   discard(tempPath: string): Promise<void>;
+  /* Live recordings: the pieces the browser sends, one file each, named by their order (seq). */
+  chunkDir(lectureId: string): string;
+  chunkName(seq: number): string;
+  commitChunk(tempPath: string, lectureId: string, seq: number): Promise<void>;
+  removeChunks(lectureId: string): Promise<void>;
 }
 
 export class LocalFileStore implements FileStore {
@@ -41,4 +46,12 @@ export class LocalFileStore implements FileStore {
   async remove(lectureId: string, name: string) { await fsp.rm(this.path(lectureId, name), { force: true }); }
   async removeLecture(lectureId: string) { await fsp.rm(path.join(this.root, lectureId), { force: true, recursive: true }); }
   async discard(tempPath: string) { await fsp.rm(tempPath, { force: true }); }
+  chunkDir(lectureId: string) { return path.join(path.dirname(this.path(lectureId, "x")), "chunks"); }
+  chunkName(seq: number) { return String(seq).padStart(6, "0"); }
+  async commitChunk(tempPath: string, lectureId: string, seq: number) {
+    const dir = this.chunkDir(lectureId);
+    await fsp.mkdir(dir, { recursive: true });
+    await fsp.rename(tempPath, path.join(dir, this.chunkName(seq)));
+  }
+  async removeChunks(lectureId: string) { await fsp.rm(this.chunkDir(lectureId), { force: true, recursive: true }); }
 }

@@ -64,7 +64,7 @@ test("the built front end is served at / with USE_MOCK off, assets by path, noth
   fs.writeFileSync(path.join(web, "assets", "index-1.js"), "console.log(1)");
   fs.writeFileSync(path.join(path.dirname(web), "secret.txt"), "secret");
   const s = setup(); t.after(() => s.close());
-  const app = createApp({ config: { ...s.config, webDir: web }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline });
+  const app = createApp({ config: { ...s.config, webDir: web }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline, live: s.live, catchUp: s.catchUp });
   const page = await (await app.request("/")).text();
   const cfg = `<script>window.SIDENOTE_CONFIG = ${JSON.stringify(WEB_CONFIG)};</script>`;
   assert.ok(page.indexOf(cfg) >= 0 && page.indexOf(cfg) < page.indexOf('<script type="module"'), "settings come before the app's script");

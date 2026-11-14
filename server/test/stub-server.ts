@@ -12,7 +12,8 @@ import { LocalFileStore } from "../src/files";
 import { Ffmpeg } from "../src/media";
 import { Pipeline } from "../src/pipeline";
 import { createApp } from "../src/app";
-import { StubNotes, StubStt } from "./helpers";
+import { LiveTranscriber } from "../src/live/transcriber";
+import { StubCatchUp, StubNotes, StubStt } from "./helpers";
 
 const port = Number(process.argv[2] || 8790);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-stub-"));
@@ -27,5 +28,6 @@ if (fixtures) app.get("/__fixtures/:name", c => {
   const f = path.join(fixtures, path.basename(c.req.param("name")));
   return fs.existsSync(f) ? c.body(fs.readFileSync(f), 200, { "Access-Control-Allow-Origin": "*" }) : c.notFound();   // other local servers may fetch them
 });
-app.route("/", createApp({ config, store, files, media, jobs: pipeline }));
+const live = new LiveTranscriber({ config, store, files, media, stt });
+app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp() }));
 serve({ fetch: app.fetch, port }, () => console.log(`stub server on http://localhost:${port} (data in ${dir}); invite code STUB`));
