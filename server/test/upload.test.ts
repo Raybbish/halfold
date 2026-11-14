@@ -32,6 +32,16 @@ test("a file over MAX_UPLOAD_MB is a 413 with a message, by Content-Length or wh
   assert.equal(s.store.lecture(id)!.recording_file, null);
 });
 
+test("MAX_UPLOAD_MB with a fraction: a bigger file is still a 413, not cut short and kept", async t => {
+  const s = setup({ env: { MAX_UPLOAD_MB: "0.3" } }); t.after(() => s.close());   // 314572.8 bytes
+  const token = await s.signIn(), id = await newLecture(s, token);
+  const req = new Request("http://x/", { method: "POST", body: fileForm(FAKE_AUDIO + "x".repeat(400 * 1024), "big.mp3") });
+  const res = await s.app.request(`/api/lectures/${id}/recording`, { method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": req.headers.get("content-type")! },
+    body: req.body, duplex: "half" } as RequestInit);
+  assert.equal(res.status, 413);
+  assert.equal(s.store.lecture(id)!.recording_file, null);
+});
+
 test("not audio is a 415; not a PDF is a 415; no file is a 400; nothing is kept", async t => {
   const s = setup(); t.after(() => s.close());
   const token = await s.signIn(), id = await newLecture(s, token);

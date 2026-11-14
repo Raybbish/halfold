@@ -137,3 +137,71 @@
 | 搜索全部笔记（需要搜索接口） | 已做（第 4 节），等后端加上接口 |
 | 录音时课件上传失败，之后补传 | 已做（第 3 节），没交课件的课也可以补 |
 | 付款完成后的回跳和结果提示 | 没做 |
+
+## 6. 后端第二阶段：录音和回放的实际行为
+
+后端第二阶段（`server/`，见 `server/DESIGN.md`）做了现场录音、Catch me up 和回放。下面是和 `reference/INTEGRATION.md` 写法不完全一样、或者原文没说清楚的地方。前端不用改也能用；个别地方给了建议。
+
+### `uploadChunk`：410 不只表示“课堂不存在”
+
+`POST /lectures/:id/chunks` 在这几种情况回 410 加 `message`：
+
+| 情况 | `message` |
+|---|---|
+| 今天的现场录音分钟数用完了 | Today's recording minutes are used up, so Sidenote has stopped saving this recording. End it to get notes for what was saved. |
+| 这堂课收到的音频超过 `MAX_UPLOAD_MB` | This recording has reached 500 MB, so Sidenote has stopped saving it. ... |
+| 这堂课已经结束（调过 `finishLecture`），这一段之前没收到过 | This recording has ended, so this piece of audio was not added. |
+
+- 前端现在的处理正合适：丢掉这堂课剩下的分段，结束录音时照常调 `finishLecture`，用已保存的部分写笔记。
+- 不用 429：前端会把那一段留在队列里一直重试，结束录音时会卡在 “Waiting for a connection”。
+- 已经收到过的那一段再发一次，任何状态下都回 200。
+- 课堂不存在仍是 404。
+
+**建议**：前端目前不显示 410 的 `message`。如果正在录的这堂课收到 410，可以把 `message` 显示在录音页上（和 “Connection” 提示同一个位置）。
+
+### `uploadChunk` 回复里的 `alerts` 可能不是考试提示
+
+快用完当天的分钟数时，后端在分段回复的 `alerts` 里放一条 `kind: "Recording"` 的提醒，录音页会像考试提示一样弹出（`Recording` 有中文翻译）：
+
+- 剩约 5 分钟时：`About 4 recording minutes are left today. Sidenote stops saving this recording when they run out; end it then to get notes for what was saved.`
+- 用完时（这一段还会保存）：上表第一行那句话。
+
+这两条只出现在录音页，不会进笔记和首页的考试雷达。
+
+### `uploadChunk` 的其他细节
+
+- 同一个 `seq` 发两次只存一次，回复和第一次一样（第一次的回复丢了也不会漏字）。
+- 分段可以乱序到达。缺了中间某段时，实时逐字稿等它到了再往后走；写笔记时缺的那段当静音，后面的时间不变。
+- 一段最大 `MAX_CHUNK_MB`（默认 10 MB），超过回 413。Chrome 录 MP4 时不管 `AUDIO_KBPS`，实测约 105 kbps。
+- 回复最多等实时转写 8 秒，转写比较慢时这次回空数组，字随下一次回复一起来（INTEGRATION.md 第 5 节）。
+
+### `createLecture`：429 也算上正在录的课
+
+当天的分钟数包括正在录的课已经收到的音频。一台设备在录时，另一台设备开始录音会按已经用掉的分钟数判断。`GET /home` 的 `usage.minutesToday` 也一样。
+
+### `finishLecture`
+
+现场录音的课一段音频都没收到（或者缺了第一段，第一段带文件头）时回 409：`Sidenote did not receive any audio for this lecture. Delete it and record again.`
+
+### `catchUp`
+
+| 情况 | 回复 |
+|---|---|
+| 还没有可以总结的内容 | 200，`{ points: ["Nothing has been said yet that Sid can sum up. Try again in a minute."] }` |
+| 模型出错 | 502，`Sid could not sum up the last few minutes just now. Try again in a moment.` |
+| 后端关掉了实时转写（`LIVE_TRANSCRIPT=off`） | 501，`Catch me up is not available right now. ...` |
+| 不是现场录音的课 | 409 |
+
+前端会把 `message` 显示成提示，录音不受影响。
+
+### `detail.audio`
+
+- `url` 默认是相对路径 `/api/lectures/:id/audio?exp=…&sig=…`，前端和 API 在同一个地址时直接能用；后端设了 `PUBLIC_URL` 时是完整地址。
+- 链接 12 小时有效，过期或被改动回 403；前端播放出错时重新调 `getLecture`（4.2 第 3 条）就拿到新链接。
+- 支持 Range（206）。
+- `keptUntil` 和 `expired` 只在后端设了 `AUDIO_KEEP_DAYS` 时出现，默认全部保留，两个都不给（4.4）。设了的话，`GET /home` 的 `usage.audioDays` 也会给。
+
+### 还没有的
+
+- `attachLink`（`POST /lectures/:id/link`）和 `createLecture` 的 `source: "link"` 仍回 501 加说明。
+- 分享页不带录音（`SHARE_AUDIO` 保持 `false`）。分享是后端第三阶段。

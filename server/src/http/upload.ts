@@ -8,11 +8,15 @@ import busboy from "busboy";
 import type { FileStore } from "../files";
 import { HttpError } from "./errors";
 
-export interface Received { tempPath: string; filename: string; mimeType: string; bytes: number }
+/* fields: the form's other fields, whether they came before or after the file (the live recorder sends "seq" after "audio"). */
+export interface Received { tempPath: string; filename: string; mimeType: string; bytes: number; fields: Record<string, string> }
 
 const tooBig = (maxBytes: number) => new HttpError(413, `That file is larger than ${Math.round(maxBytes / 1048576)} MB.`);
 
-export async function receiveFile(req: Request, files: FileStore, field: string, maxBytes: number): Promise<Received> {
+export async function receiveFile(req: Request, files: FileStore, field: string, maxBytesSetting: number): Promise<Received> {
+  /* Whole bytes: busboy reports the limit only when the size equals it exactly, so with a fraction (MAX_UPLOAD_MB=0.3)
+     a bigger file was cut short in silence and accepted. */
+  const maxBytes = Math.floor(maxBytesSetting);
   const type = req.headers.get("content-type") || "";
   if (!/^multipart\/form-data/i.test(type)) throw new HttpError(400, "Send the file as multipart/form-data.");
   /* The browser sends Content-Length: refuse a file that is too big before reading any of it. The form framing adds a little. */
@@ -26,13 +30,18 @@ export async function receiveFile(req: Request, files: FileStore, field: string,
   catch { throw new HttpError(400, "Send the file as multipart/form-data."); }
 
   return new Promise<Received>((resolve, reject) => {
-    let settled = false, got: Omit<Received, "tempPath" | "bytes"> | null = null, bytes = 0, overLimit = false;
+    let settled = false, got: Omit<Received, "tempPath" | "bytes" | "fields"> | null = null, bytes = 0, overLimit = false;
+    const fields: Record<string, string> = {};
     let out: fs.WriteStream | null = null, written: Promise<void> = Promise.resolve();
     const source = Readable.fromWeb(req.body as unknown as WebReadableStream<Uint8Array>);
+    /* The temp file is deleted once the write stream has closed: a stream stopped before its file was open still
+       opens (creates) it afterwards, and deleting first left a stray .part file behind. */
     const stop = (err: Error) => {
       if (settled) return; settled = true;
-      source.unpipe(bb); source.destroy(); out?.destroy();
-      files.discard(tempPath).finally(() => reject(err));
+      source.unpipe(bb); source.destroy();
+      const w = out as fs.WriteStream | null;
+      const closed = !w || w.closed ? Promise.resolve() : new Promise<void>(r => { w.once("close", () => r()); w.destroy(); });
+      closed.then(() => files.discard(tempPath)).finally(() => reject(err));
     };
     bb.on("file", (name, stream, info) => {
       if (name !== field || got) { stream.resume(); return; }
@@ -45,12 +54,13 @@ export async function receiveFile(req: Request, files: FileStore, field: string,
       stream.on("error", e => stop(e));
       stream.pipe(out);
     });
+    bb.on("field", (name, value) => { if (name.length <= 40 && !(name in fields)) fields[name] = value.slice(0, 200); });
     bb.on("error", () => stop(new HttpError(400, "The upload did not finish, or the form could not be read. Please try again.")));
     bb.on("close", () => {
       if (settled) return;
       if (overLimit) return stop(tooBig(maxBytes));
       if (!got) return stop(new HttpError(400, "No file was sent."));
-      written.then(() => { if (settled) return; settled = true; resolve({ tempPath, bytes, ...got! }); }, e => stop(e));
+      written.then(() => { if (settled) return; settled = true; resolve({ tempPath, bytes, fields, ...got! }); }, e => stop(e));
     });
     /* The request was cut off (the student cancelled, or the connection dropped): an ordinary error, not a server fault. */
     const cutOff = () => stop(new HttpError(400, "The upload did not finish. Please try again."));

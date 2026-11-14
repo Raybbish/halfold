@@ -65,7 +65,7 @@ test("POST /courses: returns a course; checks the code and name", async t => {
   assert.equal(broken.status, 400); isError(broken);
 });
 
-test("POST /lectures: an upload lecture; live recording limited and not available yet; bad input refused", async t => {
+test("POST /lectures: an upload lecture, a live one; LIVE_RECORDING=off and links refused; bad input refused", async t => {
   const s = setup(); t.after(() => s.close());
   const token = await s.signIn(), other = await s.signIn("CODE-B");
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "" } })).body;
@@ -74,7 +74,11 @@ test("POST /lectures: an upload lecture; live recording limited and not availabl
   assert.equal(l.status, "recording"); assert.equal(l.title, "Untitled lecture"); assert.equal(l.course, course.id); assert.equal(l.date, "Today");
 
   const live = await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Live", language: "en", source: "record" } });
-  assert.equal(live.status, 501); isError(live);
+  assert.equal(live.status, 200); assert.equal(LectureSchema.parse(live.body).status, "recording");
+  const off = setup({ env: { LIVE_RECORDING: "off" } }); t.after(() => off.close());
+  const offToken = await off.signIn(), offCourse = (await off.call("POST", "/courses", { token: offToken, json: { code: "X 1" } })).body;
+  const refused = await off.call("POST", "/lectures", { token: offToken, json: { courseId: offCourse.id, title: "Live", language: "en", source: "tab" } });
+  assert.equal(refused.status, 501); isError(refused);
   assert.equal((await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "en", source: "link" } })).status, 501);
   assert.equal((await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "fr", source: "upload" } })).status, 400);
   assert.equal((await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "en", source: "radio" } })).status, 400);
@@ -119,7 +123,9 @@ test("lecture endpoints: status, finish, retry, get and delete match their shape
   assert.equal(after.lecture.status, "ready");
   assert.ok(after.detail);
   assert.equal(after.detail.slides.length, 2);
-  assert.equal(after.detail.audio, undefined);   // phase 1: no playback yet
+  /* Playback: a signed link to the kept recording, relative to the page (PUBLIC_URL not set); no keep date by default. */
+  assert.match(after.detail.audio!.url!, new RegExp(`^/api/lectures/${id}/audio\\?exp=\\d+&sig=[\\w-]{32}$`));
+  assert.deepEqual(Object.keys(after.detail.audio!), ["url"]);
 
   /* Another student cannot see, finish or delete it. */
   const other = await s.signIn("CODE-B");
