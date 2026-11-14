@@ -180,7 +180,7 @@ test("a chunk that never arrived: the recording is joined without it, and a fail
 });
 
 test("the daily limit: a warning near the end, an alert when it is reached, then 410; a new recording is refused", async t => {
-  const s = live(setup({ env: { DAILY_LIVE_MINUTES: "10" } })); t.after(() => s.close());
+  const s = live(setup({ plans: p => { p.plans[0].dailyLiveMinutes = 10; } })); t.after(() => s.close());
   const token = await s.signIn(), id = await liveLecture(s, token);
   assert.deepEqual((await send(s, token, id, 0, fakeChunk(240))).body.alerts, []);
   const warned = await send(s, token, id, 1, fakeChunk(120));

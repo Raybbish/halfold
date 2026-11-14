@@ -2,9 +2,11 @@
    works for AUDIO_LINK_HOURS: the <audio> element cannot send the sign-in token, and the front end asks for a fresh
    link (GET /lectures/:id) when one stops working. The file is audio.m4a (AAC, faststart), sent with HTTP Range so the
    player can jump to any second without downloading what comes before.
-   AUDIO_KEEP_DAYS > 0 keeps recordings that many days after the lecture: detail.audio.keptUntil, then the files are
-   deleted and detail.audio is {expired: true}. Only lectures with notes lose their recording: a failed or unfinished
-   lecture still needs it to write the notes (4.4). 0, the default, keeps everything and sends neither field. */
+   How long recordings are kept depends on the student's plan (plans.json audioDays, INTEGRATION.md 4.4): null keeps
+   them for good and sends neither field; N keeps them N days (detail.audio.keptUntil), then the files are deleted and
+   detail.audio is {expired: true}. The N days count from the day of the lecture, but never from before the student's
+   paid time ended (a lapsed plan: its recordings stay N more days) or before plans began on this server. Only lectures
+   with notes lose their recording: a failed or unfinished lecture still needs it to write the notes. */
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import { Readable } from "node:stream";
@@ -13,6 +15,7 @@ import type { Audio } from "../../src/types";
 import type { Config } from "./config";
 import type { LectureRow, Store } from "./db";
 import type { FileStore } from "./files";
+import type { Billing } from "./billing";
 import { localDate } from "./time";
 
 export const AUDIO = "audio.m4a";
@@ -37,26 +40,34 @@ export function addDays(ymd: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-/* The last day the recording is kept, counted from the day of the lecture in the students' time zone; null when kept for good. */
-export function keptUntil(config: Config, l: LectureRow) {
-  return config.audioKeepDays > 0 ? addDays(localDate(new Date(l.created_at), config.timezone), config.audioKeepDays) : null;
+type Keep = { config: Config; store: Store; billing: Billing };
+
+/* The last day the recording is kept, in the students' time zone; null when kept for good. */
+export function keptUntil(d: Keep, l: LectureRow, now = new Date()) {
+  const ent = d.billing.entitlement(l.user_id, now), days = ent.tier.audioDays;
+  if (days === null) return null;
+  const tz = d.config.timezone;
+  let from = localDate(new Date(l.created_at), tz);
+  for (const at of [d.store.plansSince(), ent.paidEnd]) if (at) { const day = localDate(new Date(at), tz); if (day > from) from = day; }
+  return addDays(from, days);
 }
 
 /* detail.audio for a lecture with notes: a fresh link, the keep date, or "expired". null when there is no recording to play. */
-export function audioView(config: Config, store: Store, files: FileStore, l: LectureRow, now = new Date()): Audio | null {
+export function audioView(d: Keep & { files: FileStore }, l: LectureRow, now = new Date()): Audio | null {
   if (l.audio_expired) return { expired: true };
-  if (!files.exists(l.id, AUDIO)) return null;
-  const until = keptUntil(config, l);
-  return { url: audioLink(config, store, l.id, now), ...(until ? { keptUntil: until } : {}) };
+  if (!d.files.exists(l.id, AUDIO)) return null;
+  const until = keptUntil(d, l, now);
+  return { url: audioLink(d.config, d.store, l.id, now), ...(until ? { keptUntil: until } : {}) };
 }
 
 /* Deletes the recordings of lectures with notes whose keep date has passed. Runs at start and every few hours. */
-export async function sweepAudio(config: Config, store: Store, files: FileStore, now = new Date()) {
-  if (config.audioKeepDays <= 0) return 0;
+export async function sweepAudio(d: Keep & { files: FileStore }, now = new Date()) {
+  const { config, store, files } = d;
+  if (config.plans.plans.every(p => p.audioDays === null)) return 0;
   const today = localDate(now, config.timezone);
   let n = 0;
   for (const l of store.readyLecturesWithAudio()) {
-    const until = keptUntil(config, l);
+    const until = keptUntil(d, l, now);
     if (!until || today <= until) continue;
     store.setAudioExpired(l.id);
     await files.remove(l.id, AUDIO); await files.remove(l.id, "recording"); await files.removeChunks(l.id);

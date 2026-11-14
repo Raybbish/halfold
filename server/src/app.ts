@@ -6,11 +6,15 @@ import { bodyLimit } from "hono/body-limit";
 import { onError } from "./http/errors";
 import { privateRoutes, publicRoutes, type AppEnv, type Deps } from "./routes";
 import { libraryRoutes, sharedRoutes } from "./library";
+import { loginRoutes } from "./login";
+import { accountRoutes, webhookRoutes } from "./account";
 import type { Config } from "./config";
 
 /* The front end reads window.SIDENOTE_CONFIG at start (src/config.ts). "Example notes" on the public pages opens the
-   shared lecture EXAMPLE_SHARE_ID, and is hidden when it is not set. */
-export const webConfig = (config: Pick<Config, "exampleShareId">) => ({ USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: config.exampleShareId });
+   shared lecture EXAMPLE_SHARE_ID, and is hidden when it is not set. SIGN_IN picks the sign-in page: email and code
+   (phase 4) or the invite code alone. */
+export const webConfig = (config: Pick<Config, "exampleShareId" | "signIn">) =>
+  ({ USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: config.exampleShareId, SIGN_IN: config.signIn });
 
 export function createApp(deps: Deps) {
   const app = new Hono();
@@ -20,19 +24,23 @@ export function createApp(deps: Deps) {
   /* JSON requests are small. Without a limit, one huge body to the public sign-in endpoint would be read into memory.
      File uploads stream to disk with their own limits (MAX_UPLOAD_MB, and MAX_CHUNK_MB for a piece of a live recording). */
   const small = bodyLimit({ maxSize: 64 * 1024, onError: c => c.json({ message: "The request is too large." }, 413) });
-  api.use("*", (c, next) => /\/(recording|slides|chunks)$/.test(c.req.path) ? next() : small(c, next));
+  const stripe = bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json({ message: "The request is too large." }, 413) });
+  api.use("*", (c, next) => /\/(recording|slides|chunks)$/.test(c.req.path) ? next() : c.req.path.endsWith("/stripe/webhook") ? stripe(c, next) : small(c, next));
+  api.route("/", loginRoutes(deps));
   api.route("/", publicRoutes(deps));
   api.route("/", sharedRoutes(deps));
+  api.route("/", webhookRoutes(deps));
   /* Every other endpoint needs the token from POST /session. A 401 makes the front end sign in again. */
   api.use("*", async (c, next) => {
     const m = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") || "");
-    const user = m ? deps.store.userByToken(m[1]) : undefined;
+    const user = m ? deps.store.userByToken(m[1], deps.config.login.sessionDays) : undefined;
     if (!user) return c.json({ message: "Please sign in again." }, 401);
     c.set("user", user);
     await next();
   });
   api.route("/", privateRoutes(deps));
   api.route("/", libraryRoutes(deps));
+  api.route("/", accountRoutes(deps));
   api.notFound(c => c.json({ message: "This is not available yet." }, 404));
   api.onError(onError);
   app.route("/api", api);

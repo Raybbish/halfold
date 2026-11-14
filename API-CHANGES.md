@@ -271,5 +271,81 @@
 
 ### 还没有的
 
-- `getPlans`、`startCheckout`、`updateSettings`：第四阶段，现在回 404 加说明。
+- `getPlans`、`startCheckout`、`updateSettings`：第四阶段做了，见第 8 节。
 - `GET /home` 的 `week` 仍不给（进度已经存了，算法待定）。
+
+## 8. 后端第四阶段：邮箱登录、方案和付款、保存设置
+
+这一节有一处前端改动（登录页），其余都是现有接口的实际行为。
+
+### 登录：邮箱验证码（前端有改动）
+
+后端默认 `SIGN_IN=email`：学生填邮箱，收到 6 位数的码，用码登录。邮箱第一次登录还要填一个邀请码，邮箱从此绑定到这个邀请码的账号。第一到三阶段的老用户填一次原来的邀请码，课都还在。一个邀请码只能绑一个邮箱。
+
+前端为此新增：
+
+| 位置 | 改动 |
+|---|---|
+| `src/config.ts` | `CONFIG.SIGN_IN`：`"invite"`（默认，和 sidenote.html 一样的邀请码页）或 `"email"`。后端提供前端网页时把它设成 `"email"`（`window.SIDENOTE_CONFIG`），所以示例模式和已有的测试都不受影响 |
+| `src/api/api.ts` | `sendCode(email)` → `POST /session/code`（公开），body `{ email }`，回 204。`signInWithCode(email, code, name, inviteCode)` → `POST /session`（公开），body `{ email, code, name, inviteCode }`，回 `{ token, user }` |
+| `src/pages/SignIn.tsx` | `SIGN_IN` 为 `"email"` 时：先填邮箱（Send code），再填码（Sign in）。服务器回 403 时多出邀请码和名字两栏，已经填的码保留。还有 “Use another email” 和 “Send a new code” |
+| `src/state/app.ts`、`src/i18n/zh.ts` | 登录表单的状态；新文字的中文，以及服务器登录报错的中文 |
+| `tests/signin.js` | 13 项检查，`npm test` 在构建上跑 |
+
+`signIn(inviteCode, name)` 和邀请码页都还在，`SIGN_IN=invite` 时用。
+
+后端的回复：
+
+- `POST /session/code`：邮箱格式不对 400；设了 `EMAIL_DOMAINS` 而邮箱不在其中 400；同一邮箱一分钟内再要 429（`A code was sent to this address less than a minute ago. ...`），一小时内超过 5 次 429；所有邮箱一小时内合计超过 `LOGIN_CODES_PER_HOUR` 429；发信失败 502。
+- `POST /session`：码不是 6 位数 400；码错 401（`That code is not right. ...`），错 5 次码作废；码过期（默认 10 分钟）401。码对但邮箱是新的、又没给邀请码：403（`This email is new to Sidenote. Enter your invite code ...`），码仍然有效，前端带上邀请码再发一次即可。邀请码无效 403；邀请码已经绑了别的邮箱 403。
+- 旧页面只发 `{ inviteCode, name }` 时回 400，提示刷新页面。
+- 登录 90 天不用（`SESSION_DAYS`）就失效，回 401，前端按原规则跳到登录页。
+
+### `getPlans`
+
+`{ plans, current }`，形状同 INTEGRATION.md 3.4。方案在 `server/plans.json`，现在是三张卡片：
+
+| `id` | `name` | `priceText` |
+|---|---|---|
+| `free` | Free | Free |
+| `plus` | Plus | HK$98 / month（按月订阅，自动续费） |
+| `plus-semester` | Plus for a semester | HK$348 for 120 days（一次付清，不续费） |
+
+- `features` 是这个方案每天能现场录几分钟、每月几堂课、每月几个复习包、录音保留多久，加一句怎么付款。当前方案的第一条是 `Renews on 14 Dec 2026`、`Ends on 14 Dec 2026`（已取消、到期结束）或 `Paid until 14 Mar 2027`。
+- 文字只有英文：界面语言只在浏览器里，后端不知道（INTEGRATION.md 3.4）。
+
+### `startCheckout`
+
+回 `{ url }`，前端跳过去：
+
+- 付费方案：Stripe Checkout 页面。付完或取消都回到 `<前端地址>/#/settings`，地址的取法和分享链接一样（`WEB_URL` > 页面的 `Origin` > `PUBLIC_URL`）。
+- 按月订阅中选 `free`：Stripe 的账单页面，在那里取消（用到这个月底）或换卡。上一次续费没扣成功时，选 `plus` 也去账单页面换卡。
+- 服务器没设 Stripe：`{ url: null }`，前端提示 “Checkout is not connected yet.”。
+- 409（带说明）：选的就是现在的方案；学期通行证没到期时选 `free` 或 `plus`；按月订阅中选 `plus-semester`。
+- 方案不存在 404；Stripe 出错 502。
+
+每次 `startCheckout` 都会关掉这个学生之前还没付的 Checkout，旧标签页里的付款页会显示已过期，不会重复订阅。
+
+付完回到设置页时，即使 Stripe 的通知（webhook）还没到，`GET /home` 和 `GET /plans` 也会先问 Stripe 这笔付款，所以页面上马上是新方案。
+
+### 方案的限制
+
+| | Free | Plus |
+|---|---|---|
+| 每天现场录音 | 90 分钟 | 240 分钟 |
+| 每月课堂（录的和上传的都算） | 4 | 40 |
+| 每月复习包 | 1 | 不限 |
+| 录音保留 | 30 天 | 一直保留 |
+
+- `GET /home` 的 `usage.minutesLimit` 和 `usage.audioDays` 跟着方案变（Plus 不给 `audioDays`）。
+- `createLecture` 超出每月课堂数：429，`You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until 1 Dec.`。还在录或在上传的课也算；笔记写好以后删掉的课仍然算；笔记写好之前删掉的不算；`saveShared` 存的副本不算。
+- `makeReviewPack` 超出每月复习包数：429，说明类似。正在做时再点不算；课程里还没有笔记（空复习包）不算。
+- 这两句都由前端的 `act()` 用提示条显示（2.6 秒后消失）。**建议（前端）**：这类说明比较长，可以显示久一点，或者在新建课堂页和复习包页用 `.err` 显示。
+- 每天现场录音的分钟数照第 6 节的规则，只是上限按方案。
+- 付费到期、取消或续费失败：马上回到 Free，笔记、闪卡、测验、分享都在。录音按 Free 的 30 天算，但从付费结束那天算起，所以前端会照 INTEGRATION.md 4.4 显示 “Recording kept until …”。开启方案之前录的课，从开启那天算起，不会一上线就被删。
+
+### `updateSettings`
+
+- `name` 必填，最长 60 字；`classLanguage` 是 `en`、`en-yue`、`en-zh`、`auto` 之一；`zhDefault` 是布尔值；`zhScript` 是 `hant` 或 `hans`，不给就保留原来的。不对回 400 加说明，成功回 204。
+- 存好之后 `GET /home` 的 `user.name` 和 `settings` 就是新的。
+

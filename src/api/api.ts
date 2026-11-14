@@ -18,6 +18,17 @@ export const api = {
     await wait(400); if (!inviteCode.trim()) throw new Error("Enter your invite code.");
     return { token: "mock-token", user: { name: name.trim() || DATA.user.name } };
   },
+  /* POST /session/code {email}   SIGN_IN "email": sends a 6-digit code to the address (added in backend phase 4) */
+  async sendCode(email: string): Promise<null> {
+    if (!CONFIG.USE_MOCK) return http("POST", "/session/code", { email }, true);
+    await wait(400); if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Enter your email address."); return null;
+  },
+  /* POST /session {email, code, name, inviteCode} -> {token, user:{name}}   403 = an email new to Sidenote: ask for the invite code */
+  async signInWithCode(email: string, code: string, name: string, inviteCode: string): Promise<SessionReply> {
+    if (!CONFIG.USE_MOCK) return http("POST", "/session", { email, code, name, inviteCode }, true);
+    await wait(400); if (!/^\d{6}$/.test(code.replace(/\s+/g, ""))) throw new Error("Enter the 6-digit code from the email.");
+    return { token: "mock-token", user: { name: name.trim() || DATA.user.name } };
+  },
   /* GET /home -> {user, courses[], lectures[], upcoming[], week, settings, usage, today?} */
   async getHome(): Promise<Home> {
     if (!CONFIG.USE_MOCK) return http("GET", "/home");

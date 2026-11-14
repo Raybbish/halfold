@@ -7,8 +7,8 @@ import { setup, uploadedLecture } from "./helpers";
 
 const isError = (r: { body: unknown }) => ErrorReplySchema.parse(r.body);
 
-test("POST /session: a right code signs in, a wrong one is a 401 with a message", async t => {
-  const s = setup(); t.after(() => s.close());
+test("SIGN_IN=invite: POST /session with a right code signs in, a wrong one is a 401 with a message", async t => {
+  const s = setup({ env: { SIGN_IN: "invite" } }); t.after(() => s.close());
   const bad = await s.call("POST", "/session", { json: { inviteCode: "nope", name: "X" } });
   assert.equal(bad.status, 401); assert.equal(isError(bad).message, "That invite code is not valid.");
   assert.equal((await s.call("POST", "/session", { json: { inviteCode: "  ", name: "X" } })).status, 400);
@@ -88,7 +88,7 @@ test("POST /lectures: an upload lecture, a live one; LIVE_RECORDING=off and link
 });
 
 test("POST /lectures: the daily limit refuses live recording with a message, and does not apply to uploads", async t => {
-  const s = setup({ env: { DAILY_LIVE_MINUTES: "0" } }); t.after(() => s.close());
+  const s = setup({ plans: p => { p.plans[0].dailyLiveMinutes = 0; } }); t.after(() => s.close());
   const token = await s.signIn();
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "" } })).body;
   const r = await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Live", language: "en", source: "tab" } });
@@ -142,14 +142,14 @@ test("lecture endpoints: status, finish, retry, get and delete match their shape
   assert.equal(s.store.costs().filter(c => c.lecture_id === id).length, 2);
 });
 
-test("POST /finish without a recording is a 409 with a message; endpoints of phase 4 are 404 with a message", async t => {
+test("POST /finish without a recording is a 409 with a message; an endpoint that does not exist is a 404 with a message", async t => {
   const s = setup(); t.after(() => s.close());
   const token = await s.signIn();
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "" } })).body;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "en", source: "upload" } })).body;
   const r = await s.call("POST", `/lectures/${lec.id}/finish`, { token, json: { duration: 0 } });
   assert.equal(r.status, 409); isError(r);
-  for (const [m, p] of [["GET", "/plans"], ["POST", "/checkout"], ["PUT", "/settings"]] as const) {
+  for (const [m, p] of [["GET", "/nothing-here"], ["POST", "/lectures/x/link-later"]] as const) {
     const n = await s.call(m, p, { token });
     assert.equal(n.status, 404, `${m} ${p}`); isError(n);
   }

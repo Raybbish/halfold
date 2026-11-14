@@ -15,6 +15,7 @@ export interface Config {
   MAX_UPLOAD_MB: number;
   EXAMPLE_SHARE_ID: string | null;
   SHARE_AUDIO: boolean;
+  SIGN_IN: "invite" | "email";
 }
 
 declare global {
@@ -29,7 +30,8 @@ const DEFAULTS: Config = {
   POLL_MS: 3000,           // how often to ask whether notes are ready
   MAX_UPLOAD_MB: 500,
   EXAMPLE_SHARE_ID: "econ-w9", // the shared lecture behind "Example notes" on the public pages. null hides those links
-  SHARE_AUDIO: false       // true = classmates with a share link can also play the recording
+  SHARE_AUDIO: false,      // true = classmates with a share link can also play the recording
+  SIGN_IN: "invite"        // "email" = a 6-digit code sent to the student's email, and an invite code the first time (the backend sets it)
 };
 
 export const CONFIG: Config = { ...DEFAULTS, ...(window.SIDENOTE_CONFIG || {}) };

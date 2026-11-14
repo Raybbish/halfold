@@ -18,6 +18,10 @@ import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "../
 import type { SlidesInput } from "../src/notes/slides";
 import type { PackInput } from "../src/notes/pack";
 import { ReviewPacks } from "../src/packs";
+import { Billing } from "../src/billing";
+import type { Mail, Mailer } from "../src/mail";
+import { verifySignature, type CheckoutInfo, type CheckoutRequest, type PaymentEvent, type Payments, type SubscriptionInfo } from "../src/pay/stripe";
+import { createHmac } from "node:crypto";
 
 export const FAKE_AUDIO = "FAKEAUDIO";   // files starting with this are "audio" to the stub media
 /* One piece of a stub live recording, `seconds` long. */
@@ -165,25 +169,102 @@ export class StubNotes implements NotesWriter {
   usd(u: TokenUsage) { return { usd: (u.inputTokens * 1.32 + u.outputTokens * 3.96) / 1e6, meta: { peak: true } }; }
 }
 
+/* The emails the server sent (the sign-in codes). */
+export class StubMailer implements Mailer {
+  readonly provider = "stub-mail";
+  sent: Mail[] = []; error: Error | null = null;
+  async send(m: Mail) { if (this.error) throw this.error; this.sent.push(m); }
+  /* The code in the last email to an address. */
+  code(to: string) { const m = [...this.sent].reverse().find(x => x.to === to); return m ? /\b(\d{6})\b/.exec(m.subject)![1] : null; }
+}
+
+/* Stripe without Stripe: Checkouts and subscriptions kept in memory, changed by the test (pay, setSubscription), and
+   webhook events signed with the same scheme as Stripe's (signed). */
+export class StubPayments implements Payments {
+  readonly webhookSecret = "whsec_stub";
+  requests: CheckoutRequest[] = []; portals: { customer: string; returnUrl: string }[] = []; fetched: string[] = [];
+  checkouts = new Map<string, CheckoutInfo>(); subs = new Map<string, SubscriptionInfo>();
+  error: Error | null = null;
+  private n = { checkout: 0, sub: 0, event: 0 };
+  async createCheckout(r: CheckoutRequest) {
+    if (this.error) throw this.error;
+    this.requests.push(r);
+    const id = `cs_test_${++this.n.checkout}`;
+    this.checkouts.set(id, { id, status: "open", paymentStatus: "unpaid", mode: r.mode, subscription: null, customer: r.customer ?? null, metadata: { ...r.metadata } });
+    return { id, url: `https://checkout.stripe.test/${id}` };
+  }
+  async checkout(id: string) {
+    this.fetched.push(id);
+    if (this.error) throw this.error;
+    const c = this.checkouts.get(id); if (!c) throw new Error("no such checkout: " + id);
+    return { ...c };
+  }
+  expired: string[] = [];
+  async expireCheckout(id: string) {
+    if (this.error) throw this.error;
+    const c = this.checkouts.get(id); if (!c) throw new Error("no such checkout: " + id);
+    if (c.status !== "open") throw new Error(`Only Checkout Sessions with a status in ["open"] can be expired.`);
+    c.status = "expired"; this.expired.push(id);
+  }
+  async subscription(id: string) {
+    if (this.error) throw this.error;
+    const s = this.subs.get(id); if (!s) throw new Error("no such subscription: " + id);
+    return { ...s };
+  }
+  async billingPortal(customer: string, returnUrl: string) { if (this.error) throw this.error; this.portals.push({ customer, returnUrl }); return `https://billing.stripe.test/${customer}`; }
+  event(payload: string, signature: string | undefined, at = new Date()): PaymentEvent {
+    verifySignature(payload, signature, this.webhookSecret, at);
+    const e = JSON.parse(payload); return { id: e.id, type: e.type, object: e.data.object };
+  }
+  /* The student pays for a Checkout: a pass is paid; a monthly plan makes a subscription, active for 30 days. */
+  pay(id: string, o: { paymentStatus?: string; periodEnd?: Date } = {}) {
+    const c = this.checkouts.get(id)!;
+    c.status = "complete"; c.paymentStatus = o.paymentStatus ?? "paid";
+    if (c.mode === "subscription") {
+      const n = ++this.n.sub, sub = `sub_${n}`, customer = c.customer ?? `cus_${n}`;
+      this.subs.set(sub, { id: sub, customer, status: "active", periodEnd: (o.periodEnd ?? new Date(Date.now() + 30 * 86400_000)).toISOString(), cancelAtEnd: false, endedAt: null, metadata: { ...c.metadata } });
+      c.subscription = sub; c.customer = customer;
+    }
+    return c;
+  }
+  setSubscription(id: string, change: Partial<SubscriptionInfo>) { Object.assign(this.subs.get(id)!, change); }
+  /* A webhook request body and its Stripe-Signature header. */
+  signed(type: string, object: unknown, at = new Date(), secret = this.webhookSecret) {
+    const payload = JSON.stringify({ id: `evt_${++this.n.event}`, type, data: { object } }), t = Math.floor(at.getTime() / 1000);
+    return { payload, signature: `t=${t},v1=${createHmac("sha256", secret).update(`${t}.${payload}`).digest("hex")}` };
+  }
+}
+
 export interface TestServer {
   dir: string; config: Config; store: Store; files: LocalFileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
-  live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks;
+  live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks; billing: Billing; mailer: StubMailer; payments: StubPayments;
   app: ReturnType<typeof createApp>;
   call(method: string, p: string, o?: { token?: string; json?: unknown; body?: FormData | string | Uint8Array; headers?: Record<string, string> }): Promise<{ status: number; body: any; text: string }>;
+  /* A sign-in token for an invite code's account, made directly (the sign-in endpoints have their own tests: login.test.ts). */
   signIn(code?: string, name?: string): Promise<string>;
   close(): void;
 }
 
-export function setup(o: { env?: Record<string, string>; media?: Media; slides?: (f: string) => Promise<{ n: number; text: string }[]> } = {}): TestServer {
+/* The free plan as phases 1 to 3 behaved: 240 live minutes a day, no other limit, recordings kept for good. The tests of
+   those phases run on it; the tests of plans (billing.test.ts) use plans.json as committed (realPlans). */
+export function openPlans(p: Config["plans"]) { Object.assign(p.plans[0], { dailyLiveMinutes: 240, lecturesPerMonth: null, packsPerMonth: null, audioDays: null }); }
+
+/* plans: changes to the plans for this test. payments: false = no Stripe key. */
+export function setup(o: { env?: Record<string, string>; media?: Media; slides?: (f: string) => Promise<{ n: number; text: string }[]>;
+  realPlans?: boolean; plans?: (p: Config["plans"]) => void; payments?: boolean } = {}): TestServer {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-test-"));
   const config = loadConfig({ DATA_DIR: dir, WEB_DIR: "", ...o.env });
+  if (!o.realPlans) openPlans(config.plans);
+  if (o.plans) o.plans(config.plans);
   const store = new Store(path.join(dir, "test.db"));
   store.addInviteCode("CODE-A", "Ann"); store.addInviteCode("CODE-B", "Ben");
   const files = new LocalFileStore(dir), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
   const slides = o.slides || (async () => [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }]);
   const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides });
   const live = new LiveTranscriber({ config, store, files, media, stt }), catchUp = new StubCatchUp(), packs = new ReviewPacks({ config, store, notes });
-  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, packs });
+  const payments = new StubPayments(), mailer = new StubMailer();
+  const billing = new Billing({ config, store, payments: o.payments === false ? null : payments });
+  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, packs, billing, mailer });
   const call: TestServer["call"] = async (method, p, c = {}) => {
     const headers: Record<string, string> = { ...(c.headers || {}) };
     if (c.token) headers.Authorization = "Bearer " + c.token;
@@ -195,8 +276,12 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
     return { status: r.status, body: parsed, text };
   };
   return {
-    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, packs, app, call,
-    async signIn(code = "CODE-A", name = "") { const r = await call("POST", "/session", { json: { inviteCode: code, name } }); return r.body.token; },
+    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, packs, billing, mailer, payments, app, call,
+    async signIn(code = "CODE-A", name = "") {
+      const u = store.userByCode(code); if (!u) throw new Error("no invite code " + code);
+      if (name) store.setUserName(u.id, name);
+      return store.createSession(u.id);
+    },
     close() { pipeline.stopAll(); live.stopAll(); packs.stopAll(); store.close(); fs.rmSync(dir, { recursive: true, force: true }); }
   };
 }
