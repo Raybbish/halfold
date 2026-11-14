@@ -1,4 +1,5 @@
-// Adapted from tests/original/shots5.js for the React build (see tests/harness.js). Only how the page is loaded and configured changed; the checks are as they were.
+// Adapted from tests/original/shots5.js for the React build (see tests/harness.js). Only how the page is loaded and configured changed; the checks are as they were,
+// except one wait: before the transcript-playing shot, the page's smooth scroll is let finish (scrolled() below), so that shot no longer depends on timing.
 const { chromium, ORIGIN } = require('./harness');   // was: playwright from /opt/npm-tools
 const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
 (async () => {
@@ -11,13 +12,16 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     page.on('pageerror', e => errors.push(name + ' pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error') errors.push(name + ' console: ' + m.text()); });
     const shot = async (n, full = false) => { await page.waitForTimeout(600); await page.screenshot({ path: `shots5/${name}-${n}.png`, fullPage: full }); };
+    // Waits until the page has not scrolled for 10 frames in a row. A timestamp starts a smooth scroll to its line; clicking
+    // Play while that runs made Playwright scroll the button into view mid-way, so where the page stopped depended on timing.
+    const scrolled = () => page.evaluate(() => new Promise(done => { let y = scrollY, still = 0; const f = () => { if (scrollY !== y) { y = scrollY; still = 0; } else if (++still >= 10) return done(); requestAnimationFrame(f); }; requestAnimationFrame(f); }));
     await page.goto(FILE + '#/'); if (zh) await page.click('.lang'); await shot('01-landing');
     await page.goto(FILE + '#/signin'); await shot('02-signin');
     await page.fill('input[name=code]', 'a3f9c2'); await page.click('form.auth button'); await page.waitForSelector('.shell'); await shot('03-home');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await shot('04-notes');
     await page.locator('.tools input[type=checkbox]').nth(2).check(); await page.evaluate(() => window.scrollTo(0, 620)); await shot('04b-edit-mode');
     await page.locator('.tools input[type=checkbox]').nth(2).uncheck();
-    await page.click('.pt .ts >> nth=4'); await page.click('#pPlay'); await page.waitForTimeout(1500); await shot('05-transcript-playing'); await page.click('#pPlay');
+    await page.click('.pt .ts >> nth=4'); await scrolled(); await page.click('#pPlay'); await page.waitForTimeout(1500); await shot('05-transcript-playing'); await page.click('#pPlay');
     await page.click('.tabs button:nth-child(2)'); await shot('06-slides');
     await page.click('.tabs button:nth-child(4)'); await shot('07-cards');
     await page.click('.tabs button:nth-child(5)'); await page.click('.qz .opt:nth-of-type(1)'); await shot('08-quiz');
