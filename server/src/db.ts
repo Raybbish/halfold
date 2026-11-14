@@ -16,10 +16,17 @@ export interface LectureRow {
      chunk_bytes: bytes of audio received. audio_expired: the recording was deleted after AUDIO_KEEP_DAYS. */
   live_from: number; live_audio: number; live_limit: number; chunk_bytes: number; audio_expired: number;
   live_held: string | null;   // JSON words of a sentence not finished at the end of the last round (live/windows.ts holdUnfinished)
+  /* Phase 3. share_id: the id in the shared link (#/s/:id), null when not shared; share_url: that link as the student
+     copied it. refile: 1 while slides sent after the notes are being matched to the points. copied_from: the lecture a
+     shared copy was saved from (POST /shared/:id/save). */
+  share_id: string | null; share_url: string | null; refile: number; copied_from: string | null;
 }
 export interface UpcomingRow { lecture_id: string; date: string; kind: string; text: string; t: number; course_code: string }
+export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
+export interface FeedbackRow { id: number; lecture_id: string; user_id: string; text: string; created_at: string; title: string; course_code: string; user_name: string }
+/* stage "slides": matching slides sent later to the notes; "pack": a review pack, logged with the course id in lecture_id. */
 export interface CostEntry {
-  lectureId: string; userId: string | null; stage: "stt" | "notes" | "live" | "catchup"; provider: string; model: string;
+  lectureId: string; userId: string | null; stage: "stt" | "notes" | "live" | "catchup" | "slides" | "pack"; provider: string; model: string;
   audioSeconds?: number | null; inputTokens?: number | null; cachedInputTokens?: number | null; outputTokens?: number | null;
   reasoningTokens?: number | null; usd: number | null; meta?: Record<string, unknown>;
 }
@@ -61,6 +68,13 @@ CREATE INDEX IF NOT EXISTS live_lines_lecture ON live_lines(lecture_id, t);
 CREATE TABLE IF NOT EXISTS live_alerts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE, t REAL NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, sent_seq INTEGER);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS progress (
+  lecture_id TEXT PRIMARY KEY REFERENCES lectures(id) ON DELETE CASCADE, known_json TEXT NOT NULL, quiz_score REAL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE, user_id TEXT NOT NULL, text TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS packs (
+  course_id TEXT PRIMARY KEY REFERENCES courses(id) ON DELETE CASCADE, status TEXT NOT NULL, lecture_ids TEXT NOT NULL DEFAULT '',
+  pack_json TEXT, error TEXT, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS costs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, lecture_id TEXT NOT NULL, user_id TEXT, stage TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
   audio_seconds REAL, input_tokens INTEGER, cached_input_tokens INTEGER, output_tokens INTEGER, reasoning_tokens INTEGER, usd REAL,
@@ -78,7 +92,8 @@ const normCode = (code: string) => code.trim().toLowerCase();
 const ADDED: [string, string, string][] = [
   ["lectures", "live_from", "REAL NOT NULL DEFAULT 0"], ["lectures", "live_audio", "REAL NOT NULL DEFAULT 0"],
   ["lectures", "live_limit", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "chunk_bytes", "INTEGER NOT NULL DEFAULT 0"],
-  ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"]
+  ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"],
+  ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"]
 ];
 
 export interface LiveRound { from: number; next: number; audioEnd: number; lines: Line[]; alerts: Alert[]; held: unknown[] }
@@ -91,6 +106,7 @@ export class Store {
       const have = (this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some(c => c.name === col);
       if (!have) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
     }
+    this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS lectures_share ON lectures(share_id)");
   }
   close() { this.db.close(); }
   private tx<T>(fn: () => T): T {
@@ -114,6 +130,7 @@ export class Store {
   }
   userByCode(code: string) { return this.db.prepare("SELECT * FROM users WHERE invite_code = ?").get(normCode(code)) as UserRow | undefined; }
   listUsers() { return this.db.prepare("SELECT * FROM users ORDER BY created_at").all() as unknown as UserRow[]; }
+  user(id: string) { return this.db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined; }
   setUserName(id: string, name: string) { this.db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, id); }
   createSession(userId: string) { const token = randomBytes(32).toString("base64url"); this.db.prepare("INSERT INTO sessions (token_hash, user_id, created_at) VALUES (?, ?, ?)").run(hashToken(token), userId, now()); return token; }
   userByToken(token: string) {
@@ -128,6 +145,17 @@ export class Store {
   course(userId: string, id: string) { return this.db.prepare("SELECT * FROM courses WHERE id = ? AND user_id = ?").get(id, userId) as CourseRow | undefined; }
   courseExists(id: string) { return !!this.db.prepare("SELECT 1 FROM courses WHERE id = ?").get(id); }
   courses(userId: string) { return this.db.prepare("SELECT * FROM courses WHERE user_id = ? ORDER BY created_at").all(userId) as unknown as CourseRow[]; }
+  courseById(id: string) { return this.db.prepare("SELECT * FROM courses WHERE id = ?").get(id) as CourseRow | undefined; }
+  updateCourse(id: string, code: string, name: string) { this.db.prepare("UPDATE courses SET code = ?, name = ? WHERE id = ?").run(code, name, id); }
+  /* The course, and with it (ON DELETE CASCADE) its lectures, their notes and everything else in the database. */
+  deleteCourse(id: string) { this.db.prepare("DELETE FROM courses WHERE id = ?").run(id); }
+  /* Lectures of a course, oldest first (the order they were taught). */
+  courseLectures(courseId: string) { return this.db.prepare("SELECT * FROM lectures WHERE course_id = ? ORDER BY created_at, rowid").all(courseId) as unknown as LectureRow[]; }
+  /* Whether a live recording in this course received a piece of audio since a time: a recording in progress. */
+  recordingIn(courseId: string, sinceIso: string) {
+    return !!this.db.prepare(`SELECT 1 FROM chunks JOIN lectures ON lectures.id = chunks.lecture_id
+      WHERE lectures.course_id = ? AND lectures.status = 'recording' AND chunks.created_at >= ? LIMIT 1`).get(courseId, sinceIso);
+  }
 
   /* ---- lectures ---- */
   createLecture(l: Pick<LectureRow, "id" | "user_id" | "course_id" | "title" | "language" | "source">): LectureRow {
@@ -149,11 +177,53 @@ export class Store {
       .run(now(), clientDuration ?? null, id, ...from);
     return Number(r.changes) > 0;
   }
+  renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ? WHERE id = ?").run(title, id); }
+  moveLecture(id: string, courseId: string) { this.db.prepare("UPDATE lectures SET course_id = ? WHERE id = ?").run(courseId, id); }
   setFailed(id: string, error: string) { this.db.prepare("UPDATE lectures SET status = 'failed', error = ? WHERE id = ?").run(error.slice(0, 2000), id); }
   deleteLecture(id: string) { this.db.prepare("DELETE FROM lectures WHERE id = ?").run(id); }
   /* Live recordings (record, tab) started since a time, for the daily limit. */
   liveLecturesSince(userId: string, sinceIso: string) {
     return this.db.prepare("SELECT * FROM lectures WHERE user_id = ? AND source IN ('record', 'tab') AND created_at >= ?").all(userId, sinceIso) as unknown as LectureRow[];
+  }
+
+  /* ---- sharing ---- */
+  setShare(id: string, shareId: string, url: string) { this.db.prepare("UPDATE lectures SET share_id = ?, share_url = ? WHERE id = ?").run(shareId, url, id); }
+  clearShare(id: string) { this.db.prepare("UPDATE lectures SET share_id = NULL, share_url = NULL WHERE id = ?").run(id); }
+  lectureByShare(shareId: string) { return this.db.prepare("SELECT * FROM lectures WHERE share_id = ?").get(shareId) as LectureRow | undefined; }
+  /* The copy this student already saved of a shared lecture. */
+  copyOf(userId: string, sourceId: string) { return this.db.prepare("SELECT * FROM lectures WHERE user_id = ? AND copied_from = ? ORDER BY rowid LIMIT 1").get(userId, sourceId) as LectureRow | undefined; }
+  /* A copy of a lecture's notes in another student's course: the notes (without the recording or the owner's progress)
+     and the dated alerts. Points the owner added are no longer "mine": they are not the reader's. It keeps the class
+     date, and counts as an upload (not against the daily live minutes). */
+  copyLecture(src: LectureRow, detail: Detail, to: { id: string; userId: string; courseId: string }) {
+    return this.tx(() => {
+      this.db.prepare(`INSERT INTO lectures (id, user_id, course_id, title, language, source, status, duration, client_duration, created_at, finished_at, copied_from)
+        VALUES (?, ?, ?, ?, ?, 'upload', 'ready', ?, ?, ?, ?, ?)`).run(to.id, to.userId, to.courseId, src.title, src.language, src.duration, src.client_duration, src.created_at, src.finished_at, src.id);
+      const { audio: _a, progress: _p, ...notes } = detail;
+      notes.sections = notes.sections.map(sec => ({ ...sec, points: sec.points.map(({ mine: _m, ...pt }) => pt) }));
+      this.db.prepare("INSERT INTO details (lecture_id, detail_json, created_at) VALUES (?, ?, ?)").run(to.id, JSON.stringify(notes), now());
+      this.db.prepare("INSERT INTO upcoming (lecture_id, date, kind, text, t) SELECT ?, date, kind, text, t FROM upcoming WHERE lecture_id = ?").run(to.id, src.id);
+      return this.lecture(to.id)!;
+    });
+  }
+
+  /* ---- slides sent after the notes (API-CHANGES.md section 3) ---- */
+  /* ready -> processing, marked as matching slides to the notes; false when the lecture was not ready. */
+  startRefile(id: string) {
+    return Number(this.db.prepare("UPDATE lectures SET status = 'processing', refile = 1, has_slides = 1, error = NULL WHERE id = ? AND status = 'ready'").run(id).changes) > 0;
+  }
+  /* The notes under the slides, and ready again. Does nothing when the lecture was deleted meanwhile. */
+  saveRefiled(id: string, detail: Detail) {
+    return this.tx(() => {
+      if (!this.lecture(id)) return false;
+      this.db.prepare("UPDATE details SET detail_json = ? WHERE lecture_id = ?").run(JSON.stringify(detail), id);
+      this.db.prepare("UPDATE lectures SET status = 'ready', refile = 0, error = NULL WHERE id = ?").run(id);
+      return true;
+    });
+  }
+  /* Matching failed: ready again with the notes as they were, without slides. */
+  refileFailed(id: string, error: string) {
+    this.db.prepare("UPDATE lectures SET status = 'ready', refile = 0, has_slides = 0, error = ? WHERE id = ?").run(error.slice(0, 2000), id);
   }
 
   /* ---- live recording: chunks, the live transcript and its alerts ---- */
@@ -232,10 +302,62 @@ export class Store {
     const r = this.db.prepare("SELECT detail_json FROM details WHERE lecture_id = ?").get(lectureId) as { detail_json: string } | undefined;
     return r ? JSON.parse(r.detail_json) as Detail : null;
   }
+  /* Changes the notes in one transaction: `change` gets the stored notes and edits them in place. An error thrown by
+     `change` (a point that is not there) leaves them as they were. */
+  editDetail<T>(lectureId: string, change: (d: Detail) => T): T {
+    return this.tx(() => {
+      const d = this.detail(lectureId);
+      if (!d) throw new Error("no notes");
+      const out = change(d);
+      this.db.prepare("UPDATE details SET detail_json = ? WHERE lecture_id = ?").run(JSON.stringify(d), lectureId);
+      return out;
+    });
+  }
+  /* Every point in the notes of a student's lectures, newest lecture first, in the order of the notes (GET /search). */
+  notePoints(userId: string) {
+    return this.db.prepare(`SELECT lectures.id AS lecture, json_extract(p.value, '$.text') AS text, json_extract(p.value, '$.t') AS t
+      FROM lectures JOIN details ON details.lecture_id = lectures.id, json_each(details.detail_json, '$.sections') AS s, json_each(s.value, '$.points') AS p
+      WHERE lectures.user_id = ? ORDER BY lectures.created_at DESC, lectures.rowid DESC, s.key, p.key`).all(userId) as unknown as { lecture: string; text: string | null; t: number | null }[];
+  }
   upcoming(userId: string, fromDate: string) {
     return this.db.prepare(`SELECT upcoming.*, courses.code AS course_code FROM upcoming JOIN lectures ON lectures.id = upcoming.lecture_id
       JOIN courses ON courses.id = lectures.course_id WHERE lectures.user_id = ? AND upcoming.date >= ? ORDER BY upcoming.date, upcoming.t`).all(userId, fromDate) as unknown as UpcomingRow[];
   }
+
+  /* ---- study progress and feedback ---- */
+  /* quizScore null keeps the last score: the front end sends one only when a quiz round was finished. */
+  saveProgress(lectureId: string, known: number[], quizScore: number | null) {
+    this.db.prepare(`INSERT INTO progress (lecture_id, known_json, quiz_score, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(lecture_id) DO UPDATE SET known_json = excluded.known_json, quiz_score = COALESCE(excluded.quiz_score, progress.quiz_score), updated_at = excluded.updated_at`)
+      .run(lectureId, JSON.stringify(known), quizScore, now());
+  }
+  progress(lectureId: string) {
+    const r = this.db.prepare("SELECT known_json, quiz_score FROM progress WHERE lecture_id = ?").get(lectureId) as { known_json: string; quiz_score: number | null } | undefined;
+    return r ? { known: JSON.parse(r.known_json) as number[], quizScore: r.quiz_score } : null;
+  }
+  addFeedback(lectureId: string, userId: string, text: string) {
+    this.db.prepare("INSERT INTO feedback (lecture_id, user_id, text, created_at) VALUES (?, ?, ?, ?)").run(lectureId, userId, text, now());
+  }
+  feedback(limit = 100) {
+    return this.db.prepare(`SELECT feedback.*, lectures.title, courses.code AS course_code, users.name AS user_name FROM feedback
+      JOIN lectures ON lectures.id = feedback.lecture_id JOIN courses ON courses.id = lectures.course_id JOIN users ON users.id = feedback.user_id
+      ORDER BY feedback.id DESC LIMIT ?`).all(limit) as unknown as FeedbackRow[];
+  }
+
+  /* ---- review packs, one per course ---- */
+  pack(courseId: string) { return this.db.prepare("SELECT * FROM packs WHERE course_id = ?").get(courseId) as PackRow | undefined; }
+  packsWithStatus(status: PackRow["status"]) { return this.db.prepare("SELECT * FROM packs WHERE status = ?").all(status) as unknown as PackRow[]; }
+  setPackProcessing(courseId: string) {
+    this.db.prepare(`INSERT INTO packs (course_id, status, updated_at) VALUES (?, 'processing', ?)
+      ON CONFLICT(course_id) DO UPDATE SET status = 'processing', error = NULL, updated_at = excluded.updated_at`).run(courseId, now());
+  }
+  /* lectureIds: the lectures the pack was made from, to tell later whether it still covers the course. */
+  savePack(courseId: string, lectureIds: string[], pack: unknown) {
+    this.db.prepare("UPDATE packs SET status = 'ready', lecture_ids = ?, pack_json = ?, error = NULL, updated_at = ? WHERE course_id = ?")
+      .run(lectureIds.join(" "), JSON.stringify(pack), now(), courseId);
+  }
+  packFailed(courseId: string, error: string) { this.db.prepare("UPDATE packs SET status = 'failed', error = ?, updated_at = ? WHERE course_id = ?").run(error.slice(0, 2000), now(), courseId); }
+  dropPack(courseId: string) { this.db.prepare("DELETE FROM packs WHERE course_id = ?").run(courseId); }
 
   /* ---- costs: kept after a lecture is deleted, so the totals stay right ---- */
   logCost(c: CostEntry) {

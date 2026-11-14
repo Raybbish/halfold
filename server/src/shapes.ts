@@ -4,8 +4,9 @@
    every reply. Objects are strict: a misspelt field is an error, not something the front end silently ignores. */
 import { z } from "zod";
 import type {
-  Alert, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, Point, QuizQuestion, Section, SessionReply,
-  Settings, Slide, StatusReply, Upcoming, Usage, User, Week
+  Alert, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, NoteHit, PackHint, PackPoint, PackQuestion,
+  PackTopic, Point, QuizQuestion, ReviewPack, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply, Upcoming, UrlReply, Usage,
+  User, Week
 } from "../../src/types";
 
 const seconds = z.number().finite().nonnegative();
@@ -34,13 +35,17 @@ export const PointSchema: z.ZodType<Point> = z.strictObject({
   t: seconds.nullable(), text: z.string().min(1), zhHant: z.string().optional(), zhHans: z.string().optional(), zh: z.string().optional(),
   off: z.boolean().optional(), slide: z.number().int().positive().nullable().optional(), mine: z.boolean().optional()
 });
-export const SectionSchema: z.ZodType<Section> = z.strictObject({ title: z.string().min(1), slides: z.string().optional(), start: seconds, end: seconds, points: z.array(PointSchema).min(1) });
+/* A section can lose all its points when the student deletes them (phase 3); it stays, so the places of the other
+   sections do not move (the edit endpoints find a point by its section and place). New notes never have one. */
+export const SectionSchema: z.ZodType<Section> = z.strictObject({ title: z.string().min(1), slides: z.string().optional(), start: seconds, end: seconds, points: z.array(PointSchema) });
 export const SlideSchema: z.ZodType<Slide> = z.strictObject({ n: z.number().int().positive(), title: z.string(), image: z.string().nullable().optional() });
 export const LineSchema: z.ZodType<Line> = z.strictObject({ t: seconds, text: z.string().min(1) });
 export const FlashcardSchema: z.ZodType<Flashcard> = z.strictObject({ q: z.string().min(1), a: z.string().min(1) });
-export const QuizSchema: z.ZodType<QuizQuestion> = z.strictObject({
+const quizFields = {
   q: z.string().min(1), opts: z.array(z.string().min(1)).min(2), a: z.number().int().nonnegative(), why: z.string().optional(), t: seconds.nullable().optional()
-}).refine(q => q.a < q.opts.length, "the answer index is not one of the options");
+};
+const answerIsAnOption = (q: { a: number; opts: string[] }) => q.a < q.opts.length;
+export const QuizSchema: z.ZodType<QuizQuestion> = z.strictObject(quizFields).refine(answerIsAnOption, "the answer index is not one of the options");
 export const DetailSchema: z.ZodType<Detail> = z.strictObject({
   audio: AudioSchema.nullable().optional(), progress: z.strictObject({ known: z.array(z.number().int().nonnegative()) }).optional(),
   alerts: z.array(AlertSchema), sections: z.array(SectionSchema).min(1), slides: z.array(SlideSchema), transcript: z.array(LineSchema),
@@ -65,3 +70,16 @@ export const ErrorReplySchema = z.strictObject({ message: z.string().min(1) });
 /* Phase 2: live recording. */
 export const ChunkReplySchema: z.ZodType<ChunkReply> = z.strictObject({ segments: z.array(LineSchema), alerts: z.array(AlertSchema) });
 export const CatchUpReplySchema: z.ZodType<CatchUpReply> = z.strictObject({ points: z.array(z.string().min(1)).min(1) });
+/* Phase 3: sharing, review packs, search. */
+export const UrlReplySchema: z.ZodType<UrlReply> = z.strictObject({ url: z.string().nullable() });
+export const SharedReplySchema: z.ZodType<SharedReply> = z.strictObject({ lecture: LectureSchema, course: CourseSchema.optional(), detail: DetailSchema, sharedBy: z.string().min(1) });
+export const PackHintSchema: z.ZodType<PackHint> = z.strictObject({ t: seconds, kind: z.string().min(1), text: z.string().min(1), lecture: z.string(), lectureId: id });
+export const PackPointSchema: z.ZodType<PackPoint> = z.strictObject({ text: z.string().min(1), off: z.boolean(), t: seconds.nullable(), lecture: z.string(), lectureId: id });
+export const PackTopicSchema: z.ZodType<PackTopic> = z.strictObject({ topic: z.string().min(1), points: z.array(PackPointSchema).min(1) });
+export const PackQuestionSchema: z.ZodType<PackQuestion> = z.strictObject({ ...quizFields, lectureId: id }).refine(answerIsAnOption, "the answer index is not one of the options");
+export const ReviewPackSchema: z.ZodType<ReviewPack> = z.union([
+  z.strictObject({ status: z.enum(["none", "processing"]) }),
+  z.strictObject({ status: z.literal("ready"), hints: z.array(PackHintSchema), sheet: z.array(PackTopicSchema), exam: z.array(PackQuestionSchema) })
+]);
+export const NoteHitSchema: z.ZodType<NoteHit> = z.strictObject({ lecture: id, text: z.string().min(1), t: seconds.nullable() });
+export const SearchReplySchema: z.ZodType<SearchReply> = z.strictObject({ results: z.array(NoteHitSchema).max(20) });

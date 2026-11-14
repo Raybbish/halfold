@@ -13,6 +13,7 @@ import { Ffmpeg } from "../src/media";
 import { Pipeline } from "../src/pipeline";
 import { createApp } from "../src/app";
 import { LiveTranscriber } from "../src/live/transcriber";
+import { ReviewPacks } from "../src/packs";
 import { StubCatchUp, StubNotes, StubStt } from "./helpers";
 
 const port = Number(process.argv[2] || 8790);
@@ -29,5 +30,6 @@ if (fixtures) app.get("/__fixtures/:name", c => {
   return fs.existsSync(f) ? c.body(fs.readFileSync(f), 200, { "Access-Control-Allow-Origin": "*" }) : c.notFound();   // other local servers may fetch them
 });
 const live = new LiveTranscriber({ config, store, files, media, stt });
-app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp() }));
+const packs = new ReviewPacks({ config, store, notes });
+app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp(), packs }));
 serve({ fetch: app.fetch, port }, () => console.log(`stub server on http://localhost:${port} (data in ${dir}); invite code STUB`));

@@ -21,6 +21,8 @@ export interface DeepSeekSettings { apiKey: string; baseUrl: string; model: stri
 export interface Config {
   port: number;
   publicUrl: string;                  // where students reach the server, e.g. https://sidenote.example.com; empty = links relative to the page
+  webUrl: string;                     // where the front end is, for shared links (#/s/:id); empty = the page that asked
+  exampleShareId: string | null;      // the shared lecture behind "Example notes" on the public pages; null hides those links
   dataDir: string;
   webDir: string | null;              // the built front end to serve at "/", or null to serve only the API
   timezone: string;                   // the students' time zone: "today", lecture dates, exam dates
@@ -79,6 +81,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     port: num(env.PORT, 8787),
     publicUrl: (env.PUBLIC_URL || "").trim().replace(/\/+$/, ""),
+    webUrl: (env.WEB_URL || "").trim().replace(/\/+$/, ""),
+    exampleShareId: /^[A-Za-z0-9_-]+$/.test((env.EXAMPLE_SHARE_ID || "").trim()) ? env.EXAMPLE_SHARE_ID!.trim() : null,
     dataDir: path.resolve(SERVER_DIR, env.DATA_DIR || "data"),
     webDir: web,
     timezone: env.APP_TIMEZONE || "Asia/Hong_Kong",

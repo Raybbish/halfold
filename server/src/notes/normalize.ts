@@ -74,13 +74,19 @@ export function slideLabel(nums: number[]) {
   return lo === hi ? `Slide ${lo}` : `Slides ${lo} to ${hi}`;
 }
 
+/* detail.slides: one per page, titled by the model, else by the first line of the page. */
+export function slideList(pages: { n: number; text: string }[], titled: { n: number; title: string }[]): Slide[] {
+  const have = new Set(pages.map(p => p.n));
+  const titles = new Map(titled.filter(s => have.has(s.n) && s.title).map(s => [s.n, s.title.slice(0, 120)]));
+  return pages.map(p => ({ n: p.n, title: titles.get(p.n) || p.text.split("\n").map(x => x.trim()).find(Boolean)?.slice(0, 80) || `Slide ${p.n}`, image: null }));
+}
+
 export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail; dated: Dated[] } {
   const end = Math.max(1, Math.round(ctx.duration));
   const at = (x: number) => Math.min(end, Math.max(0, Math.round(x)));
   const pages = new Set(ctx.slidePages.map(p => p.n)), hasSlides = pages.size > 0;
 
-  const titles = new Map(m.slides.filter(s => pages.has(s.n) && s.title).map(s => [s.n, s.title.slice(0, 120)]));
-  const slides: Slide[] = ctx.slidePages.map(p => ({ n: p.n, title: titles.get(p.n) || p.text.split("\n").map(x => x.trim()).find(Boolean)?.slice(0, 80) || `Slide ${p.n}`, image: null }));
+  const slides = slideList(ctx.slidePages, m.slides);
 
   const sections: Section[] = m.sections
     .map(s => {

@@ -12,6 +12,7 @@ import { createNotesWriter, createTranscriber, missingKeys } from "./providers";
 import { LiveTranscriber } from "./live/transcriber";
 import { DeepSeekCatchUp } from "./notes/catchup";
 import { sweepAudio } from "./audio";
+import { ReviewPacks } from "./packs";
 
 const config = loadConfig();
 fs.mkdirSync(config.dataDir, { recursive: true });
@@ -22,7 +23,8 @@ const media = new Ffmpeg();
 const stt = createTranscriber(config), notes = createNotesWriter(config);
 const pipeline = new Pipeline({ config, store, files, media, stt, notes });
 const live = new LiveTranscriber({ config, store, files, media, stt });
-const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new DeepSeekCatchUp(config.catchUp) });
+const packs = new ReviewPacks({ config, store, notes });
+const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new DeepSeekCatchUp(config.catchUp), packs });
 
 /* AUDIO_KEEP_DAYS: recordings past their keep date are deleted at start and every six hours. */
 const sweep = () => sweepAudio(config, store, files).then(n => { if (n) console.log(`[sidenote] deleted ${n} recording(s) past AUDIO_KEEP_DAYS`); }, e => console.error("[sidenote] sweep:", e));
@@ -37,14 +39,14 @@ const server = serve({ fetch: app.fetch, port: config.port, serverOptions: { req
   console.log(`[sidenote] http://localhost:${info.port}  speech-to-text: ${stt.provider} ${stt.model}  notes: ${notes.provider} ${notes.model}` +
     `  live: ${!config.liveRecording ? "off" : config.live.transcript ? "on, with transcript and Catch me up (" + config.catchUp.model + ")" : "on, no live transcript"}` +
     (config.webDir && fs.existsSync(path.join(config.webDir, "index.html")) ? `  web: ${config.webDir}` : "  (API only: no built front end found)"));
-  pipeline.resume();
+  pipeline.resume(); packs.resume();
 });
 
 let closing = false;
 const shutdown = () => {
   if (closing) return; closing = true;
-  /* Runs in progress stop here and stay "processing"; they start again on the next start (pipeline.resume). */
-  pipeline.stopAll(); live.stopAll();
+  /* Runs in progress stop here and stay "processing"; they start again on the next start (pipeline.resume, packs.resume). */
+  pipeline.stopAll(); live.stopAll(); packs.stopAll();
   server.close(() => { store.close(); process.exit(0); });
   setTimeout(() => process.exit(0), 3000).unref();
 };

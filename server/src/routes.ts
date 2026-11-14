@@ -1,9 +1,10 @@
-/* The endpoints of phases 1 and 2 (reference/INTEGRATION.md section 2, API-CHANGES.md). Paths are under /api. */
+/* The endpoints of phases 1 and 2 (reference/INTEGRATION.md section 2, API-CHANGES.md), and slides sent after the
+   notes (phase 3). The rest of phase 3 is in library.ts. Paths are under /api. */
 import fsp from "node:fs/promises";
 import { Hono } from "hono";
 import type { Config } from "./config";
 import { CLASS_LANGUAGES, type ClassLanguage } from "./config";
-import type { Store, UserRow } from "./db";
+import type { CourseRow, LectureRow, Store, UserRow } from "./db";
 import { randomId } from "./db";
 import type { FileStore } from "./files";
 import type { Media } from "./media";
@@ -15,15 +16,31 @@ import { isLive } from "./pipeline";
 import { heldWords, type LiveJobs } from "./live/transcriber";
 import { joinTokens } from "./stt/lines";
 import type { CatchUpWriter } from "./notes/catchup";
+import type { ReviewPacks } from "./packs";
 import type { CatchUpReply, ChunkReply, Source, StatusReply } from "../../src/types";
 
 export interface Jobs { enqueue(lectureId: string): void; cancel(lectureId: string): void }
-export interface Deps { config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter }
+export interface Deps { config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter; packs: ReviewPacks }
 export type AppEnv = { Variables: { user: UserRow } };
 
 const SOURCES: Source[] = ["record", "tab", "upload", "link"];
 const COLORS = ["#FF6B57", "#4C7DFF", "#2BB673", "#FFB020", "#9B5DE5", "#00B8D9", "#F15BB5", "#8D6E63"];
-const str = (v: unknown) => typeof v === "string" ? v.trim() : "";
+export const str = (v: unknown) => typeof v === "string" ? v.trim() : "";
+
+/* A course's code and name, for adding and editing one (API-CHANGES.md section 1: the same limits). */
+export function courseFields(b: Record<string, unknown>) {
+  const code = str(b.code), name = str(b.name);
+  if (!code) fail(400, "Enter the course code.");
+  if (code.length > 20) fail(400, "The course code can be at most 20 characters.");
+  if (name.length > 80) fail(400, "The course name can be at most 80 characters.");
+  return { code, name };
+}
+export function newCourse(store: Store, userId: string, code: string, name: string): CourseRow {
+  const slug = code.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20) || "course";
+  let id = slug + "-" + randomId(4);
+  while (store.courseExists(id)) id = slug + "-" + randomId(4);
+  return store.createCourse(userId, id, code, name, COLORS[store.courses(userId).length % COLORS.length]);
+}
 
 /* The live limit (DAILY_LIVE_MINUTES). The front end only checks it before a recording starts, and has no way to show a
    message from a chunk reply's error: it would retry the chunk forever. So the student is told through the live alerts
@@ -65,8 +82,6 @@ export function publicRoutes(deps: Deps) {
     });
   });
 
-  /* Sharing is not built yet. The shared page asks without a token, so this must not be a 401 ("sign in again"). */
-  r.get("/shared/:id", c => c.json({ message: "This link is not shared." }, 404));
   return r;
 }
 
@@ -78,15 +93,8 @@ export function privateRoutes(deps: Deps) {
   r.get("/home", c => c.json(homeView(store, config, c.get("user"))));
 
   r.post("/courses", async c => {
-    const user = c.get("user"), b = await jsonBody(c), code = str(b.code), name = str(b.name);
-    if (!code) fail(400, "Enter the course code.");
-    if (code.length > 20) fail(400, "The course code can be at most 20 characters.");
-    if (name.length > 80) fail(400, "The course name can be at most 80 characters.");
-    const slug = code.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 20) || "course";
-    let id = slug + "-" + randomId(4);
-    while (store.courseExists(id)) id = slug + "-" + randomId(4);
-    const color = COLORS[store.courses(user.id).length % COLORS.length];
-    return c.json(courseView(store.createCourse(user.id, id, code, name, color)));
+    const { code, name } = courseFields(await jsonBody(c));
+    return c.json(courseView(newCourse(store, c.get("user").id, code, name)));
   });
 
   r.post("/lectures", async c => {
@@ -129,23 +137,27 @@ export function privateRoutes(deps: Deps) {
     return c.body(null, 204);
   });
 
+  /* Before the notes (status recording or failed): the slides go into the notes when they are written. After the notes
+     (ready, phase 3, API-CHANGES.md section 3): the lecture is processing again before this reply, while the points are
+     placed under the slides (pipeline.ts refile); then ready, with slides or, if that failed, with the notes as they were. */
   r.post("/lectures/:id/slides", async c => {
     const user = c.get("user"), id = c.req.param("id");
-    const check = (status: string) => {
-      if (status === "processing") fail(409, "Sidenote is writing the notes for this lecture. Add the slides when the notes are ready.");
-      if (status === "ready") fail(409, "Adding slides to a lecture that already has notes is not available yet.");
+    const check = (l: LectureRow) => {
+      if (l.status === "processing") fail(409, l.refile ? "Sid is already putting the notes under slides for this lecture." : "Sidenote is writing the notes for this lecture. Add the slides when the notes are ready.");
+      if (l.status === "ready" && store.detail(l.id)?.slides.length) fail(409, "This lecture already has slides.");
     };
     mine(user.id, id);
     /* The status is checked after the file has arrived: a reply sent while the browser is still sending can reach it as a network error. */
     const got = await receiveFile(c.req.raw, files, "file", config.maxUploadBytes);
     try {
       const l = store.userLecture(user.id, id) ?? fail(404, "This lecture was deleted while the file was uploading.");
-      check(l.status);
+      check(l);
       const fh = await fsp.open(got.tempPath, "r");
       const head = Buffer.alloc(5); await fh.read(head, 0, 5, 0); await fh.close();
       if (head.toString("latin1") !== "%PDF-") fail(415, "The slides have to be a PDF file.");
       await files.commit(got.tempPath, id, "slides.pdf");
-      store.setHasSlides(id);
+      if (l.status !== "ready") store.setHasSlides(id);
+      else if (store.startRefile(id)) jobs.enqueue(id);
     } finally { await files.discard(got.tempPath); }
     if (!store.lecture(id)) await files.removeLecture(id);
     return c.body(null, 204);
@@ -249,10 +261,15 @@ export function privateRoutes(deps: Deps) {
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? l.status });
   });
 
+  /* detail is there once the notes are written, also while slides sent later are being matched to them (processing). */
   r.get("/lectures/:id", c => {
     const l = mine(c.get("user").id, c.req.param("id"));
-    const detail = l.status === "ready" ? store.detail(l.id) : null;
-    if (detail) { const audio = audioView(config, store, files, l); if (audio) detail.audio = audio; }
+    const detail = store.detail(l.id);
+    if (detail) {
+      const audio = audioView(config, store, files, l), progress = store.progress(l.id);
+      if (audio) detail.audio = audio;
+      if (progress) detail.progress = { known: progress.known };
+    }
     return c.json({ lecture: lectureView(l, config.timezone), detail });
   });
 

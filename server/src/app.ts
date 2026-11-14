@@ -5,9 +5,12 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { onError } from "./http/errors";
 import { privateRoutes, publicRoutes, type AppEnv, type Deps } from "./routes";
+import { libraryRoutes, sharedRoutes } from "./library";
+import type { Config } from "./config";
 
-/* The front end reads window.SIDENOTE_CONFIG at start (src/config.ts). The example share is hidden: there are no shared pages yet. */
-export const WEB_CONFIG = { USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: null };
+/* The front end reads window.SIDENOTE_CONFIG at start (src/config.ts). "Example notes" on the public pages opens the
+   shared lecture EXAMPLE_SHARE_ID, and is hidden when it is not set. */
+export const webConfig = (config: Pick<Config, "exampleShareId">) => ({ USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: config.exampleShareId });
 
 export function createApp(deps: Deps) {
   const app = new Hono();
@@ -19,6 +22,7 @@ export function createApp(deps: Deps) {
   const small = bodyLimit({ maxSize: 64 * 1024, onError: c => c.json({ message: "The request is too large." }, 413) });
   api.use("*", (c, next) => /\/(recording|slides|chunks)$/.test(c.req.path) ? next() : small(c, next));
   api.route("/", publicRoutes(deps));
+  api.route("/", sharedRoutes(deps));
   /* Every other endpoint needs the token from POST /session. A 401 makes the front end sign in again. */
   api.use("*", async (c, next) => {
     const m = /^Bearer\s+(\S+)$/i.exec(c.req.header("authorization") || "");
@@ -28,11 +32,12 @@ export function createApp(deps: Deps) {
     await next();
   });
   api.route("/", privateRoutes(deps));
+  api.route("/", libraryRoutes(deps));
   api.notFound(c => c.json({ message: "This is not available yet." }, 404));
   api.onError(onError);
   app.route("/api", api);
 
-  if (deps.config.webDir && fs.existsSync(path.join(deps.config.webDir, "index.html"))) serveWeb(app, deps.config.webDir);
+  if (deps.config.webDir && fs.existsSync(path.join(deps.config.webDir, "index.html"))) serveWeb(app, deps.config.webDir, webConfig(deps.config));
   app.notFound(c => c.json({ message: "Not found." }, 404));
   return app;
 }
@@ -40,9 +45,9 @@ export function createApp(deps: Deps) {
 const TYPES: Record<string, string> = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
   ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".json": "application/json", ".woff2": "font/woff2" };
 
-function serveWeb(app: Hono, webDir: string) {
+function serveWeb(app: Hono, webDir: string, config: ReturnType<typeof webConfig>) {
   const root = path.resolve(webDir);
-  const tag = `<script>window.SIDENOTE_CONFIG = ${JSON.stringify(WEB_CONFIG)};</script>\n`;
+  const tag = `<script>window.SIDENOTE_CONFIG = ${JSON.stringify(config)};</script>\n`;
   const page = () => {
     const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
     const at = html.search(/<script type="module"/i);

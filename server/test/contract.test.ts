@@ -142,20 +142,20 @@ test("lecture endpoints: status, finish, retry, get and delete match their shape
   assert.equal(s.store.costs().filter(c => c.lecture_id === id).length, 2);
 });
 
-test("POST /finish without a recording is a 409 with a message; endpoints not built yet are 404 with a message", async t => {
+test("POST /finish without a recording is a 409 with a message; endpoints of phase 4 are 404 with a message", async t => {
   const s = setup(); t.after(() => s.close());
   const token = await s.signIn();
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "" } })).body;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "en", source: "upload" } })).body;
   const r = await s.call("POST", `/lectures/${lec.id}/finish`, { token, json: { duration: 0 } });
   assert.equal(r.status, 409); isError(r);
-  for (const [m, p] of [["GET", "/search?q=cost"], ["GET", "/plans"], ["PATCH", `/lectures/${lec.id}`], ["POST", `/lectures/${lec.id}/share`]] as const) {
+  for (const [m, p] of [["GET", "/plans"], ["POST", "/checkout"], ["PUT", "/settings"]] as const) {
     const n = await s.call(m, p, { token });
     assert.equal(n.status, 404, `${m} ${p}`); isError(n);
   }
 });
 
-test("public and size rules: a shared link is a 404 (not a 401); a huge JSON body is a 413", async t => {
+test("public and size rules: a link that is not shared is a 404 (not a 401); a huge JSON body is a 413", async t => {
   const s = setup(); t.after(() => s.close());
   const shared = await s.call("GET", "/shared/abc");
   assert.equal(shared.status, 404); isError(shared);
