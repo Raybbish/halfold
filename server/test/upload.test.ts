@@ -57,7 +57,7 @@ test("not audio is a 415; not a PDF is a 415; no file is a 400; nothing is kept"
   assert.equal(fs.existsSync(path.join(s.dir, "lectures", id)), false);
 });
 
-test("a second recording replaces the first; a recording after finish is a 409", async t => {
+test("a second recording replaces the first; a recording after finish is a 409, slides after the notes are taken", async t => {
   const s = setup(); t.after(() => s.close());
   const token = await s.signIn(), id = await newLecture(s, token);
   assert.equal((await s.call("POST", `/lectures/${id}/recording`, { token, body: fileForm(FAKE_AUDIO + "1", "a.mp3") })).status, 204);
@@ -68,8 +68,11 @@ test("a second recording replaces the first; a recording after finish is a 409",
   await s.pipeline.idle();
   const again = await s.call("POST", `/lectures/${id}/recording`, { token, body: fileForm(FAKE_AUDIO, "c.mp3") });
   assert.equal(again.status, 409); ErrorReplySchema.parse(again.body);
+  /* Phase 3: slides sent after the notes are matched to them (slides-later.test.ts). */
   const slides = await s.call("POST", `/lectures/${id}/slides`, { token, body: fileForm("%PDF-1.4", "s.pdf") });
-  assert.equal(slides.status, 409); assert.equal(slides.body.message, "Adding slides to a lecture that already has notes is not available yet.");
+  assert.equal(slides.status, 204);
+  await s.pipeline.idle();
+  assert.equal(s.store.detail(id)!.slides.length, 2);
 });
 
 /* Real HTTP: the browser's XMLHttpRequest is aborted (Cancel upload) or the connection drops part way. */

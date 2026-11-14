@@ -12,7 +12,7 @@ export function lectureView(l: LectureRow, timeZone: string, now = new Date()): 
   const duration = l.duration ?? l.client_duration;
   return {
     id: l.id, course: l.course_id, title: l.title, date: displayDate(l.created_at, timeZone, now),
-    ...(duration != null ? { duration: Math.round(duration) } : {}), status: l.status, shareUrl: null
+    ...(duration != null ? { duration: Math.round(duration) } : {}), status: l.status, shareUrl: l.share_url ?? null
   };
 }
 

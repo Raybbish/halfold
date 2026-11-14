@@ -5,7 +5,9 @@ import { fetch } from "undici";
 import type { DeepSeekSettings } from "../config";
 import { ProviderError, slowAgent, withRetry } from "../stt/types";
 import { systemPrompt, userPrompt } from "./prompt";
-import type { NotesCall, NotesInput, NotesWriter, TokenUsage } from "./types";
+import { slidesPrompt, type SlidesInput } from "./slides";
+import { packPrompt, type PackInput } from "./pack";
+import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "./types";
 
 export type DeepSeekOptions = DeepSeekSettings;
 export interface ChatMessage { role: "system" | "user" | "assistant"; content: string }
@@ -77,8 +79,12 @@ export class DeepSeekWriter implements NotesWriter {
   readonly model: string;
   constructor(private readonly o: DeepSeekOptions) { this.model = o.model; }
 
-  async write(input: NotesInput, signal?: AbortSignal, repair?: { reply: string; problem: string }): Promise<NotesCall> {
-    const messages: ChatMessage[] = [{ role: "system", content: systemPrompt(input) }, { role: "user", content: userPrompt(input) }];
+  write(input: NotesInput, signal?: AbortSignal, repair?: Repair) { return this.ask(systemPrompt(input), userPrompt(input), signal, repair); }
+  fileSlides(input: SlidesInput, signal?: AbortSignal, repair?: Repair) { const p = slidesPrompt(input); return this.ask(p.system, p.user, signal, repair); }
+  reviewPack(input: PackInput, signal?: AbortSignal, repair?: Repair) { const p = packPrompt(input); return this.ask(p.system, p.user, signal, repair); }
+
+  private ask(system: string, user: string, signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
+    const messages: ChatMessage[] = [{ role: "system", content: system }, { role: "user", content: user }];
     if (repair) messages.push({ role: "assistant", content: repair.reply },
       { role: "user", content: `That reply could not be used: ${repair.problem}\nSend the whole JSON object again, corrected.` });
     return deepseekJson(this.o, messages, signal);

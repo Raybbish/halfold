@@ -14,7 +14,10 @@ import { createApp } from "../src/app";
 import { LiveTranscriber } from "../src/live/transcriber";
 import type { CatchUpCall, CatchUpInput, CatchUpWriter } from "../src/notes/catchup";
 import type { Transcriber, Transcript, Word } from "../src/stt/types";
-import type { NotesCall, NotesInput, NotesWriter, TokenUsage } from "../src/notes/types";
+import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "../src/notes/types";
+import type { SlidesInput } from "../src/notes/slides";
+import type { PackInput } from "../src/notes/pack";
+import { ReviewPacks } from "../src/packs";
 
 export const FAKE_AUDIO = "FAKEAUDIO";   // files starting with this are "audio" to the stub media
 /* One piece of a stub live recording, `seconds` long. */
@@ -113,15 +116,50 @@ export function goodNotes(withSlides = false) {
   };
 }
 
+/* The model placing the points of notes under slides sent later: point n goes on slide n (or the last one); even
+   points are "off". */
+export function goodFiling(input: SlidesInput) {
+  const last = input.slides[input.slides.length - 1]?.n ?? 1;
+  return {
+    slides: input.slides.map(p => ({ n: p.n, title: "Page " + p.n })),
+    points: input.sections.flatMap(s => s.points).map(p => ({ id: p.id, slide: Math.min(p.id, last), off: p.id % 2 === 0 }))
+  };
+}
+/* A review pack as the model would write it: one topic per lecture with all its points, and one exam question. */
+export function goodPack(input: PackInput) {
+  return {
+    sheet: input.lectures.map(l => ({ topic: "Topic of " + l.title, points: l.sections.flatMap(s => s.points.map(p => p.id)) })),
+    exam: [{ q: "Which is the opportunity cost?", opts: ["The price", "The next best alternative", "A sunk cost", "A tax"], a: 1, why: "It is what you give up.", lecture: 1, t: 252 }]
+  };
+}
+
 export class StubNotes implements NotesWriter {
   readonly provider = "stub-notes"; readonly model = "stub-notes-1";
-  calls: { input: NotesInput; repair?: { reply: string; problem: string } }[] = [];
+  calls: { input: NotesInput; repair?: Repair }[] = [];
   replies: (string | Error)[] = [];
+  /* Phase 3: slides sent after the notes, and review packs. A gate holds the call until it is opened. */
+  slideCalls: { input: SlidesInput; repair?: Repair }[] = [];
+  slideReplies: (string | Error)[] = [];
+  packCalls: { input: PackInput; repair?: Repair }[] = [];
+  packReplies: (string | Error)[] = [];
+  gate: Promise<void> | null = null;
   usage: TokenUsage = { inputTokens: 30000, cachedInputTokens: 0, outputTokens: 12000, reasoningTokens: 4000 };
-  async write(input: NotesInput, _signal?: AbortSignal, repair?: { reply: string; problem: string }): Promise<NotesCall> {
+  async write(input: NotesInput, _signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
     this.calls.push({ input, repair });
-    const next = this.replies.length ? this.replies.shift()! : JSON.stringify(goodNotes(input.slides.length > 0));
-    if (next instanceof Error) throw next;
+    return this.answer(this.replies, () => goodNotes(input.slides.length > 0));
+  }
+  async fileSlides(input: SlidesInput, _signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
+    this.slideCalls.push({ input, repair });
+    return this.answer(this.slideReplies, () => goodFiling(input));
+  }
+  async reviewPack(input: PackInput, _signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
+    this.packCalls.push({ input, repair });
+    return this.answer(this.packReplies, () => goodPack(input));
+  }
+  private async answer(queue: (string | Error)[], good: () => unknown): Promise<NotesCall> {
+    if (this.gate) await this.gate;
+    const next = queue.length ? queue.shift()! : JSON.stringify(good());
+    if (next instanceof Error) throw Object.assign(next, { usage: this.usage, startedAt: new Date() });
     return { text: next, usage: this.usage, startedAt: new Date() };
   }
   usd(u: TokenUsage) { return { usd: (u.inputTokens * 1.32 + u.outputTokens * 3.96) / 1e6, meta: { peak: true } }; }
@@ -129,7 +167,7 @@ export class StubNotes implements NotesWriter {
 
 export interface TestServer {
   dir: string; config: Config; store: Store; files: LocalFileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
-  live: LiveTranscriber; catchUp: StubCatchUp;
+  live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks;
   app: ReturnType<typeof createApp>;
   call(method: string, p: string, o?: { token?: string; json?: unknown; body?: FormData | string | Uint8Array; headers?: Record<string, string> }): Promise<{ status: number; body: any; text: string }>;
   signIn(code?: string, name?: string): Promise<string>;
@@ -144,8 +182,8 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
   const files = new LocalFileStore(dir), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
   const slides = o.slides || (async () => [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }]);
   const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides });
-  const live = new LiveTranscriber({ config, store, files, media, stt }), catchUp = new StubCatchUp();
-  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp });
+  const live = new LiveTranscriber({ config, store, files, media, stt }), catchUp = new StubCatchUp(), packs = new ReviewPacks({ config, store, notes });
+  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, packs });
   const call: TestServer["call"] = async (method, p, c = {}) => {
     const headers: Record<string, string> = { ...(c.headers || {}) };
     if (c.token) headers.Authorization = "Bearer " + c.token;
@@ -157,9 +195,9 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
     return { status: r.status, body: parsed, text };
   };
   return {
-    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, app, call,
+    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, packs, app, call,
     async signIn(code = "CODE-A", name = "") { const r = await call("POST", "/session", { json: { inviteCode: code, name } }); return r.body.token; },
-    close() { pipeline.stopAll(); live.stopAll(); store.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+    close() { pipeline.stopAll(); live.stopAll(); packs.stopAll(); store.close(); fs.rmSync(dir, { recursive: true, force: true }); }
   };
 }
 
@@ -191,4 +229,17 @@ export async function liveLecture(s: TestServer, token: string, o: { source?: "r
   const r = await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Week 10", language: o.language || "en", source: o.source || "record" } });
   if (r.status !== 200) throw new Error("create failed: " + r.text);
   return r.body.id as string;
+}
+
+/* A lecture with notes (status ready): an upload in the given course, or in a new course ECON 1001. */
+export async function readyLecture(s: TestServer, token: string, o: { courseId?: string; title?: string; slides?: boolean } = {}) {
+  const courseId = o.courseId ?? (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body.id;
+  const lec = (await s.call("POST", "/lectures", { token, json: { courseId, title: o.title || "Week 9", language: "en-yue", source: "upload" } })).body;
+  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
+  if (up.status !== 204) throw new Error("upload failed: " + up.text);
+  if (o.slides) await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") });
+  await s.call("POST", `/lectures/${lec.id}/finish`, { token, json: { duration: 600 } });
+  await s.pipeline.idle();
+  if (s.store.lecture(lec.id)!.status !== "ready") throw new Error("the notes were not written: " + s.store.lecture(lec.id)!.error);
+  return lec.id as string;
 }

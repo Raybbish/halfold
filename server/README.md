@@ -1,6 +1,6 @@
-# Sidenote 后端（第一、二阶段）
+# Sidenote 后端（第一到三阶段）
 
-把课堂录音（可带 PDF 课件）变成笔记，前端用 `USE_MOCK: false` 就能显示。录音可以上传，也可以在浏览器里现场录（实时逐字稿、考试提示、Catch me up）；写好笔记后可以回放。设计和取舍见 [DESIGN.md](DESIGN.md)，接口约定见 `../reference/INTEGRATION.md` 和 `../API-CHANGES.md`。
+把课堂录音（可带 PDF 课件）变成笔记，前端用 `USE_MOCK: false` 就能显示。录音可以上传，也可以在浏览器里现场录（实时逐字稿、考试提示、Catch me up）；写好笔记后可以回放。之后学生可以改笔记、补传课件、分享给同学、做整门课的复习包、搜索全部笔记。设计和取舍见 [DESIGN.md](DESIGN.md)，接口约定见 `../reference/INTEGRATION.md` 和 `../API-CHANGES.md`。
 
 需要 Node 22.12 以上和 `ffmpeg`（含 `ffprobe`）。
 
@@ -26,7 +26,8 @@ npm start                 # http://localhost:8787
 | `npm start` / `npm run dev` | 启动；`dev` 改了代码会自动重启 |
 | `npm test` | 类型检查和全部测试（转写服务和 DeepSeek 用假实现，不花钱） |
 | `npm run invite -- add <code> [名字]` / `new` / `list` | 管理邀请码。一个码就是一个账号 |
-| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字 |
+| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本 |
+| `npm run feedback` | 学生在课堂页 “What is wrong in these notes?” 里写的反馈，新的在前（`-- --all` 看全部） |
 | `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
 
 ## 对比转写服务
@@ -64,26 +65,38 @@ npm start                 # http://localhost:8787
 
 现场录音每小时的转写费是上传录音的 2.12 倍：录音时实时转写一次，结束后为了写笔记再整段转写一次（15 秒一段的准确度差一些，尤其是粤语，见 DESIGN.md）。`npm run costs` 会列出实测的倍数和 Catch me up 每次的成本。
 
+## 分享的设置
+
+学生点 Share 得到的链接是前端的 `#/s/<随机 id>`，地址按顺序取：`WEB_URL`；没设就用学生当时打开的页面的地址；再没有就用 `PUBLIC_URL`。前端放在某个路径下（如 `https://uni.example.com/sidenote/`）时要设 `WEB_URL`。
+
+`EXAMPLE_SHARE_ID`：公开页面（首页、登录页）上 “Example notes” 打开的分享课堂，填分享链接最后那串 id。不设就不显示这个入口。
+
+分享页不带录音（INTEGRATION.md 4.3），也不带学习进度。
+
 ## 文件
 
 ```
 src/
   index.ts         启动
   app.ts           /api 和前端网页
-  routes.ts        接口
+  routes.ts        第一、二阶段的接口，和课后补传课件
+  library.ts       第三阶段的接口：改标题和课程、编辑笔记、进度、反馈、分享、改删课程、复习包、搜索
+  packs.ts         复习包：每门课一次一个，重启后接着做
   shapes.ts        回复的 zod schema，和 ../src/types.ts 绑定
   db.ts            SQLite（node:sqlite）
   files.ts         课堂文件（本地磁盘）
   http/upload.ts   流式接收上传，中断不留文件
   media.ts         ffprobe / ffmpeg
-  pipeline.ts      录音 -> 笔记的队列（现场录音先把分段拼起来）
+  pipeline.ts      录音 -> 笔记的队列（现场录音先把分段拼起来）；课后补传的课件放进已有的笔记
   live/            现场录音：每轮转写 transcriber.ts、切窗口 windows.ts、考试提示 alerts.ts
   audio.ts         回放：签名链接、Range、保留期限
   stt/             转写服务：elevenlabs.ts、deepgram.ts、切句 lines.ts、对比打分 compare.ts
-  notes/           DeepSeek：提示词 prompt.ts、调用 deepseek.ts、整理和校验 normalize.ts、繁简 zh.ts、Catch me up catchup.ts
+  notes/           DeepSeek：提示词 prompt.ts、调用 deepseek.ts、整理和校验 normalize.ts、繁简 zh.ts、Catch me up catchup.ts、
+                   补传课件 slides.ts、复习包 pack.ts
   slides.ts        PDF 每页的文字
-scripts/           invite、costs、compare-stt
-test/              契约、上传、流程、整理、服务商请求、ffmpeg 和网页；现场录音（模拟浏览器）、真实分段、回放
+scripts/           invite、costs、compare-stt、feedback
+test/              契约、上传、流程、整理、服务商请求、ffmpeg 和网页；现场录音（模拟浏览器）、真实分段、回放；
+                   编辑和课程、分享、复习包、搜索、补传课件
 test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的 README
 ```
 
@@ -92,7 +105,7 @@ test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的
 ## 还没做的
 
 - 视频链接（`attachLink` 回 501，请学生下载后上传）。
-- 编辑笔记、分享（分享页回 404）、学习进度、复习包、课程管理、搜索、课后补传课件（回 409）：第三阶段。
-- 会员和付款、正式登录、设置保存：第四阶段。
-
-这些接口现在回 404 加说明（个别回 409 或 501），前端会照常显示或忽略。
+- 会员和付款（`GET /plans`、`POST /checkout`）、正式登录、设置保存（`PUT /settings`）：第四阶段。这些接口现在回 404 加说明，前端照常显示（设置页显示“方案尚未决定”）或忽略。
+- 首页的本周统计（`week`）：学习进度和测验分数已经存了，但“本周”“已掌握的闪卡”“平均分”怎么算还没定，不给时前端不显示这一栏。
+- 分享页的录音（4.3）：默认不带，要带是产品和合规上的决定。
+- 搜索逐字稿和中文解释（API-CHANGES.md 第 4 节说以后再考虑）。

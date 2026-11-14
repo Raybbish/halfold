@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Sidenote backend, phase 1: an uploaded lecture recording becomes notes. See DESIGN.md.",
+  "description": "Sidenote backend: lecture recordings become notes the student can edit, share, search and revise from. See DESIGN.md.",
   "engines": {
     "node": ">=22.12"
   },
@@ -14,6 +14,7 @@
     "test": "tsc --noEmit && node --disable-warning=ExperimentalWarning --import tsx --test --test-reporter=spec \"test/**/*.test.ts\"",
     "invite": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/invite.ts",
     "costs": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/costs.ts",
+    "feedback": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/feedback.ts",
     "compare-stt": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/compare-stt.ts"
   },
   "dependencies": {

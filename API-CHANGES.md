@@ -134,7 +134,7 @@
 | 上传录音的进度条和取消 | 已做（第 2 节）。断点续传还没做 |
 | 课程改名或删除、课堂换到别的课程 | 已做（第 1 节） |
 | 邮箱或学校账号登录 | 没做 |
-| 搜索全部笔记（需要搜索接口） | 已做（第 4 节），等后端加上接口 |
+| 搜索全部笔记（需要搜索接口） | 已做（第 4 节），后端第三阶段已加上接口（第 7 节） |
 | 录音时课件上传失败，之后补传 | 已做（第 3 节），没交课件的课也可以补 |
 | 付款完成后的回跳和结果提示 | 没做 |
 
@@ -204,4 +204,72 @@
 ### 还没有的
 
 - `attachLink`（`POST /lectures/:id/link`）和 `createLecture` 的 `source: "link"` 仍回 501 加说明。
-- 分享页不带录音（`SHARE_AUDIO` 保持 `false`）。分享是后端第三阶段。
+- 分享页不带录音（`SHARE_AUDIO` 保持 `false`）。分享在后端第三阶段做了，见第 7 节。
+
+## 7. 后端第三阶段：改笔记、分享、课程、复习包、搜索的实际行为
+
+后端第三阶段（`server/`，见 `server/DESIGN.md`）做了第 1、3、4 节和 INTEGRATION.md 第 2 节里剩下的学生操作。前端不用改；下面是原文没说清楚、或者后端的具体做法。
+
+### `renameLecture`、`moveLecture`
+
+- 同一个 `PATCH /lectures/:id`，`{title}` 和 `{course}` 都支持，一起给也行。标题 1 到 200 字。
+- `course` 不是这个学生的课程：404，`That course does not exist.`
+- 两门课的复习包都会变回 `none`（见下面的复习包）。
+
+### `updatePoint`、`addPoint`、`deletePoint`
+
+- 只改文字；时间、页码、`off`、中文解释不变。
+- `addPoint` 加在这一节的最后，回 `{ t: null, text, mine: true, off: false, slide: null }`。
+- 一节的要点删光了，这一节仍然留着（`points: []`），和前端删完后的样子一致，后面各节的序号不变。
+- 找不到这个要点：404，`This note is no longer there. Open the lecture again to see the latest notes.`
+- 笔记还没写好：409。补传课件正在处理时：409，`Sid is putting the notes under the slides. Try again in a minute.`
+- 文字最长 2000 字（前端限 600）。
+
+### `saveProgress`
+
+- `detail.progress.known` 就是存进去的数组（去重、从小到大）。
+- `quizScore` 为 `null` 时保留上一次的分数。
+
+### `createShareLink`、`revokeShareLink`、`getShared`、`saveShared`
+
+- 链接的地址：后端设了 `WEB_URL` 就用它，否则用学生点 Share 时页面的地址（请求的 `Origin` 头）。前端放在某个路径下时后端要设 `WEB_URL`。
+- 笔记还没写好的课不能分享：409。
+- `getShared` 回的 `lecture.id` 是分享 id（就是路由里的那个），不是课堂自己的 id；`lecture.status` 总是 `ready`；`detail` 不带 `audio` 和 `progress`。分享者没有名字时 `sharedBy` 是 `A classmate`。链接无效：404，`This link is no longer shared.`
+- `saveShared`：
+  - 放进读者名下编号相同的课程（不分大小写和空格），没有就新建一门（编号和名称照分享者的）；
+  - 副本带笔记和带日期的提示，不带录音和进度，日期是原来上课的那天；
+  - 同一份存第二次，回第一次那份副本；
+  - 分享者存自己分享的课，回原课堂，不复制。
+
+**建议（前端）**：`stopSharing` 里 `delete S.shared[C().l.id]` 用的是课堂 id，但 `S.shared` 是按路由里的分享 id 存的，接上后端后两者不同。同一次访问里先预览过分享页、再停止分享，再打开旧链接时会看到缓存的旧内容（刷新后就是 404）。可以改成按 `shareUrl` 末尾的分享 id 删除。
+
+**提示**：分享者自己加的要点（`t: null`）在分享页和读者的副本里也会标成 “You”，因为前端按 `t == null` 判断。要区分的话可以只在 `!cur.shared && p.mine` 时显示 “You”；副本里这些要点没有 `mine`。
+
+### `updateCourse`、`deleteCourse`
+
+- 允许两门课用同一个编号（`addCourse` 也允许），所以 `updateCourse` 不回 409。
+- `deleteCourse`：课程里有一堂现场录音在 2 分钟内还收到过分段时回 409，`A lecture in this course is being recorded. End the recording, then delete the course.` 页面早就关掉、没录完的课不拦。
+
+### `makeReviewPack`、`getReviewPack`
+
+- `POST` 回 `{ status: "processing" }`。课程里还没有一堂有笔记的课时直接做好一个空的复习包（回 `{ status: "ready" }`，`GET` 得到三个空数组，前端显示 “Nothing to revise yet”）。正在做时再 `POST` 不会重做。
+- `sheet` 的每一条都是笔记里的原文（学生改过的就是改过的），`lecture` 是课堂现在的标题。`exam` 是模型新出的综合题，每题带出处 `lectureId` 和 `t`。
+- 课程里有笔记的课堂变了（新课写好、移进移出、删掉），`GET` 回 `none`，学生可以再做一次。前端在 `ready` 之后不显示“重新做”，所以用 `none` 表示过时。只改笔记文字不算过时。
+- 做失败时，下一次 `GET` 回 502，`Sid could not make the review pack just now. Try again in a moment.`，之后回 `none`。前端正在轮询，会把这句话显示出来，页面回到 “Make review pack”。
+- 一门两堂课的实测：约 1 分钟，0.013 美元。
+
+### `searchNotes`
+
+和第 4 节一致：按空白分词，每个词都要出现（不分大小写、不限顺序），新的课在前，同一堂课按笔记顺序，最多 20 条；改过的要点按新文字；学生自己加的也搜（`t: null`）；`q` 为空回 `{ results: [] }`。
+
+### `uploadSlides`（课后补传，第 3 节）
+
+- 回复之前状态已经是 `processing`。处理期间 `GET /lectures/:id` 照常回原来的笔记（`detail` 不是 `null`），所以学生这时打开课堂页能看到笔记，列表里显示 “Writing notes”。
+- 已经有课件的课再传：409，`This lecture already has slides.`
+- 失败（课件读不出、扫描件没有文字、模型给不出能用的结果）时按第 3 节：状态回 `ready`，笔记原样，`slides` 为空，可以再传一次。
+- 一堂课的实测：约 1 分钟，0.007 美元。
+
+### 还没有的
+
+- `getPlans`、`startCheckout`、`updateSettings`：第四阶段，现在回 404 加说明。
+- `GET /home` 的 `week` 仍不给（进度已经存了，算法待定）。

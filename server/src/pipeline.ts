@@ -12,8 +12,10 @@ import type { Media } from "./media";
 import type { Jobs } from "./routes";
 import type { Transcriber } from "./stt/types";
 import { wordsToLines } from "./stt/lines";
-import type { NotesInput, NotesWriter, TokenUsage } from "./notes/types";
+import type { Detail } from "../../src/types";
+import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "./notes/types";
 import { buildDetail, parseModelNotes } from "./notes/normalize";
+import { fileUnder, readFiling, slidesInput } from "./notes/slides";
 import { cantoneseTraditional } from "./notes/zh";
 import { DetailSchema } from "./shapes";
 import { readSlides } from "./slides";
@@ -56,13 +58,22 @@ export class Pipeline implements Jobs {
 
   private async run(id: string, signal: AbortSignal) {
     const { store } = this.d;
+    let refile = false;
     try {
       const l = store.lecture(id);
       if (!l || l.status !== "processing") return;
-      await this.process(l, signal);
+      refile = !!l.refile;
+      if (refile) await this.refile(l, signal); else await this.process(l, signal);
     } catch (e) {
       if (signal.aborted || e instanceof Gone || !store.lecture(id)) return;
       const msg = e instanceof Error ? e.message : String(e);
+      if (refile) {
+        /* API-CHANGES.md section 3: not "failed", which would hide the notes. Ready again, notes as they were, no slides. */
+        console.error(`[pipeline] ${id} slides could not be added: ${msg}`);
+        store.refileFailed(id, msg);
+        await this.d.files.remove(id, "slides.pdf");
+        return;
+      }
       console.error(`[pipeline] ${id} failed: ${msg}`);
       store.setFailed(id, msg);
     }
@@ -144,6 +155,42 @@ export class Pipeline implements Jobs {
     store.saveNotes(id, detailOut.detail, detailOut.dated);
   }
 
+  /* Slides sent after the notes were written (API-CHANGES.md section 3): each point the lecturer said is placed under
+     its slide and marked off or not. The notes are not written again: text, order, the student's edits and own points
+     stay (notes/slides.ts). Edits wait (409) while this runs, so the notes read here are still the notes saved after. */
+  private async refile(l: LectureRow, signal: AbortSignal) {
+    const { store, files } = this.d, id = l.id;
+    const detail = store.detail(id);
+    if (!detail) throw new Error("the lecture has no notes");
+    let pages: { n: number; text: string }[];
+    try { pages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
+    catch (e) { throw new Error("the slides could not be read: " + (e as Error).message); }
+    if (!pages.some(p => p.text)) throw new Error("the slides have no text to match (scanned pages, or an empty file)");
+    this.check(id, signal);
+    const course = store.course(l.user_id, l.course_id);
+    const { input, where } = slidesInput(detail, { courseCode: course?.code || "", title: l.title }, pages);
+    /* Only the student's own points: nothing to ask the model. */
+    let out: Detail | null = where.size ? null : fileUnder(detail, pages, { slides: [], points: new Map() }, where);
+    let repair: Repair | undefined, problem = "";
+    for (let attempt = 1; attempt <= NOTES_ATTEMPTS && !out; attempt++) {
+      const call = await this.callModel(l, "slides", { attempt, slidePages: pages.length, points: where.size }, () => this.d.notes.fileSlides(input, signal, repair));
+      this.check(id, signal);
+      try {
+        const next = fileUnder(detail, pages, readFiling(call.text, where.size), where);
+        const checked = DetailSchema.safeParse(next);
+        if (!checked.success) throw new Error("the notes break these rules: " + checked.error.issues.slice(0, 8).map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
+        out = next;
+      } catch (e) {
+        problem = (e as Error).message;
+        repair = { reply: call.text, problem };
+        console.warn(`[pipeline] ${id} slides attempt ${attempt} unusable: ${problem}`);
+      }
+    }
+    if (!out) throw new Error("the notes model did not place the points under the slides: " + problem);
+    this.check(id, signal);
+    store.saveRefiled(id, out);
+  }
+
   /* Joins the chunks of a live recording in the order they were recorded (seq) into the file "recording", then drops the
      chunks. A chunk that never arrived leaves a gap that ffmpeg fills with silence (toSpeechAudio fillGaps), so the
      rest keeps its time. Without the first chunk (it carries the header) nothing can be read. */
@@ -166,17 +213,22 @@ export class Pipeline implements Jobs {
     await files.removeChunks(id);
   }
 
+  private callNotes(l: LectureRow, input: NotesInput, attempt: number, slidePages: number, signal: AbortSignal, repair?: Repair) {
+    return this.callModel(l, "notes", { attempt, audioSeconds: input.duration, slidePages, zh: input.zh, transcriptLines: input.lines.length },
+      () => this.d.notes.write(input, signal, repair));
+  }
+
   /* One model call, logged in the cost table whether or not its reply turns out usable. */
-  private async callNotes(l: LectureRow, input: NotesInput, attempt: number, slidePages: number, signal: AbortSignal, repair?: { reply: string; problem: string }) {
+  private async callModel(l: LectureRow, stage: "notes" | "slides", meta: Record<string, unknown>, ask: () => Promise<NotesCall>) {
     const { notes, store } = this.d;
     const log = (usage: TokenUsage, at: Date, ok: boolean) => {
       const price = notes.usd(usage, at);
-      store.logCost({ lectureId: l.id, userId: l.user_id, stage: "notes", provider: notes.provider, model: notes.model, inputTokens: usage.inputTokens,
+      store.logCost({ lectureId: l.id, userId: l.user_id, stage, provider: notes.provider, model: notes.model, inputTokens: usage.inputTokens,
         cachedInputTokens: usage.cachedInputTokens, outputTokens: usage.outputTokens, reasoningTokens: usage.reasoningTokens, usd: price.usd,
-        meta: { ...price.meta, attempt, completed: ok, audioSeconds: input.duration, slidePages, zh: input.zh, transcriptLines: input.lines.length } });
+        meta: { ...price.meta, ...meta, completed: ok } });
     };
     try {
-      const call = await notes.write(input, signal, repair);
+      const call = await ask();
       log(call.usage, call.startedAt, true);
       return call;
     } catch (e) {

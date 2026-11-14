@@ -1,6 +1,8 @@
 /* The notes model behind one interface (NOTES: DeepSeek in phase 1), so it can be swapped or stubbed in tests. */
 import type { Line } from "../../../src/types";
 import type { ClassLanguage } from "../config";
+import type { SlidesInput } from "./slides";
+import type { PackInput } from "./pack";
 
 export interface NotesInput {
   courseCode: string;
@@ -18,10 +20,15 @@ export interface TokenUsage { inputTokens: number; cachedInputTokens: number; ou
 
 /* One call to the model. `repair` asks again after a reply that was not usable, showing the model its reply and what was wrong. */
 export interface NotesCall { text: string; usage: TokenUsage; startedAt: Date }
+export interface Repair { reply: string; problem: string }
 export interface NotesWriter {
   readonly provider: string;
   readonly model: string;
-  write(input: NotesInput, signal?: AbortSignal, repair?: { reply: string; problem: string }): Promise<NotesCall>;
+  write(input: NotesInput, signal?: AbortSignal, repair?: Repair): Promise<NotesCall>;
+  /* Phase 3: which slide each point of notes written before the slides belongs to (notes/slides.ts). */
+  fileSlides(input: SlidesInput, signal?: AbortSignal, repair?: Repair): Promise<NotesCall>;
+  /* Phase 3: a course's review pack (notes/pack.ts). */
+  reviewPack(input: PackInput, signal?: AbortSignal, repair?: Repair): Promise<NotesCall>;
   /* List-price estimate in US dollars, for the cost log. */
   usd(usage: TokenUsage, at: Date): { usd: number; meta: Record<string, unknown> };
 }
