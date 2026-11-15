@@ -98,7 +98,9 @@ export function share() { act(async () => { const l = C().l; if (!l.shareUrl) { 
     <div className="copy"><input id="shareUrl" readOnly defaultValue={l.shareUrl || ""} aria-label={t("Share link")} /><button className="btn primary sm" onClick={copyLink}>{t("Copy link")}</button></div>
     <div style={css("display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap")}><a className="btn plain" href={l.shareUrl || ""}>{t("Preview shared page")}</a><button className="btn plain" style={css("color:var(--red)")} onClick={stopSharing}>{t("Stop sharing")}</button></div></>); }); }
 function copyLink() { const i = document.getElementById("shareUrl") as HTMLInputElement; i.select(); const fb = () => { try { document.execCommand("copy"); } catch (_) {} }; try { navigator.clipboard.writeText(i.value).catch(fb); } catch (e) { fb(); } toast("Link copied"); }
-function stopSharing() { act(async () => { await api.revokeShareLink(C().l.id); C().l.shareUrl = null; delete S.shared[C().l.id]; closeModal(); toast("Sharing stopped. The old link no longer works."); }); }
+/* The shared page this visit loaded is kept under the id in the link (#/s/:id). A backend gives the link an id of its
+   own, so that is the one forgotten here; in sample mode it is the lecture's id. */
+function stopSharing() { act(async () => { const l = C().l, sid = (l.shareUrl || "").split("#/s/")[1]; await api.revokeShareLink(l.id); l.shareUrl = null; delete S.shared[sid ? decodeURIComponent(sid) : l.id]; closeModal(); toast("Sharing stopped. The old link no longer works."); }); }
 export function saveShared() { act(async () => { const l = await api.saveShared(R.b); S.homeLoaded = false; toast("Saved to your lectures"); location.hash = "#/lecture/" + encodeURIComponent(l.id); }); }
 
 /* ---------- editing notes ---------- */
