@@ -1,6 +1,7 @@
 /* Playback (INTEGRATION.md section 4): detail.audio.url is a signed link that works without the token, sends the file
-   whole or by byte range, and stops working when it expires, is changed, or the lecture is deleted. AUDIO_KEEP_DAYS:
-   keptUntil, then the recording is deleted and detail.audio says expired. */
+   whole or by byte range, and stops working when it expires, is changed, or the lecture is deleted. A plan that
+   keeps recordings N days (plans.json audioDays): keptUntil, then the recording is deleted and detail.audio says expired.
+   How the plan changes the date (a lapsed plan, recordings from before plans): billing.test.ts. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -76,8 +77,8 @@ test("a link that is changed, expired, for another lecture, or of a deleted lect
   assert.match(pl.audio.url!, /^https:\/\/sidenote\.example\.com\/api\/lectures\/[\w-]+\/audio\?exp=/);
 });
 
-test("AUDIO_KEEP_DAYS: keptUntil and audioDays; past the date the recording is deleted and detail.audio is expired", async t => {
-  const s = setup({ env: { AUDIO_KEEP_DAYS: "30" } }); t.after(() => s.close());
+test("a plan that keeps recordings 30 days: keptUntil and audioDays; past the date the recording is deleted and detail.audio is expired", async t => {
+  const s = setup({ plans: p => { p.plans[0].audioDays = 30; } }); t.after(() => s.close());
   const token = await s.signIn(), { id, audio } = await readyLecture(s, token);
   const today = localDate(new Date(), s.config.timezone);
   assert.equal(audio.keptUntil, addDays(today, 30));
@@ -89,18 +90,18 @@ test("AUDIO_KEEP_DAYS: keptUntil and audioDays; past the date the recording is d
   await s.call("POST", `/lectures/${failed}/finish`, { token, json: { duration: 600 } }); await s.pipeline.idle();
   assert.equal(s.store.lecture(failed)!.status, "failed");
 
-  assert.equal(await sweepAudio(s.config, s.store, s.files, new Date(Date.now() + 30 * 86400_000)), 0);   // the last day is still kept
-  assert.equal(await sweepAudio(s.config, s.store, s.files, new Date(Date.now() + 32 * 86400_000)), 1);
+  assert.equal(await sweepAudio(s, new Date(Date.now() + 30 * 86400_000)), 0);   // the last day is still kept
+  assert.equal(await sweepAudio(s, new Date(Date.now() + 32 * 86400_000)), 1);
   assert.equal(s.files.exists(id, "audio.m4a"), false); assert.equal(s.files.exists(id, "recording"), false);
   assert.equal(s.files.exists(failed, "recording"), true);
   const d = DetailSchema.parse((await s.call("GET", `/lectures/${id}`, { token })).body.detail);
   assert.deepEqual(d.audio, { expired: true });
   assert.equal(d.sections.length, 2);   // the notes stay
   assert.equal((await get(s, audio.url!)).status, 404);
-  /* Without AUDIO_KEEP_DAYS nothing is swept and neither field is sent. */
+  /* A plan that keeps recordings for good: nothing is swept and neither field is sent. */
   const k = setup(); t.after(() => k.close());
   const kt = await k.signIn(), kl = await readyLecture(k, kt);
-  assert.equal(await sweepAudio(k.config, k.store, k.files, new Date(Date.now() + 9999 * 86400_000)), 0);
+  assert.equal(await sweepAudio(k, new Date(Date.now() + 9999 * 86400_000)), 0);
   assert.deepEqual(Object.keys(kl.audio), ["url"]);
   assert.equal(HomeSchema.parse((await k.call("GET", "/home", { token: kt })).body).usage!.audioDays, undefined);
 });

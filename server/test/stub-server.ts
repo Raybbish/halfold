@@ -1,5 +1,6 @@
 /* A server for trying the front end without API keys: real ffmpeg and slide reading, stubbed speech-to-text and notes.
      npx tsx test/stub-server.ts [port] [fixtures-dir]     then open http://localhost:<port> and sign in with the code STUB
+   (SIGN_IN=invite here; no payments).
    Files in fixtures-dir are served at /__fixtures/<name>, so a browser test can fetch a recording to upload. */
 import fs from "node:fs";
 import os from "node:os";
@@ -14,11 +15,12 @@ import { Pipeline } from "../src/pipeline";
 import { createApp } from "../src/app";
 import { LiveTranscriber } from "../src/live/transcriber";
 import { ReviewPacks } from "../src/packs";
-import { StubCatchUp, StubNotes, StubStt } from "./helpers";
+import { Billing } from "../src/billing";
+import { StubCatchUp, StubMailer, StubNotes, StubStt } from "./helpers";
 
 const port = Number(process.argv[2] || 8790);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-stub-"));
-const config = loadConfig({ DATA_DIR: dir });
+const config = loadConfig({ DATA_DIR: dir, SIGN_IN: "invite" });
 const store = new Store(path.join(dir, "sidenote.db"));
 store.addInviteCode("STUB", "Tester");
 const files = new LocalFileStore(dir), media = new Ffmpeg(), stt = new StubStt(), notes = new StubNotes();
@@ -31,5 +33,6 @@ if (fixtures) app.get("/__fixtures/:name", c => {
 });
 const live = new LiveTranscriber({ config, store, files, media, stt });
 const packs = new ReviewPacks({ config, store, notes });
-app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp(), packs }));
+app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp(), packs,
+  billing: new Billing({ config, store, payments: null }), mailer: new StubMailer() }));
 serve({ fetch: app.fetch, port }, () => console.log(`stub server on http://localhost:${port} (data in ${dir}); invite code STUB`));

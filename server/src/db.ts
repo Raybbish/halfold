@@ -5,7 +5,22 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Alert, Detail, Line, LectureStatus, Source } from "../../src/types";
 import type { ClassLanguage } from "./config";
 
-export interface UserRow { id: string; invite_code: string; name: string; class_language: string; zh_default: number; zh_script: string | null }
+/* email: the address the student signs in with (phase 4), bound the first time with the invite code; null for an
+   invite code nobody has used with an email yet. stripe_customer: the student in Stripe, once they have paid. */
+export interface UserRow {
+  id: string; invite_code: string; name: string; class_language: string; zh_default: number; zh_script: string | null;
+  email: string | null; stripe_customer: string | null;
+}
+export interface LoginCodeRow { email: string; code_hash: string; expires_at: string; tries: number; created_at: string }
+/* A Stripe subscription (paid every month). One row per student: the latest one. plan is the plan id in plans.json. */
+export interface SubscriptionRow {
+  user_id: string; sub_id: string; customer: string | null; plan: string; status: string; period_end: string;
+  cancel_at_end: number; ended_at: string | null; checked_at: string;
+}
+/* Paid once for a number of days (and days given by hand: npm run plan -- give). */
+export interface PassRow { user_id: string; plan: string; until: string; updated_at: string }
+/* A Stripe Checkout the student was sent to. card: the plan card they chose. status open, complete, expired or failed. */
+export interface CheckoutRow { id: string; user_id: string; card: string; mode: string; status: string; created_at: string; done_at: string | null }
 export interface CourseRow { id: string; user_id: string; code: string; name: string; color: string | null; created_at: string }
 export interface LectureRow {
   id: string; user_id: string; course_id: string; title: string; language: ClassLanguage; source: Source; status: LectureStatus;
@@ -75,6 +90,21 @@ CREATE TABLE IF NOT EXISTS feedback (
 CREATE TABLE IF NOT EXISTS packs (
   course_id TEXT PRIMARY KEY REFERENCES courses(id) ON DELETE CASCADE, status TEXT NOT NULL, lecture_ids TEXT NOT NULL DEFAULT '',
   pack_json TEXT, error TEXT, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS login_codes (
+  email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at TEXT NOT NULL, tries INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS code_sends (email TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS code_sends_at ON code_sends(created_at);
+CREATE TABLE IF NOT EXISTS subscriptions (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, sub_id TEXT NOT NULL, customer TEXT, plan TEXT NOT NULL, status TEXT NOT NULL,
+  period_end TEXT NOT NULL, cancel_at_end INTEGER NOT NULL DEFAULT 0, ended_at TEXT, checked_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS passes (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, plan TEXT NOT NULL, until TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS checkouts (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, card TEXT NOT NULL, mode TEXT NOT NULL, status TEXT NOT NULL,
+  created_at TEXT NOT NULL, done_at TEXT);
+CREATE TABLE IF NOT EXISTS quota (
+  kind TEXT NOT NULL, ref TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (kind, ref));
+CREATE INDEX IF NOT EXISTS quota_user ON quota(user_id, kind, created_at);
 CREATE TABLE IF NOT EXISTS costs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, lecture_id TEXT NOT NULL, user_id TEXT, stage TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
   audio_seconds REAL, input_tokens INTEGER, cached_input_tokens INTEGER, output_tokens INTEGER, reasoning_tokens INTEGER, usd REAL,
@@ -93,7 +123,8 @@ const ADDED: [string, string, string][] = [
   ["lectures", "live_from", "REAL NOT NULL DEFAULT 0"], ["lectures", "live_audio", "REAL NOT NULL DEFAULT 0"],
   ["lectures", "live_limit", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "chunk_bytes", "INTEGER NOT NULL DEFAULT 0"],
   ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"],
-  ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"]
+  ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
+  ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"]
 ];
 
 export interface LiveRound { from: number; next: number; audioEnd: number; lines: Line[]; alerts: Alert[]; held: unknown[] }
@@ -107,6 +138,7 @@ export class Store {
       if (!have) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
     }
     this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS lectures_share ON lectures(share_id)");
+    this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email)");
   }
   close() { this.db.close(); }
   private tx<T>(fn: () => T): T {
@@ -122,6 +154,15 @@ export class Store {
     return (this.db.prepare("SELECT value FROM meta WHERE key = 'link_secret'").get() as { value: string }).value;
   }
 
+  /* When plans began on this server (the first start of phase 4). Recordings made before it are kept as if made that day,
+     so turning plans on does not delete old recordings at once. */
+  private since: string | null = null;
+  plansSince() {
+    if (this.since) return this.since;
+    this.db.prepare("INSERT OR IGNORE INTO meta (key, value) VALUES ('plans_since', ?)").run(now());
+    return this.since = (this.db.prepare("SELECT value FROM meta WHERE key = 'plans_since'").get() as { value: string }).value;
+  }
+
   /* ---- users and sessions ---- */
   addInviteCode(code: string, name = ""): UserRow {
     const c = normCode(code); if (!c) throw new Error("empty invite code");
@@ -132,9 +173,110 @@ export class Store {
   listUsers() { return this.db.prepare("SELECT * FROM users ORDER BY created_at").all() as unknown as UserRow[]; }
   user(id: string) { return this.db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined; }
   setUserName(id: string, name: string) { this.db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, id); }
-  createSession(userId: string) { const token = randomBytes(32).toString("base64url"); this.db.prepare("INSERT INTO sessions (token_hash, user_id, created_at) VALUES (?, ?, ?)").run(hashToken(token), userId, now()); return token; }
-  userByToken(token: string) {
-    return this.db.prepare("SELECT users.* FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ?").get(hashToken(token)) as UserRow | undefined;
+  createSession(userId: string) {
+    const token = randomBytes(32).toString("base64url"), at = now();
+    this.db.prepare("INSERT INTO sessions (token_hash, user_id, created_at, last_used) VALUES (?, ?, ?, ?)").run(hashToken(token), userId, at, at);
+    return token;
+  }
+  /* The student a token belongs to. A sign-in not used for maxIdleDays has ended (and is removed); one in use is marked
+     as used at most once an hour, so a request does not always write. */
+  userByToken(token: string, maxIdleDays = Infinity, at = new Date()) {
+    const h = hashToken(token);
+    const row = this.db.prepare("SELECT users.*, COALESCE(sessions.last_used, sessions.created_at) AS session_used FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ?")
+      .get(h) as (UserRow & { session_used: string }) | undefined;
+    if (!row) return undefined;
+    const idle = at.getTime() - Date.parse(row.session_used);
+    if (idle > maxIdleDays * 86400_000) { this.db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(h); return undefined; }
+    if (idle > 3600_000) this.db.prepare("UPDATE sessions SET last_used = ? WHERE token_hash = ?").run(at.toISOString(), h);
+    const { session_used: _s, ...user } = row;
+    return user as UserRow;
+  }
+  endSession(token: string) { this.db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token)); }
+  userByEmail(email: string) { return this.db.prepare("SELECT * FROM users WHERE email = ?").get(email) as UserRow | undefined; }
+  /* Binds an address to an invite code's account; false when the account already has one or the address is taken. */
+  bindEmail(userId: string, email: string) {
+    try { return Number(this.db.prepare("UPDATE users SET email = ? WHERE id = ? AND email IS NULL").run(email, userId).changes) > 0; }
+    catch (e) { if (/UNIQUE/i.test((e as Error).message)) return false; throw e; }
+  }
+  setSettings(id: string, s: { name: string; classLanguage: string; zhDefault: boolean; zhScript?: string }) {
+    this.db.prepare("UPDATE users SET name = ?, class_language = ?, zh_default = ?, zh_script = COALESCE(?, zh_script) WHERE id = ?")
+      .run(s.name, s.classLanguage, s.zhDefault ? 1 : 0, s.zhScript ?? null, id);
+  }
+
+  /* ---- codes sent by email to sign in ---- */
+  /* One code per address: a new one replaces the last. */
+  saveLoginCode(email: string, codeHash: string, expiresAt: string) {
+    this.tx(() => {
+      this.db.prepare(`INSERT INTO login_codes (email, code_hash, expires_at, tries, created_at) VALUES (?, ?, ?, 0, ?)
+        ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, tries = 0, created_at = excluded.created_at`).run(email, codeHash, expiresAt, now());
+      this.db.prepare("INSERT INTO code_sends (email, created_at) VALUES (?, ?)").run(email, now());
+      this.db.prepare("DELETE FROM code_sends WHERE created_at < ?").run(new Date(Date.now() - 86400_000).toISOString());
+    });
+  }
+  loginCode(email: string) { return this.db.prepare("SELECT * FROM login_codes WHERE email = ?").get(email) as LoginCodeRow | undefined; }
+  /* A wrong try; returns how many there have been. */
+  wrongCode(email: string) {
+    this.db.prepare("UPDATE login_codes SET tries = tries + 1 WHERE email = ?").run(email);
+    return this.loginCode(email)?.tries ?? 0;
+  }
+  dropLoginCode(email: string) { this.db.prepare("DELETE FROM login_codes WHERE email = ?").run(email); }
+  /* Codes sent since a time: to one address, or (email null) to all. */
+  codesSent(email: string | null, sinceIso: string) {
+    const r = email === null ? this.db.prepare("SELECT COUNT(*) AS n FROM code_sends WHERE created_at >= ?").get(sinceIso)
+      : this.db.prepare("SELECT COUNT(*) AS n FROM code_sends WHERE email = ? AND created_at >= ?").get(email, sinceIso);
+    return Number((r as { n: number }).n);
+  }
+  lastCodeSent(email: string) { return (this.db.prepare("SELECT MAX(created_at) AS at FROM code_sends WHERE email = ?").get(email) as { at: string | null }).at; }
+
+  /* ---- plans and payment (phase 4) ---- */
+  subscription(userId: string) { return this.db.prepare("SELECT * FROM subscriptions WHERE user_id = ?").get(userId) as SubscriptionRow | undefined; }
+  userBySubscription(subId: string) { return this.db.prepare("SELECT * FROM subscriptions WHERE sub_id = ?").get(subId) as SubscriptionRow | undefined; }
+  userByCustomer(customer: string) { return this.db.prepare("SELECT * FROM users WHERE stripe_customer = ?").get(customer) as UserRow | undefined; }
+  saveSubscription(s: SubscriptionRow) {
+    this.db.prepare(`INSERT INTO subscriptions (user_id, sub_id, customer, plan, status, period_end, cancel_at_end, ended_at, checked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET sub_id = excluded.sub_id, customer = excluded.customer, plan = excluded.plan, status = excluded.status,
+        period_end = excluded.period_end, cancel_at_end = excluded.cancel_at_end, ended_at = excluded.ended_at, checked_at = excluded.checked_at`)
+      .run(s.user_id, s.sub_id, s.customer, s.plan, s.status, s.period_end, s.cancel_at_end, s.ended_at, s.checked_at);
+    if (s.customer) this.db.prepare("UPDATE users SET stripe_customer = ? WHERE id = ?").run(s.customer, s.user_id);
+  }
+  subscriptionChecked(userId: string) { this.db.prepare("UPDATE subscriptions SET checked_at = ? WHERE user_id = ?").run(now(), userId); }
+  pass(userId: string) { return this.db.prepare("SELECT * FROM passes WHERE user_id = ?").get(userId) as PassRow | undefined; }
+  /* Adds days of a plan: after the current pass of the same plan if it still runs, otherwise from `at`. */
+  extendPass(userId: string, plan: string, days: number, at = new Date()) {
+    const p = this.pass(userId), from = p && p.plan === plan && Date.parse(p.until) > at.getTime() ? Date.parse(p.until) : at.getTime();
+    const until = new Date(from + days * 86400_000).toISOString();
+    this.db.prepare(`INSERT INTO passes (user_id, plan, until, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET plan = excluded.plan, until = excluded.until, updated_at = excluded.updated_at`).run(userId, plan, until, now());
+    return until;
+  }
+  addCheckout(c: Pick<CheckoutRow, "id" | "user_id" | "card" | "mode">) {
+    this.db.prepare("INSERT OR IGNORE INTO checkouts (id, user_id, card, mode, status, created_at) VALUES (?, ?, ?, ?, 'open', ?)").run(c.id, c.user_id, c.card, c.mode, now());
+  }
+  checkout(id: string) { return this.db.prepare("SELECT * FROM checkouts WHERE id = ?").get(id) as CheckoutRow | undefined; }
+  openCheckouts(userId: string, sinceIso: string) {
+    return this.db.prepare("SELECT * FROM checkouts WHERE user_id = ? AND status = 'open' AND created_at >= ? ORDER BY created_at").all(userId, sinceIso) as unknown as CheckoutRow[];
+  }
+  /* open -> another status, once: false when it had already left "open" (the same news came twice). `then` runs in the
+     same transaction, only when the status changed here. */
+  closeCheckout(id: string, status: "complete" | "expired" | "failed", then?: () => void) {
+    return this.tx(() => {
+      const changed = Number(this.db.prepare("UPDATE checkouts SET status = ?, done_at = ? WHERE id = ? AND status = 'open'").run(status, now(), id).changes) > 0;
+      if (changed && then) then();
+      return changed;
+    });
+  }
+  /* Lectures that count against the month's limit, started since a time: those that got (or are getting) notes, deleted
+     or not, and those still being recorded or uploaded. Saved copies of shared notes do not count. */
+  lecturesUsed(userId: string, sinceIso: string) {
+    return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM (
+      SELECT ref FROM quota WHERE kind = 'lecture' AND user_id = ? AND created_at >= ?
+      UNION SELECT id FROM lectures WHERE user_id = ? AND status = 'recording' AND copied_from IS NULL AND created_at >= ?)`).get(userId, sinceIso, userId, sinceIso) as { n: number }).n);
+  }
+  /* Review packs made since a time, and those being made now. Empty packs (no lecture with notes yet) do not count. */
+  packsUsed(userId: string, sinceIso: string) {
+    const made = (this.db.prepare("SELECT COUNT(*) AS n FROM quota WHERE kind = 'pack' AND user_id = ? AND created_at >= ?").get(userId, sinceIso) as { n: number }).n;
+    const making = (this.db.prepare("SELECT COUNT(*) AS n FROM packs JOIN courses ON courses.id = packs.course_id WHERE courses.user_id = ? AND packs.status = 'processing'").get(userId) as { n: number }).n;
+    return Number(made) + Number(making);
   }
 
   /* ---- courses ---- */
@@ -175,6 +317,8 @@ export class Store {
     const marks = from.map(() => "?").join(",");
     const r = this.db.prepare(`UPDATE lectures SET status = 'processing', error = NULL, finished_at = COALESCE(finished_at, ?), client_duration = COALESCE(?, client_duration) WHERE id = ? AND status IN (${marks})`)
       .run(now(), clientDuration ?? null, id, ...from);
+    /* The lecture now counts against the month's limit for good (plans.json lecturesPerMonth), even if it is deleted later. */
+    if (Number(r.changes) > 0) this.db.prepare("INSERT OR IGNORE INTO quota (kind, ref, user_id, created_at) SELECT 'lecture', id, user_id, created_at FROM lectures WHERE id = ? AND copied_from IS NULL").run(id);
     return Number(r.changes) > 0;
   }
   renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ? WHERE id = ?").run(title, id); }
@@ -353,8 +497,11 @@ export class Store {
   }
   /* lectureIds: the lectures the pack was made from, to tell later whether it still covers the course. */
   savePack(courseId: string, lectureIds: string[], pack: unknown) {
+    const at = now();
     this.db.prepare("UPDATE packs SET status = 'ready', lecture_ids = ?, pack_json = ?, error = NULL, updated_at = ? WHERE course_id = ?")
-      .run(lectureIds.join(" "), JSON.stringify(pack), now(), courseId);
+      .run(lectureIds.join(" "), JSON.stringify(pack), at, courseId);
+    /* A pack made from notes counts against the month's limit (plans.json packsPerMonth); an empty one does not. */
+    if (lectureIds.length) this.db.prepare("INSERT OR IGNORE INTO quota (kind, ref, user_id, created_at) SELECT 'pack', ?, user_id, ? FROM courses WHERE id = ?").run(`${courseId}@${at}`, at, courseId);
   }
   packFailed(courseId: string, error: string) { this.db.prepare("UPDATE packs SET status = 'failed', error = ?, updated_at = ? WHERE course_id = ?").run(error.slice(0, 2000), now(), courseId); }
   dropPack(courseId: string) { this.db.prepare("DELETE FROM packs WHERE course_id = ?").run(courseId); }

@@ -3,6 +3,7 @@
 - [第一阶段](#第一阶段上传录音到笔记)（2026-11-13）：上传录音（可带 PDF 课件）到笔记显示在课堂页。
 - [第二阶段](#第二阶段现场录音catch-me-up回放)（2026-11-14）：在浏览器里现场录音（实时逐字稿、考试提示、每日分钟上限）、Catch me up、录音回放和保留期限。
 - [第三阶段](#第三阶段学生用已有的课堂)（2026-11-14）：改标题、换课程、编辑笔记、学习进度、反馈、分享和存副本、改删课程、复习包、搜索、课后补传课件。
+- [第四阶段](#第四阶段邮箱登录方案和付款保存设置)（2026-11-15）：邮箱验证码登录（第一次加邀请码）、方案和额度、Stripe 付款（按月订阅和学期通行证）、保存设置。
 
 第一阶段的接口表里，第二阶段改过的行标了“第二阶段”。第三阶段改了 `GET /lectures/:id`（补传课件处理中也给 `detail`，并带 `progress`）和 `POST /lectures/:id/slides`（笔记写好后也收），见第三阶段。
 
@@ -390,3 +391,117 @@
 | 给第一堂课补传 3 页课件 | 12 个要点里 11 个放到了对的页，期中考试的通知不属于任何一页。7 个标成 `off`：两个课堂上举的例子、考试提醒、作业和期中的通知，以及两句课件上只有结论、老师补了原因的（沉没成本不影响决策、PPF 为什么外凸）；课件上本来就有的 5 个定义没有标 | 约 1 分钟 | 0.0066 美元（输入 0.7k，输出 3.1k，其中思考 2.8k） |
 
 高峰时段价格翻倍。一堂 90 分钟的课要点更多，输入会大几倍，但输出（思考和编号）增长不多。另外用 curl 在真的 HTTP 上试了搜索、加删要点（`DELETE` 带 JSON body）、分享和停止分享。
+
+# 第四阶段：邮箱登录、方案和付款、保存设置
+
+日期：2026-11-15。范围：`GET /plans`、`POST /checkout`、`PUT /settings`，以及代替邀请码的正式登录。之前这三个接口回 404，登录只有邀请码。契约是前端：`src/api/api.ts`、`src/types.ts`（`Plan`、`Plans`、`Settings`、`SettingsUpdate`、`SessionReply`、`User`）、INTEGRATION.md 2、3.1、3.4、4.4。前端对接说明在 API-CHANGES.md 第 8 节。
+
+## 用户定的
+
+| 问题 | 决定 |
+|---|---|
+| 登录 | 邮箱验证码；新邮箱第一次要邀请码 |
+| 付款 | Stripe，港币；按月订阅（自动续费，只能用卡、Apple Pay、Google Pay）和一次付清的学期通行证（还能用支付宝、微信支付）都要 |
+| 方案 | Free：每天现场录 90 分钟、每月 4 堂课、每月 1 个复习包、录音保留 30 天。Plus：HK$98 / 月，每天 240 分钟、每月 40 堂、复习包不限、录音一直保留 |
+| 到期 | 降回 Free，内容全留 |
+
+问的时候给的成本：90 分钟的课上传约 HK$2.7、现场录约 HK$5.5（转写两次）、复习包约 HK$0.1；Stripe 本地卡约 3.4% + HK$2.35 一笔，支付宝和微信支付约 2.2% + HK$2。Stripe 官方的支付方式表里，香港商户有卡、Apple Pay、Google Pay、支付宝、微信支付；后两个不能用于订阅；没有 FPS 和 PayMe（要另接 Airwallex 或 PayMe for Business，没做）。
+
+**我定的**：学期通行证 HK$348、120 天（约 3.5 个月的钱买 4 个月；用户只定了月费）。数字都在 `plans.json`，改了重启就生效。
+
+## 做到什么程度
+
+**做到**
+
+- `POST /session/code`、`POST /session`（邮箱 + 码，第一次加邀请码），`SIGN_IN=invite` 时保留原来的邀请码登录。前端登录页加了邮箱模式（这一阶段唯一的前端改动，API-CHANGES 第 8 节）。
+- 发信：Resend（`RESEND_API_KEY`）；没设时把码打印在服务器的控制台，自己电脑上能试。
+- `GET /plans`、`POST /checkout`、`POST /stripe/webhook`；Stripe 账单页面（取消、换卡）。
+- 每个方案的限制：每天现场录音分钟、每月课堂数、每月复习包数、录音保留天数。
+- `PUT /settings`。
+- 登录 `SESSION_DAYS`（默认 90）天不用就失效。
+- `npm run plan -- list | show | give`：看方案、手动给某个学生几天 Plus（测试的人，或用 FPS、PayMe 转账付款的人）。
+
+**不做**
+
+- FPS、PayMe（Stripe 不支持）。
+- Google 登录、学校单点登录。
+- 退款、发票、收据页面：都在 Stripe 后台和 Stripe 发的邮件里。
+- 方案的中文文字：界面语言只在浏览器里（INTEGRATION 3.4）。
+- 服务器端的“退出登录”：前端的 Sign out 只清本机，没调后端；token 90 天不用自动失效。
+
+**算失败的情况**：有人不用收邮件就能登进别人的账号；老用户登录后看不到原来的课；付了钱没变 Plus，或没付钱变了 Plus；同一笔付款算两次；取消或续费失败后还是 Plus；上线那一刻删掉了旧录音；收到真钱（这一阶段只能用测试 key）。
+
+## 登录
+
+**考虑过的做法**：
+
+- 邮箱链接（magic link）还是验证码：链接要在同一个浏览器里打开，学生常在手机上收邮件、在电脑上用 Sidenote，码可以抄过去。选码。
+- 新邮箱什么时候问邀请码：发码之前问（`POST /session/code` 回“这是新邮箱”），会让别人用这个接口试出谁有账号。改成码对了之后才说是新邮箱（403），只有收得到这封邮件的人知道。码在这时不作废，带上邀请码再发一次。
+- 邀请码和账号：一个邀请码一直是一个账号（第一阶段的设计），第一次用邮箱登录时把邮箱绑到这个账号上。新学生用新的码（`npm run invite -- new`），老学生用原来的码，课都在，不用迁移数据。绑过邮箱的码不能再绑别的邮箱。
+
+**安全上的取舍**
+
+- 码 6 位数字，只存 HMAC（密钥是回放链接用的那个），10 分钟有效，错 5 次作废；同一邮箱一分钟一个、一小时 5 个，所有邮箱一小时合计 `LOGIN_CODES_PER_HOUR`（默认 300，保护发信额度和不被拿来骚扰别人）。最坏情况一小时能猜 25 次，命中概率 0.0025%。
+- 新码替换旧码。
+- 绑邮箱用 `UPDATE ... WHERE email IS NULL`，两个人同时用同一个邀请码，只有一个成功。
+- 没设 `RESEND_API_KEY` 时码打印在控制台：能读服务器日志的人就能登录任何人。启动时会警告，只适合在自己电脑上试。
+- 邀请码仍然是凭证：没绑过邮箱的邀请码，谁拿到谁就能把自己的邮箱绑上去。和第一到三阶段一样，邀请码要私下给。
+
+**会话**：`sessions.last_used` 一小时最多写一次；`SESSION_DAYS` 天没用的 token 在下一次请求时删掉，回 401，前端去登录页，登录后回到原来的页面。第一到三阶段的 token 从创建时算。
+
+## 方案和额度
+
+`plans.json` 里第一个方案是免费的，其余每个可以有月费（`monthly`，一张卡片，订阅）和/或通行证（`pass`，另一张卡片，一次付清）。两张卡片给的是同一个方案的权限。
+
+学生现在是哪个方案（`billing.ts` 的 `entitlement`）：订阅是 `active` 或 `trialing` → 订阅的方案；否则通行证没到期 → 通行证的方案；否则免费。`past_due`（续费没扣成功，Stripe 还在重试）算免费，因为用户选了到期即降级、不要宽限期；Stripe 重试成功后自动回到 Plus。
+
+**每月**按学生的时区（`APP_TIMEZONE`）的自然月算，1 号重置。比按 30 天滚动好理解，提示里能写“wait until 1 Dec”。
+
+**每月课堂数**：一堂课第一次开始写笔记时记一笔（`quota` 表，删课不删这一笔）。检查时再加上还在录、还在上传的课。这样：
+
+- 写好笔记再删不能刷额度（钱已经花了）；
+- 上传失败或取消删掉的课不算；
+- 同时开好几堂课也不会超；
+- `saveShared` 的副本不算（不花钱）。
+
+**每月复习包**：做好一个有内容的复习包记一笔；检查时再加上正在做的。空复习包不算。失败的不算（虽然花了一点钱，但学生没拿到东西）。
+
+**每天现场录音**：第二阶段的规则不变，上限换成方案的 `dailyLiveMinutes`。
+
+**录音保留**：Free 30 天，Plus 一直保留。用户定了“到期降回 Free，内容全留”，所以付费期间录的课在付费结束后再留 30 天。实现：保留到 `max(上课那天, 方案开启那天, 付费结束那天) + 30 天`。“方案开启那天”是这台服务器第一次以第四阶段启动的时间（`meta.plans_since`），所以上线时不会一下子删掉旧录音，都从上线那天起算 30 天。`AUDIO_KEEP_DAYS` 不再用（启动时提示）。
+
+## 付款（Stripe）
+
+不用 Stripe 的 SDK，直接调 HTTP 接口（五个：建、查、关 Checkout，查订阅，建账单页面），少一个依赖，测试也简单。价格用 `price_data` 现场给，不用在 Stripe 后台建商品和价格；以后改价只改 `plans.json`，已订阅的人继续按原价续费。
+
+支付方式不在请求里写死（`payment_method_types`），用 Stripe 后台开了的那些；Stripe 在订阅里只给能续费的。所以要在后台打开支付宝和微信支付，学期通行证才有这两个选项。
+
+**Stripe 告诉我们的事**：
+
+- webhook `POST /api/stripe/webhook`，按 Stripe 的规则验签名（HMAC-SHA256，5 分钟内）。用到 `checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`customer.subscription.created`、`customer.subscription.updated`、`customer.subscription.deleted`。
+- 订阅的事件来了不信事件里的那份，再去 Stripe 查一次最新的（事件可能乱序）。
+- 学生开一个新的 Checkout 之前，先在 Stripe 关掉他还开着的旧 Checkout（另一个标签页、点了两次），只有最新的选择能付款，不会有两个按月订阅同时续费。关不掉说明已经付了：先把它算上，再按规则判断这次选择。万一还是有了两个付费订阅，日志里会写明，要在 Stripe 后台取消一个并退款。
+- 每个 Checkout 只处理一次：`checkouts` 表的状态从 `open` 改成别的，和延长通行证在同一个事务里。同一个事件来两次、webhook 和“回来时去问”同时到，都只算一次。
+- **不只靠 webhook**：学生付完回到设置页，`GET /home`、`GET /plans` 会去问 Stripe 这个学生最近一天还开着的 Checkout；订阅的付费期过了还没收到续费的消息，也去问一次（10 分钟最多一次）。所以在自己电脑上没配 webhook 也能完成第一次付款；续费和取消还是要 webhook。Stripe 连不上时照数据库里的显示，不报错。
+- Stripe 的 API 版本 2025-03-31 把订阅的 `current_period_end` 挪到了 `items` 里，两处都读。“用到期末再取消”有的版本是 `cancel_at_period_end`，有的是 `cancel_at`，两个都认。
+
+**安全**：`sk_live_` 和 `rk_live_` 开头的 key 要设 `STRIPE_ALLOW_LIVE=on` 才用，否则付款关掉并在启动时说明。测试里 Stripe 全部用假的（`StubPayments`），真实请求的格式用本地假服务器检查（`test/payments.test.ts`）。
+
+**选卡片时**（`POST /checkout`）：选现在的方案 409；订阅中选 Free → 账单页面（在那里取消，用到期末）；续费失败（`past_due`、`unpaid`）选付费方案 → 账单页面换卡；通行证期间选 Free 或月费 409（通行证不续费，到期自动回 Free；月费等通行证用完再买，免得重复付钱）；订阅中选通行证 409。
+
+## 数据库
+
+新表：`login_codes`、`code_sends`（发码的次数）、`subscriptions`（每个学生最新的一个订阅）、`passes`、`checkouts`、`quota`（算进每月额度的课堂和复习包）。新列：`users.email`（唯一）、`users.stripe_customer`、`sessions.last_used`。都在原来的数据库上直接加。
+
+## 测试
+
+`npm test` 122 项（新 24 项）：
+
+- `login.test.ts`：发码和邮件内容、只存哈希；新邮箱要邀请码、码不作废；老用户绑邮箱后课都在；错码、过期、错 5 次；发码的各种限制；发信失败；`EMAIL_DOMAINS`；`SIGN_IN=invite`；会话过期。
+- `billing.test.ts`（用提交的 `plans.json`）：方案卡片的文字；订阅从下单到付款（回来时去问、webhook）、取消、结束、再订用同一个 Stripe 客户；通行证（webhook 来两次只算一次）；延迟到账和失败；新 Checkout 关掉旧的；`POST /checkout` 的每种去向；webhook 验签名、没有记录的 Checkout；漏掉 webhook 时去问 Stripe、Stripe 连不上；三种额度；录音保留的三种起算日。
+- `payments.test.ts`：Stripe 和 Resend 的真实请求格式（本地假服务器）、签名、拒绝 live key、`plans.json` 的检查。
+- `settings.test.ts`：`PUT /settings`。
+- 第一到三阶段的测试用不限额的免费方案跑（`openPlans`），行为和以前一样。
+
+前端：`tests/signin.js` 13 项（邮箱登录页），`npm test` 在构建上跑。
+

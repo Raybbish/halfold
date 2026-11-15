@@ -2,6 +2,7 @@
 import type { Course, Home, Lecture } from "../../src/types";
 import type { Config } from "./config";
 import type { CourseRow, LectureRow, Store, UserRow } from "./db";
+import type { Billing } from "./billing";
 import { displayDate, localDate } from "./time";
 
 export function courseView(c: CourseRow): Course {
@@ -27,16 +28,16 @@ export function liveMinutesToday(store: Store, userId: string, timeZone: string,
   return Math.round(liveSecondsToday(store, userId, timeZone, now) / 60);
 }
 
-export function homeView(store: Store, config: Config, user: UserRow, now = new Date()): Home {
-  const today = localDate(now, config.timezone);
+export function homeView(d: { store: Store; config: Config; billing: Billing }, user: UserRow, now = new Date()): Home {
+  const { store, config } = d, today = localDate(now, config.timezone), tier = d.billing.entitlement(user.id, now).tier;
   return {
     user: { name: user.name },
     courses: store.courses(user.id).map(courseView),
     lectures: store.lectures(user.id).map(l => lectureView(l, config.timezone, now)),
     upcoming: store.upcoming(user.id, today).map(u => ({ date: u.date, kind: u.kind, text: u.text, course: u.course_code, lecture: u.lecture_id, t: u.t })),
     settings: { classLanguage: user.class_language, zhDefault: !!user.zh_default, ...(user.zh_script === "hant" || user.zh_script === "hans" ? { zhScript: user.zh_script } : {}) },
-    usage: { minutesToday: liveMinutesToday(store, user.id, config.timezone, now), minutesLimit: config.dailyLiveMinutes,
-      ...(config.audioKeepDays > 0 ? { audioDays: config.audioKeepDays } : {}) },
+    usage: { minutesToday: liveMinutesToday(store, user.id, config.timezone, now), minutesLimit: tier.dailyLiveMinutes,
+      ...(tier.audioDays !== null ? { audioDays: tier.audioDays } : {}) },
     today
   };
 }
