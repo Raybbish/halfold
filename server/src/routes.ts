@@ -1,5 +1,6 @@
 /* The endpoints of phases 1 and 2 (reference/INTEGRATION.md section 2, API-CHANGES.md), and slides sent after the
-   notes (phase 3). The rest of phase 3 is in library.ts. Paths are under /api. */
+   notes (phase 3). The rest of phase 3 is in library.ts; signing in in login.ts; settings, plans and payment (phase 4)
+   in account.ts. Paths are under /api. */
 import fsp from "node:fs/promises";
 import { Hono } from "hono";
 import type { Config } from "./config";
@@ -17,10 +18,15 @@ import { heldWords, type LiveJobs } from "./live/transcriber";
 import { joinTokens } from "./stt/lines";
 import type { CatchUpWriter } from "./notes/catchup";
 import type { ReviewPacks } from "./packs";
+import type { Billing } from "./billing";
+import type { Mailer } from "./mail";
 import type { CatchUpReply, ChunkReply, Source, StatusReply } from "../../src/types";
 
 export interface Jobs { enqueue(lectureId: string): void; cancel(lectureId: string): void }
-export interface Deps { config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter; packs: ReviewPacks }
+export interface Deps {
+  config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter; packs: ReviewPacks;
+  billing: Billing; mailer: Mailer;
+}
 export type AppEnv = { Variables: { user: UserRow } };
 
 const SOURCES: Source[] = ["record", "tab", "upload", "link"];
@@ -42,7 +48,7 @@ export function newCourse(store: Store, userId: string, code: string, name: stri
   return store.createCourse(userId, id, code, name, COLORS[store.courses(userId).length % COLORS.length]);
 }
 
-/* The live limit (DAILY_LIVE_MINUTES). The front end only checks it before a recording starts, and has no way to show a
+/* The live limit (dailyLiveMinutes of the student's plan, plans.json). The front end only checks it before a recording starts, and has no way to show a
    message from a chunk reply's error: it would retry the chunk forever. So the student is told through the live alerts
    (shown on the recording screen), and once the minutes are used up the next chunks get 410, which makes the front end
    stop sending them; ending the recording then writes the notes from what was saved. */
@@ -59,17 +65,9 @@ async function waitAtMost(p: Promise<unknown>, ms: number) {
   clearTimeout(timer);
 }
 
-/* Signing in is public. A wrong code is an ordinary error the sign-in page shows as it is (http.ts: anon requests). */
+/* Public endpoints other than signing in (login.ts) and the shared page (library.ts). */
 export function publicRoutes(deps: Deps) {
-  const { store } = deps;
   const r = new Hono<AppEnv>();
-  r.post("/session", async c => {
-    const b = await jsonBody(c), code = str(b.inviteCode), name = str(b.name).slice(0, 60);
-    if (!code) fail(400, "Enter your invite code.");
-    const user = store.userByCode(code) ?? fail(401, "That invite code is not valid.");
-    if (name && name !== user.name) store.setUserName(user.id, name);
-    return c.json({ token: store.createSession(user.id), user: { name: name || user.name } });
-  });
   /* Playback. The <audio> element cannot send the token: the link carries a signature instead (audio.ts). */
   r.on(["GET", "HEAD"], "/lectures/:id/audio", async c => {
     const id = c.req.param("id");
@@ -86,11 +84,14 @@ export function publicRoutes(deps: Deps) {
 }
 
 export function privateRoutes(deps: Deps) {
-  const { config, store, files, jobs, media, live, catchUp } = deps;
+  const { config, store, files, jobs, media, live, catchUp, billing } = deps;
   const r = new Hono<AppEnv>();
   const mine = (userId: string, id: string) => store.userLecture(userId, id) ?? fail(404, "This lecture does not exist.");
 
-  r.get("/home", c => c.json(homeView(store, config, c.get("user"))));
+  r.get("/home", async c => {
+    await billing.refresh(c.get("user").id);
+    return c.json(homeView(deps, c.get("user")));
+  });
 
   r.post("/courses", async c => {
     const { code, name } = courseFields(await jsonBody(c));
@@ -103,14 +104,16 @@ export function privateRoutes(deps: Deps) {
     if (!store.course(user.id, courseId)) fail(404, "This course does not exist.");
     if (!CLASS_LANGUAGES.includes(language)) fail(400, "Choose the language of the class.");
     if (!SOURCES.includes(source)) fail(400, "Choose how to add the lecture.");
+    if (source === "link") fail(501, "Adding a link is not available yet. Download the recording and upload the file.");
+    /* The plan's lectures a month (plans.json), recorded or uploaded. */
+    billing.checkLecture(user.id);
     if (source === "record" || source === "tab") {
       /* The daily limit is on live recording only (uploads are not counted), checked here and not only in the browser,
          and again on every chunk (a recording in progress counts too). */
-      if (liveMinutesToday(store, user.id, config.timezone) >= config.dailyLiveMinutes) fail(429, "You have used today's recording minutes. Upload a recording instead, or come back tomorrow.");
+      if (liveMinutesToday(store, user.id, config.timezone) >= billing.dailyLiveMinutes(user.id)) fail(429, "You have used today's recording minutes. Upload a recording instead, or come back tomorrow.");
       /* LIVE_RECORDING=off: refuse before the browser starts a recording that could not be saved. */
       if (!config.liveRecording) fail(501, "Recording in Sidenote is not available right now. Record the lecture with another app and upload the file.");
     }
-    if (source === "link") fail(501, "Adding a link is not available yet. Download the recording and upload the file.");
     const title = str(b.title).slice(0, 200) || "Untitled lecture";
     const l = store.createLecture({ id: "lec-" + randomId(12), user_id: user.id, course_id: courseId, title, language, source });
     return c.json(lectureView(l, config.timezone));
@@ -198,7 +201,7 @@ export function privateRoutes(deps: Deps) {
     await waitAtMost(live.kick(id), config.live.replyWaitMs);
     const l = store.lecture(id);
     if (!l) fail(404, "This lecture does not exist.");
-    const used = liveSecondsToday(store, user.id, config.timezone), limit = config.dailyLiveMinutes * 60;
+    const used = liveSecondsToday(store, user.id, config.timezone), limit = billing.dailyLiveMinutes(user.id) * 60;
     if (l!.live_limit < 2 && used >= limit) { store.setLiveLimit(id, 2); store.addLiveAlert(id, { t: Math.floor(l!.live_audio), kind: "Recording", text: LIMIT_REACHED }); }
     else if (l!.live_limit < 1 && used >= limit - WARN_SECONDS) { store.setLiveLimit(id, 1); store.addLiveAlert(id, { t: Math.floor(l!.live_audio), kind: "Recording", text: limitSoon(limit - used) }); }
     return c.json<ChunkReply>(store.takeLive(id, seq!));
@@ -266,7 +269,7 @@ export function privateRoutes(deps: Deps) {
     const l = mine(c.get("user").id, c.req.param("id"));
     const detail = store.detail(l.id);
     if (detail) {
-      const audio = audioView(config, store, files, l), progress = store.progress(l.id);
+      const audio = audioView(deps, l), progress = store.progress(l.id);
       if (audio) detail.audio = audio;
       if (progress) detail.progress = { known: progress.known };
     }

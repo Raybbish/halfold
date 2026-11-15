@@ -1,11 +1,14 @@
 /* Settings, read once from the environment (server/.env, see .env.example). Every value has a default except the API keys. */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadPlans, type PlanBook } from "./plans";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const SERVER_DIR = path.resolve(here, "..");
 
 export type SttProviderName = "elevenlabs" | "deepgram";
+/* email: a code sent to the student's address, and an invite code the first time (phase 4). invite: the invite code alone (phases 1 to 3). */
+export type SignInMode = "email" | "invite";
 export type ClassLanguage = "en" | "en-yue" | "en-zh" | "auto";
 export const CLASS_LANGUAGES: ClassLanguage[] = ["en", "en-yue", "en-zh", "auto"];
 
@@ -27,7 +30,6 @@ export interface Config {
   webDir: string | null;              // the built front end to serve at "/", or null to serve only the API
   timezone: string;                   // the students' time zone: "today", lecture dates, exam dates
   maxUploadBytes: number;
-  dailyLiveMinutes: number;           // limit on live recording (record, tab) per day
   liveRecording: boolean;             // record and tab lectures can be created
   live: {
     transcript: boolean;              // transcribe while recording: the live transcript, its alerts and Catch me up
@@ -35,9 +37,19 @@ export interface Config {
     replyWaitMs: number;              // how long a chunk reply waits for the transcription the chunk started
     concurrency: number;              // live transcription rounds running at once, all lectures together
   };
-  audioKeepDays: number;              // 0 = recordings are kept for good; otherwise deleted this many days after the lecture
   audioLinkHours: number;             // how long a playback link works
   inviteCodes: string[];
+  signIn: SignInMode;
+  login: {
+    codeMinutes: number;              // how long an emailed code works
+    codesPerHour: number;             // codes sent in an hour, all addresses together (a guard on the mail quota)
+    emailDomains: string[];           // only addresses ending in one of these may sign in; empty = any address
+    sessionDays: number;              // a sign-in ends after this many days without using Sidenote
+  };
+  mail: { resendKey: string; from: string; apiBase: string };
+  stripe: { secretKey: string; webhookSecret: string; apiBase: string; allowLive: boolean };
+  plans: PlanBook;                    // plans.json: what each plan allows and costs; the daily live limit and how long recordings are kept
+  retired: string[];                  // settings in the environment that plans.json replaced (a warning at start)
   pipelineConcurrency: number;
   zhExplanations: boolean;
   stt: {
@@ -72,6 +84,12 @@ function prices(env: NodeJS.ProcessEnv, prefix: string, model: string): TokenPri
   };
 }
 
+function signInMode(v: string | undefined): SignInMode {
+  const m = (v || "email").trim().toLowerCase();
+  if (m !== "email" && m !== "invite") throw new Error(`SIGN_IN must be email or invite, not "${v}"`);
+  return m;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const deepseekModel = env.DEEPSEEK_MODEL || "deepseek-v4-pro", catchUpModel = env.CATCHUP_MODEL || "deepseek-flash";
   const deepseekKey = env.DEEPSEEK_API_KEY || "", deepseekBase = (env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
@@ -87,7 +105,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDir: web,
     timezone: env.APP_TIMEZONE || "Asia/Hong_Kong",
     maxUploadBytes: num(env.MAX_UPLOAD_MB, 500) * 1048576,
-    dailyLiveMinutes: num(env.DAILY_LIVE_MINUTES, 240),
     liveRecording: onOff(env.LIVE_RECORDING, true),
     live: {
       transcript: onOff(env.LIVE_TRANSCRIPT, true),
@@ -95,9 +112,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       replyWaitMs: Math.max(0, num(env.LIVE_REPLY_WAIT_MS, 8000)),
       concurrency: Math.max(1, num(env.LIVE_CONCURRENCY, 4))
     },
-    audioKeepDays: Math.max(0, Math.floor(num(env.AUDIO_KEEP_DAYS, 0))),
     audioLinkHours: Math.max(1, num(env.AUDIO_LINK_HOURS, 12)),
     inviteCodes: list(env.INVITE_CODES),
+    signIn: signInMode(env.SIGN_IN),
+    login: {
+      codeMinutes: Math.max(1, num(env.LOGIN_CODE_MINUTES, 10)),
+      codesPerHour: Math.max(1, num(env.LOGIN_CODES_PER_HOUR, 300)),
+      emailDomains: list(env.EMAIL_DOMAINS).map(d => d.toLowerCase().replace(/^@/, "")),
+      sessionDays: Math.max(1, num(env.SESSION_DAYS, 90))
+    },
+    mail: { resendKey: (env.RESEND_API_KEY || "").trim(), from: (env.MAIL_FROM || "Sidenote <onboarding@resend.dev>").trim(), apiBase: (env.RESEND_API_BASE || "https://api.resend.com").replace(/\/+$/, "") },
+    stripe: {
+      secretKey: (env.STRIPE_SECRET_KEY || "").trim(), webhookSecret: (env.STRIPE_WEBHOOK_SECRET || "").trim(),
+      apiBase: (env.STRIPE_API_BASE || "https://api.stripe.com").replace(/\/+$/, ""), allowLive: onOff(env.STRIPE_ALLOW_LIVE, false)
+    },
+    plans: loadPlans(env.PLANS_FILE ? path.resolve(SERVER_DIR, env.PLANS_FILE) : path.join(SERVER_DIR, "plans.json")),
+    retired: ["DAILY_LIVE_MINUTES", "AUDIO_KEEP_DAYS"].filter(k => (env[k] || "").trim() !== ""),
     pipelineConcurrency: Math.max(1, num(env.PIPELINE_CONCURRENCY, 2)),
     zhExplanations: onOff(env.ZH_EXPLANATIONS, true),
     stt: {

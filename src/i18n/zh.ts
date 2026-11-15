@@ -42,6 +42,20 @@ export const ZH: Record<string, string> = {
   "Sign in to Sidenote": "登入 Sidenote", "Sidenote is invite only for now. Enter the code you were given.": "Sidenote 目前只限受邀使用，請輸入你收到的邀請碼。", "Invite code": "邀請碼", "For example a3f9c2": "例如 a3f9c2",
   "Your name (optional)": "名字（可不填）", "What should we call you?": "怎樣稱呼你？", "Signing in": "登入中", "No code? Ask a classmate who uses Sidenote, or open the": "沒有邀請碼？問問用過 Sidenote 的同學，或者看看", "example notes": "示例筆記",
   "Enter your invite code.": "請輸入邀請碼。", "Please sign in again.": "請重新登入。",
+  /* sign in with an emailed code (SIGN_IN "email", backend phase 4); the server's messages on the sign-in page too */
+  "Enter your email. Sidenote sends you a 6-digit code to sign in.": "輸入你的電郵地址，Sidenote 會寄一個 6 位數登入碼給你。", "Email": "電郵地址",
+  "Send code": "發送登入碼", "Sending": "發送中", "Code from the email": "電郵中的登入碼", "Use another email": "改用其他電郵", "Send a new code": "重新發送登入碼",
+  "A new code is on its way.": "新的登入碼已發出。",
+  "New to Sidenote? The first time you also need an invite code from a classmate who uses it. Or open the": "第一次使用 Sidenote？首次登入還需要邀請碼，可以問問用過 Sidenote 的同學。或者看看",
+  "New to Sidenote? The first time you also need an invite code from a classmate who uses it.": "第一次使用 Sidenote？首次登入還需要邀請碼，可以問問用過 Sidenote 的同學。",
+  "Enter your email address.": "請輸入電郵地址。", "Enter the 6-digit code from the email.": "請輸入電郵中的 6 位數登入碼。",
+  "That code is not right. Check the latest email from Sidenote.": "登入碼不正確。請查看 Sidenote 最新寄來的電郵。",
+  "That code is not right, and it has now stopped working. Ask for a new one.": "登入碼不正確，這個登入碼已經失效。請重新索取。",
+  "That code has expired. Ask for a new one.": "登入碼已過期。請重新索取。",
+  "This email is new to Sidenote. Enter your invite code to finish signing in. Used Sidenote before? Enter the invite code you signed in with, and your lectures come with you.": "這個電郵地址是第一次登入 Sidenote。請輸入邀請碼完成登入。以前用過 Sidenote？輸入你以前登入用的邀請碼，你的課堂會一併保留。",
+  "That invite code is not valid.": "邀請碼無效。", "That invite code is already used with another email address.": "這個邀請碼已經和另一個電郵地址綁定。",
+  "A code was sent to this address less than a minute ago. Check your inbox and spam folder, or ask again in a minute.": "一分鐘內已寄出登入碼。請查看收件匣和垃圾郵件，或一分鐘後再試。",
+  "Sidenote could not send the email just now. Try again in a moment.": "Sidenote 暫時無法寄出電郵，請稍後再試。",
   /* shell */
   "New lecture": "新增課堂", "Home": "主頁", "Settings": "設定", "Courses": "課程", "Add a course": "新增課程", "One more and Sid gets a gold corner.": "再錄一堂，Sid 就有金色摺角。", "Return": "返回", "Sample data": "示例資料",
   "Unfinished": "未完成", "Make notes from it": "用它整理筆記", "Discard it": "捨棄", "Recording discarded": "錄音已捨棄",
@@ -158,6 +172,7 @@ export const ZH: Record<string, string> = {
 };
 export const zhTok = (t: string): string | null => { let m: RegExpMatchArray | null; return t === "Today" ? "今天" : (m = t.match(/^week (\d+)$/)) ? "第 " + m[1] + " 週" : (m = t.match(/^(\d+) min$/)) ? m[1] + " 分鐘" : null; };
 export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
+  [/^We sent a 6-digit code to (\S+@\S+)\. Check your inbox and spam folder\.$/, m => "已把 6 位數登入碼寄到 " + m[1] + "。請查看收件匣和垃圾郵件。"],
   [/^Recording stopped for about (\d+) seconds while Sidenote was in the background\. Keep this page open with the screen on\.$/, m => "Sidenote 在背景時，錄音停了大約 " + m[1] + " 秒。請保持這個頁面開啟、螢幕亮著。"],
   [/^Recording stopped for about (\d+) min while Sidenote was in the background\. Keep this page open with the screen on\.$/, m => "Sidenote 在背景時，錄音停了大約 " + m[1] + " 分鐘。請保持這個頁面開啟、螢幕亮著。"],
   [/^The recording of this lecture is kept until (.+?), which is today\. The notes stay after that\.$/, m => "這堂課的錄音保留到" + m[1] + "，也就是今天。之後筆記仍會保留。"],

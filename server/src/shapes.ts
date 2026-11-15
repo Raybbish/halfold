@@ -5,8 +5,8 @@
 import { z } from "zod";
 import type {
   Alert, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, NoteHit, PackHint, PackPoint, PackQuestion,
-  PackTopic, Point, QuizQuestion, ReviewPack, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply, Upcoming, UrlReply, Usage,
-  User, Week
+  PackTopic, Plan, Plans, Point, QuizQuestion, ReviewPack, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply, Upcoming, UrlReply,
+  Usage, User, Week
 } from "../../src/types";
 
 const seconds = z.number().finite().nonnegative();
@@ -83,3 +83,7 @@ export const ReviewPackSchema: z.ZodType<ReviewPack> = z.union([
 ]);
 export const NoteHitSchema: z.ZodType<NoteHit> = z.strictObject({ lecture: id, text: z.string().min(1), t: seconds.nullable() });
 export const SearchReplySchema: z.ZodType<SearchReply> = z.strictObject({ results: z.array(NoteHitSchema).max(20) });
+/* Phase 4: plans (INTEGRATION.md 3.4). */
+export const PlanSchema: z.ZodType<Plan> = z.strictObject({ id, name: z.string().min(1), priceText: z.string().min(1), features: z.array(z.string().min(1)).optional() });
+export const PlansSchema: z.ZodType<Plans> = z.strictObject({ plans: z.array(PlanSchema), current: id.nullable() })
+  .refine(p => p.current === null || p.plans.some(x => x.id === p.current), "current is not one of the plans");

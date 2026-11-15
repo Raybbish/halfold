@@ -1,0 +1,23 @@
+{
+  "currency": "HKD",
+  "plans": [
+    {
+      "id": "free",
+      "name": "Free",
+      "dailyLiveMinutes": 90,
+      "lecturesPerMonth": 4,
+      "packsPerMonth": 1,
+      "audioDays": 30
+    },
+    {
+      "id": "plus",
+      "name": "Plus",
+      "dailyLiveMinutes": 240,
+      "lecturesPerMonth": 40,
+      "packsPerMonth": null,
+      "audioDays": null,
+      "monthly": 98,
+      "pass": { "id": "plus-semester", "name": "Plus for a semester", "price": 348, "days": 120 }
+    }
+  ]
+}

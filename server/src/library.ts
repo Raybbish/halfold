@@ -10,6 +10,7 @@ import { courseFields, newCourse, str, type AppEnv, type Deps } from "./routes";
 import { courseView, lectureView } from "./views";
 import { lectureKey, notedLectures } from "./packs";
 import type { StoredPack } from "./notes/pack";
+import { webBase } from "./account";
 
 const NOT_SHARED = "This link is no longer shared.";
 const NO_NOTE = "This note is no longer there. Open the lecture again to see the latest notes.";
@@ -36,7 +37,7 @@ export function sharedRoutes(deps: Deps) {
 }
 
 export function libraryRoutes(deps: Deps) {
-  const { config, store, files, jobs, live, packs } = deps;
+  const { config, store, files, jobs, live, packs, billing } = deps;
   const r = new Hono<AppEnv>();
   const mine = (c: Context<AppEnv>) => store.userLecture(c.get("user").id, c.req.param("id")!) ?? fail(404, "This lecture does not exist.");
   const myCourse = (c: Context<AppEnv>) => store.course(c.get("user").id, c.req.param("id")!) ?? fail(404, "This course does not exist.");
@@ -120,7 +121,7 @@ export function libraryRoutes(deps: Deps) {
     const l = mine(c);
     if (l.share_url) return c.json<UrlReply>({ url: l.share_url });
     if (!store.detail(l.id)) fail(409, "Share the lecture once its notes are ready.");
-    const shareId = randomId(16), url = `${shareBase(c, deps)}/#/s/${shareId}`;
+    const shareId = randomId(16), url = `${webBase(c, deps)}/#/s/${shareId}`;
     store.setShare(l.id, shareId, url);
     return c.json<UrlReply>({ url });
   });
@@ -183,6 +184,9 @@ export function libraryRoutes(deps: Deps) {
   /* Starts making the pack (again), unless it is being made. -> {status} */
   r.post("/courses/:id/review-pack", c => {
     const course = myCourse(c);
+    /* A new pack made from notes counts against the plan's review packs a month (plans.json). Asking again while one is
+       being made, or for a course with no notes yet (an empty pack), does not. */
+    if (store.pack(course.id)?.status !== "processing" && notedLectures(store, course.id).length) billing.checkPack(c.get("user").id);
     packs.start(course.id);
     return c.json({ status: store.pack(course.id)?.status === "ready" ? "ready" : "processing" });
   });
@@ -202,11 +206,4 @@ export function libraryRoutes(deps: Deps) {
   });
 
   return r;
-}
-
-/* Where the front end is, for a shared link: WEB_URL; else the page that asked (the browser's Origin header); else
-   PUBLIC_URL; else this server. A front end served under a path (https://x.com/app/) needs WEB_URL. */
-function shareBase(c: Context, deps: Deps) {
-  const origin = c.req.header("origin") || "";
-  return deps.config.webUrl || (/^https?:\/\/[^/\s]+$/i.test(origin) ? origin : "") || deps.config.publicUrl || new URL(c.req.url).origin;
 }
