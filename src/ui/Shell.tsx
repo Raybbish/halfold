@@ -8,7 +8,7 @@ import { fmt, plural } from "../lib/helpers";
 import { bump } from "../lib/bus";
 import { R, S, colorOf, course, nf } from "../state/app";
 import { act, closeModal, toast } from "../state/overlay";
-import { LANG, setLang, t } from "../i18n";
+import { LANG, isZh, setLang, t } from "../i18n";
 import { live } from "../features/recording/recorder";
 import { recoverOrphan, dropOrphan } from "../features/recording/orphan";
 import { ICON, Logo, Hal } from "./icons";
@@ -17,10 +17,10 @@ import { css } from "./css";
 import { val } from "./form";
 
 /* The button's text is the name of the other language, so it stays as it is (data-notr); its label is translated. */
-export const LangBtn = () => <button className="lang" data-notr="" onClick={() => setLang(LANG === "en" ? "zh" : "en")} aria-label={t("Switch language")}>{LANG === "en" ? "中文" : "EN"}</button>;
+export const LangBtn = () => <select className="lang" data-notr="" value={LANG} onChange={e => setLang(e.currentTarget.value)} aria-label={t("Switch language")}><option value="en">EN</option><option value="zh-Hans">简体</option><option value="zh-Hant">繁體</option></select>;
 
 export function Shell({ active, children }: { active: string; children: ReactNode }) {
-  const dn = LANG === "zh" ? ["一", "二", "三", "四", "五"] : ["M", "T", "W", "T", "F"], w = S.week, recOn = live.active && R.a !== "live";
+  const dn = isZh() ? ["一", "二", "三", "四", "五"] : ["M", "T", "W", "T", "F"], w = S.week, recOn = live.active && R.a !== "live";
   return <div className="shell">
     <aside className="side">
       <div style={css("display:flex;align-items:center;justify-content:space-between;gap:8px")}><Logo href="#/home" /><LangBtn /></div>

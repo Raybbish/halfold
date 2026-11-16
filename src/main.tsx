@@ -35,7 +35,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !(overlay.
    and only then the first route. */
 if (CONFIG.USE_MOCK) mockDb.prep();
 session.load();
-document.documentElement.lang = LANG === "zh" ? "zh-Hant" : "en"; net();
+document.documentElement.lang = LANG; net();
 installTestBridge();
 createRoot(document.getElementById("app")!).render(<StrictMode><App /></StrictMode>);
 (async () => { await idb.open(); await findOrphan(); route(); })();

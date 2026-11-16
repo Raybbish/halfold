@@ -50,7 +50,7 @@ const file = (name, size, mimeType) => ({ name, mimeType, buffer: Buffer.alloc(s
     await ctx.close(); }
 
   { const { ctx, page } = await open();
-    await page.click('.lang'); await page.click('.choice button:nth-child(2)').catch(() => {});
+    await page.selectOption('.lang', 'zh-Hant'); await page.click('.choice button:nth-child(2)').catch(() => {});
     await page.setInputFiles('#fRec', file('week10.mp3', 2 * MB, 'audio/mpeg'));
     await page.click('form button.btn.blue'); await page.waitForSelector('#overlay [role=progressbar]'); await page.waitForTimeout(450);
     const zh = { h3: await page.locator('#overlay h3').innerText(), text: await page.locator('#overlay .box p.num').innerText(), btn: await page.locator('#overlay .box .btn').innerText(), label: await page.getAttribute('#overlay [role=progressbar]', 'aria-label') };

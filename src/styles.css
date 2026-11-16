@@ -262,11 +262,13 @@ button:disabled{opacity:.55;cursor:not-allowed}
 
 /* ---------- additions: editing, language, plans, review pack, print ---------- */
 html[lang=zh-Hant] .bub.flag::after{content:" 已記下"}
-html[lang=zh-Hant] .hero h1{letter-spacing:-.01em;line-height:1.25;font-size:clamp(30px,3.9vw,46px)}
+html[lang=zh-Hans] .bub.flag::after{content:" 已记下"}
+html[lang=zh-Hant] .hero h1,html[lang=zh-Hans] .hero h1{letter-spacing:-.01em;line-height:1.25;font-size:clamp(30px,3.9vw,46px)}
 .field textarea{width:100%;font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--text);resize:vertical}
 .pt-acts{display:flex;gap:14px;margin-top:6px}
 .lang{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:4px 11px;font-size:13px;font-weight:700;color:var(--ink)}
 .lang:hover{border-color:var(--ink)}
+select.lang{appearance:none;-webkit-appearance:none;cursor:pointer;font:inherit;font-size:13px;font-weight:700;padding:4px 11px;text-align:center}
 .choice{grid-template-columns:repeat(2,1fr)}
 .offline-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:40;background:var(--ink);color:#fff;text-align:center;font-size:14px;font-weight:600;padding:6px 12px}
 body.is-offline .offline-bar{display:block}
@@ -323,6 +325,7 @@ body.is-offline .offline-bar{display:block}
   .side,.desk,.pill-rec{display:none}
   .mtop{display:flex;align-items:center;gap:10px;background:#fff;border-bottom:1px solid var(--line);padding:calc(6px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 6px max(16px,env(safe-area-inset-left))}
   .mtop .logo{font-size:19px}
+  .mtop{gap:6px}.mtop .lang{padding:4px 8px}
   .mtop .sp{flex:1}
   .mtop .ico{width:44px;height:44px;margin-right:-8px;display:grid;place-items:center;border-radius:50%;color:var(--ink)}
   .mtop .ico.on{background:var(--ink);color:#fff}

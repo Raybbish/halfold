@@ -16,8 +16,8 @@ const opt = n => { const a = process.argv.find(x => x.startsWith('--' + n + '=')
 const TARGET = 'dist';
 const ONLY = opt('only') ? opt('only').split(',') : null;
 const want = n => !ONLY || ONLY.includes(n);
-const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 13, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6, signin: 13, 'course-picker': 9, 'failed-reason': 6, brand: 16 };
-const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand'];
+const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 13, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6, signin: 13, 'course-picker': 9, 'failed-reason': 6, brand: 16, 'zh-hans': 17 };
+const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans'];
 
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });
@@ -55,7 +55,7 @@ function run(script, target, extraEnv = {}) {
     console.log(`> overflow5.js (${TARGET})`); const r = run('overflow5.js', TARGET);
     const pass = /no sideways scrolling at/.test(r.out) && /\nno page errors/.test(r.out) && r.code === 0;
     if (!pass) console.log(r.out);
-    line('overflow5.js: no sideways scrolling, 8 widths x 2 languages', pass, pass ? '' : 'see tests/output/' + TARGET + '/overflow5.log');
+    line('overflow5.js: no sideways scrolling, 8 widths x 3 languages', pass, pass ? '' : 'see tests/output/' + TARGET + '/overflow5.log');
   }
   if (want('printcheck')) {
     console.log(`> printcheck.js (${TARGET})`); const r = run('printcheck.js', TARGET);

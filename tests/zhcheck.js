@@ -7,7 +7,7 @@ const results = []; const check = (name, ok, detail) => { results.push(ok); cons
 (async () => {
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--no-sandbox'] });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true, permissions: ['microphone'] }); const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));
-  await page.goto(FILE + '#/'); await page.click('.lang');
+  await page.goto(FILE + '#/'); await page.selectOption('.lang', 'zh-Hant');
   await page.goto(FILE + '#/signin'); await page.fill('input[name=code]', 'x'); await page.click('form.auth button'); await page.waitForSelector('.shell');
   await page.evaluate(() => { const d = DATA.detail; d.transcript.unshift({ t: 5, text: 'Hi everyone, welcome back.' }, { t: 9, text: 'Recording is on, so let us begin.' });
     d.flashcards.unshift({ q: 'Which exam covers chapters 1 to 8?', a: 'Final' }); d.sections[0].points.unshift({ t: 6, text: 'Today', slide: 3 }); d.quiz.unshift({ q: 'Quiz', opts: ['English', 'Notes'], a: 0, why: 'Answer', t: 6 });

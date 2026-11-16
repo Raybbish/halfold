@@ -15,7 +15,7 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     // Waits until the page has not scrolled for 10 frames in a row. A timestamp starts a smooth scroll to its line; clicking
     // Play while that runs made Playwright scroll the button into view mid-way, so where the page stopped depended on timing.
     const scrolled = () => page.evaluate(() => new Promise(done => { let y = scrollY, still = 0; const f = () => { if (scrollY !== y) { y = scrollY; still = 0; } else if (++still >= 10) return done(); requestAnimationFrame(f); }; requestAnimationFrame(f); }));
-    await page.goto(FILE + '#/'); if (zh) await page.click('.lang'); await shot('01-landing');
+    await page.goto(FILE + '#/'); if (zh) await page.selectOption('.lang', 'zh-Hant'); await shot('01-landing');
     await page.goto(FILE + '#/signin'); await shot('02-signin');
     await page.fill('input[name=code]', 'a3f9c2'); await page.click('form.auth button'); await page.waitForSelector('.shell'); await shot('03-home');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await shot('04-notes');

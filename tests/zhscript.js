@@ -32,7 +32,7 @@ const HANT = '機會成本是你放棄的「最好的那一個」選項的價值
     await page.selectOption('select[name=zs]', 'hant'); await page.click('form button.btn.primary'); await page.waitForSelector('.toast');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
     check('changing it in Settings changes the lecture page', (await first(page)) === HANT);
-    await page.click('.mtop .lang'); await page.goto(FILE + '#/settings'); await page.waitForSelector('select[name=zs]');
+    await page.selectOption('.mtop .lang', 'zh-Hant'); await page.goto(FILE + '#/settings'); await page.waitForSelector('select[name=zs]');
     check('the Settings label has a Chinese version', (await page.locator('label.field', { has: page.locator('select[name=zs]') }).locator('span').innerText()) === '中文解釋顯示為');
     if (errs.length) check('no page errors', false, errs); await ctx.close(); }
 

@@ -22,7 +22,7 @@ export const colorOf = (c: Course | undefined) => (c && c.color) || PALETTE[Math
 export const meta = (l: Lecture, c: Course | undefined) => [c && c.code, l.week && "week " + l.week, l.date, l.duration && mins(l.duration)].filter(Boolean).join(", ");
 export const today = () => S.today || ymd(new Date());   // the date where the student is, not the UTC date
 export const daysLeft = (d: string) => Math.round((+new Date(d) - +new Date(today())) / 864e5);
-export const dayMon = (d: string) => new Date(d).toLocaleDateString(LANG === "zh" ? "zh-HK" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+export const dayMon = (d: string) => new Date(d).toLocaleDateString(LANG === "zh-Hant" ? "zh-HK" : LANG === "zh-Hans" ? "zh-CN" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 export const exHref = () => CONFIG.EXAMPLE_SHARE_ID ? "#/s/" + encodeURIComponent(CONFIG.EXAMPLE_SHARE_ID) : "";
 
 /* The signed-in state lives in localStorage under sidenote.session as {token, user}. */

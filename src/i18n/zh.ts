@@ -168,7 +168,7 @@ export const ZH: Record<string, string> = {
   /* how long recordings are kept */
   "The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.": "這堂課的錄音已不再保留。筆記、逐字稿、閃卡和測驗仍然在這裡。", "See plans": "查看方案",
   /* 中文解釋 in Traditional or Simplified */
-  "Show 中文解釋 in": "中文解釋顯示為", "Chinese characters": "中文字體"
+  "Show 中文解釋 in": "中文解釋顯示為", "中文解釋": "中文解釋", "Chinese characters": "中文字體"
 };
 export const zhTok = (t: string): string | null => { let m: RegExpMatchArray | null; return t === "Today" ? "今天" : (m = t.match(/^week (\d+)$/)) ? "第 " + m[1] + " 週" : (m = t.match(/^(\d+) min$/)) ? m[1] + " 分鐘" : null; };
 export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
