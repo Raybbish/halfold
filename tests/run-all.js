@@ -17,8 +17,8 @@ const opt = n => { const a = process.argv.find(x => x.startsWith('--' + n + '=')
 const TARGET = 'dist';
 const ONLY = opt('only') ? opt('only').split(',') : null;
 const want = n => !ONLY || ONLY.includes(n);
-const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6, signin: 13, 'course-picker': 9, 'failed-reason': 6, brand: 16, 'zh-hans': 19, 'background-notes': 14, 'stuck-lecture': 18, 'quick-record': 17, 'lecture-page': 19, 'live-meta': 7 };
-const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta'];
+const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6, signin: 13, 'course-picker': 9, 'failed-reason': 6, brand: 16, 'zh-hans': 19, 'background-notes': 14, 'stuck-lecture': 18, 'quick-record': 17, 'lecture-page': 19, 'live-meta': 7, 'help-privacy': 9 };
+const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy'];
 
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });

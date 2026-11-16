@@ -21,12 +21,14 @@ import { LecturePage } from "./pages/Lecture";
 import { Shared } from "./pages/Shared";
 import { NewLecture } from "./pages/NewLecture";
 import { Live } from "./pages/Live";
+import { Help } from "./pages/Help";
+import { Privacy } from "./pages/Privacy";
 
 function page(a: string, b: string): ReactNode {
   return a === "home" ? <Home /> : a === "course" ? <Course id={b} /> : a === "courses" ? <Courses />
     : a === "lecture" ? <LecturePage id={b} /> : a === "s" ? <Shared id={b} /> : a === "new" ? <NewLecture />
     : a === "live" ? <Live /> : a === "pack" ? <ReviewPack id={b} /> : a === "settings" ? <Settings />
-    : a === "signin" ? <SignIn /> : a === "" ? <Landing /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Halfnote." /></Shell>;
+    : a === "help" ? <Help /> : a === "privacy" ? <Privacy /> : a === "signin" ? <SignIn /> : a === "" ? <Landing /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Halfnote." /></Shell>;
 }
 
 /* afterRender() from sidenote.html: keep the chosen tab in view when the tab row scrolls sideways. */

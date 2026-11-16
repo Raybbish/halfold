@@ -4,6 +4,7 @@ import { S, exHref } from "../state/app";
 import { t } from "../i18n";
 import { Logo, Hal } from "../ui/icons";
 import { LangBtn } from "../ui/Shell";
+import { Footer } from "./Doc";
 import { css } from "../ui/css";
 
 const StickyNote = ({ c, rot, d, pos, ts, children }: { c: string; rot: number; d: number; pos: string; ts: string; children: ReactNode }) =>
@@ -16,14 +17,14 @@ export function Landing() {
   return <div className="pub">
     <div className="dots">
       <nav className="pub-nav"><Logo href="#/" /><span className="sp"></span>
-        <LangBtn />{exHref() ? <a className="l" href={exHref()}>{t("Example notes")}</a> : null}<a className="l" href={S.token ? "#/home" : "#/signin"}>{t(S.token ? "My lectures" : "Sign in")}</a>
+        <LangBtn />{exHref() ? <a className="l" href={exHref()}>{t("Example notes")}</a> : null}<a className="l" href="#/help">{t("Help")}</a><a className="l" href={S.token ? "#/home" : "#/signin"}>{t(S.token ? "My lectures" : "Sign in")}</a>
         <a className="btn primary sm" href="#/new">{t("Record a lecture")}</a></nav>
       <div className="wrap"><section className="hero">
         <div>
           <h1>{t("The slides are half the lecture. Halfnote catches the other half.")}</h1>
           <p className="lead">{t("Record your class and get notes that sit next to each slide: what the lecturer explained, the examples that were never written down, and every exam date they mentioned.")}</p>
           <div className="cta"><a className="btn primary" href="#/new">{t("Record a lecture")}</a>{exHref() ? <a className="btn" href={exHref()}>{t("Open example notes")}</a> : null}</div>
-          <div className="niche"><Hal size={22} mood="smile" /><span>{t("Made for English-taught lectures at Hong Kong universities.")}</span></div>
+          <div className="niche"><Hal size={22} mood="smile" /><span>{t("Works in the browser on a laptop or a phone. Nothing to install.")}</span></div>
         </div>
         <div className="stage" aria-label={t("A lecture slide with notes attached")}>
           <div className="rec"><i></i><span className="num">{t("Recording 12:48")}</span></div>
@@ -35,7 +36,7 @@ export function Landing() {
       </section></div></div>
     <section className="said"><div className="wrap">
       <h2>{t("Lecturers say the important things out loud.")}</h2>
-      <p>{t("None of this is on Canvas. Halfnote listens for it and pins it to your notes.")}</p>
+      <p>{t("None of this is written on the slides. Halfnote listens for it and pins it to your notes.")}</p>
       <div className="cloud">
         <span className="bub flag">{t("“This will be on the midterm.”")}</span><span className="bub">{t("“You can read this slide yourselves.”")}</span>
         <span className="bub flag">{t("“The deadline has moved to Monday.”")}</span><span className="bub">{t("“As I said last week…”")}</span>
@@ -65,6 +66,6 @@ export function Landing() {
       </div>
     </div></section>
     <section className="end"><div className="wrap"><Hal size={64} mood="smile" color="#fff" /><h2>{t("Your next lecture is the best one to start with.")}</h2><a className="btn dark" href="#/new">{t("Record a lecture")}</a></div></section>
-    <footer className="f"><div className="wrap">{t("Notes are written by AI from your recording and can contain mistakes. Check dates and requirements against your lecturer's announcements. Ask your lecturer before recording if your course requires it.")}</div></footer>
+    <Footer />
   </div>;
 }

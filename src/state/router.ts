@@ -1,6 +1,6 @@
 /* ---------- router ----------
    Hash routes, the same addresses as sidenote.html: #/, #/signin, #/home, #/courses, #/course/:id, #/lecture/:id,
-   #/s/:id, #/new, #/live, #/pack/:id, #/settings. route() keeps the original sign-in guard, data loading and
+   #/s/:id, #/new, #/live, #/pack/:id, #/settings, and the public #/help and #/privacy. route() keeps the original sign-in guard, data loading and
    race handling: routeSeq makes sure only the newest navigation draws its result. */
 import { api } from "../api/api";
 import { bump } from "../lib/bus";
@@ -10,7 +10,7 @@ import { resumeWatch } from "../features/notes/watch";
 import { closeModal } from "./overlay";
 import { R, S, findPoint, lecture, session, setPendingPoint, setPendingPos, pendingPoint, pendingPos, state, view } from "./app";
 
-export const PUBLIC = ["", "s", "signin"];
+export const PUBLIC = ["", "s", "signin", "help", "privacy"];
 let routeSeq = 0;
 
 export async function route() {

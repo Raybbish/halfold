@@ -28,6 +28,7 @@ export function Shell({ active, children }: { active: string; children: ReactNod
       <a className="btn primary new" href="#/new">{t("New lecture")}</a>
       <a className={`n ${active === "home" ? "on" : ""}`} href="#/home">{t("Home")}</a>
       <a className={`n ${active === "settings" ? "on" : ""}`} href="#/settings">{t("Settings")}</a>
+      <a className="n" href="#/help">{t("Help")}</a>
       <div className="lbl">{t("Courses")}</div>
       {S.courses.map(c => <a key={c.id} className={`n c ${active === c.id ? "on" : ""}`} href={"#/course/" + encodeURIComponent(c.id)}><i className="cdot" style={{ background: colorOf(c) }}></i>{c.code}<span className="ct num">{S.lectures.filter(l => l.course === c.id).length}</span></a>)}
       <button className="n c addc" onClick={addCourseModal}>{t("Add a course")}</button>

@@ -14,6 +14,7 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
         return { sw, iw, wide: wide.slice(0, 4) }; });
       if (r.sw > r.iw) bad.push(`${w}px ${['en', 'zh', 'zh-Hans'][zh]} ${name}: page is ${r.sw}px wide -> ${r.wide.join(' | ')}`); };
     await page.goto(FILE + '#/'); if (zh) await page.selectOption('.lang', zh === 2 ? 'zh-Hans' : 'zh-Hant'); await probe('landing');
+    await page.goto(FILE + '#/help'); await probe('help'); await page.goto(FILE + '#/privacy'); await probe('privacy');
     await page.goto(FILE + '#/signin'); await probe('signin'); await page.fill('input[name=code]', 'x'); await page.click('form.auth button'); await page.waitForSelector('.shell'); await probe('home');
     await page.goto(FILE + '#/courses'); await probe('courses'); await page.goto(FILE + '#/course/econ1001'); await probe('course'); await page.goto(FILE + '#/pack/econ1001'); await page.waitForSelector('.page-h'); await page.click('.main .card button.btn.primary'); await page.waitForSelector('.pk', { timeout: 20000 }); await probe('pack');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs');

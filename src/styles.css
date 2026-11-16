@@ -90,6 +90,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .end{background:var(--yellow);padding:56px 0;text-align:center}
 .end h2{font-size:36px;margin:14px auto 22px;max-width:16em}
 footer.f{padding:26px 0 44px;color:var(--muted);font-size:14px;background:#fff}
+.doc h2{font-size:22px;margin:34px 0 10px}
+.doc p,.doc li{font-size:16.5px;line-height:1.6;max-width:40em}
+.doc ul{padding-left:22px;margin:0}
+.doc li{margin-bottom:6px}
 
 /* ---------- app shell ---------- */
 .shell{display:grid;grid-template-columns:256px 1fr;min-height:100vh}
