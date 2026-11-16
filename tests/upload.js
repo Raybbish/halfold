@@ -28,7 +28,7 @@ const SERVER_ERR = 'The server could not store the file.';
   //   be.created   how many lectures were created (POST /lectures)
   const open = async (opts = {}) => {
     const cfg = { USE_MOCK: false, POLL_MS: 50, MAX_UPLOAD_MB: 1 };
-    const be = { log: [], posts: [], next: opts.next || [], answer: null, slidesFail: !!opts.slidesFail, created: 0, lectures: [] };
+    const be = { log: [], posts: [], next: opts.next || [], answer: null, slidesFail: !!opts.slidesFail, finishFail: !!opts.finishFail, created: 0, lectures: [] };
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     await setConfig(ctx, cfg);
     // Every notice the page shows, as it appears (they go after a few seconds).
@@ -52,7 +52,7 @@ const SERVER_ERR = 'The server could not store the file.';
         if (r === 'ok') return route.fulfill({ status: 204 }).catch(() => {});
         return j({ message: r.message }, r.status);
       }
-      if (m === 'POST' && p === '/lectures/lnew/finish') { if (l) l.status = 'processing'; return j({ status: 'processing' }); }
+      if (m === 'POST' && p === '/lectures/lnew/finish') { if (be.finishFail) return j({ message: 'The server is busy.' }, 500); if (l) l.status = 'processing'; return j({ status: 'processing' }); }
       if (m === 'GET' && p === '/lectures/lnew/status') return l ? j({ status: l.status }) : j({ message: 'This lecture does not exist.' }, 404);
       if (m === 'GET' && p === '/lectures/lnew') return l ? j({ lecture: l, detail: l.status === 'ready' ? DETAIL : null }) : j({ message: 'This lecture does not exist.' }, 404);
       if (m === 'DELETE' && p === '/lectures/lnew') { be.lectures = be.lectures.filter(x => x.id !== 'lnew'); return route.fulfill({ status: 204 }).catch(() => {}); }
@@ -148,6 +148,18 @@ const SERVER_ERR = 'The server could not store the file.';
     const all = await toasts(page), done = all.find(x => /Upload finished/.test(x.text)) || {};
     check('finished on another page: a notice "Upload finished. The notes are being written." links to the lecture, and the page stays', done.tag === 'A' && done.href.endsWith('#/lecture/lnew') && /^Upload finished\. The notes are being written\.\s+Open$/.test(done.text) && !done.bad && page.url().endsWith('#/home') && be.log.includes('POST /lectures/lnew/finish'), { all, url: page.url() });
     check('slides that do not upload: "Slides did not upload. You can add them later." and the notes are still started', all.some(x => x.text === 'Slides did not upload. You can add them later.') && be.log.includes('POST /lectures/lnew/finish'), { all, log: be.log.filter(x => /lnew/.test(x)) });
+    await sleep(300);   // nothing else redraws the page meanwhile (no typing, no moving): the end of the upload has to
+    const after = { pill: (await pill(page)).text, tag: await tagOf(page, '#lecList') };
+    check('and the "Uploading" link at the top and the list tag go at once: the lecture now reads "Writing notes"', !after.pill && after.tag === 'Writing notes', after);
+    await ctx.close(); }
+
+  { const { ctx, page, be } = await open({ next: ['hold'], finishFail: true });
+    await startUpload(page, false); await page.waitForSelector('.main .card h3'); await until(() => be.answer);
+    await go(page, '#/home', '#lecList');
+    be.answer('ok');
+    await until(async () => (await toasts(page)).some(x => /could not be started/.test(x.text))); await sleep(300);
+    const bad = (await toasts(page)).find(x => /could not be started/.test(x.text)) || {}, after = { pill: (await pill(page)).text, tag: await tagOf(page, '#lecList') };
+    check('when the notes cannot be started after an upload elsewhere: a red notice links to the lecture, and the "Uploading" link and tag go ("Not finished")', bad.bad && bad.tag === 'A' && bad.href.endsWith('#/lecture/lnew') && !after.pill && after.tag === 'Not finished' && page.url().endsWith('#/home'), { bad, after, url: page.url() });
     await ctx.close(); }
 
   console.log('\n=== a failed upload, sent again ===');

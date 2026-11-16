@@ -56,7 +56,10 @@ export async function runUpload() {
     if (slides) { try { await api.uploadSlides(id, slides, { signal: me.signal, onProgress: at(file.size, slides.size) }); }
       catch (e) { if (!mine()) return; toast("Slides did not upload. You can add them later."); } }
     if (!mine()) return;
+    /* No redraw between reset() and finalize: the lecture is still "recording" until finalize marks it as being written.
+       finalize redraws only this lecture's page; anywhere else the link at the top and the list tag must go now. */
     reset(); await finalize(id, 0, true);
+    if (!here(id)) bump();
   } catch (e) {
     if (!mine()) return;   // cancelled
     stop = null; up.state = "failed"; up.err = reason(e); bump();
