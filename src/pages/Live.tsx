@@ -6,7 +6,8 @@ import { fmt } from "../lib/helpers";
 import { bump } from "../lib/bus";
 import { closeModal } from "../state/overlay";
 import { t } from "../i18n";
-import { live, togglePause } from "../features/recording/recorder";
+import { S } from "../state/app";
+import { live, togglePause, saveLiveMeta } from "../features/recording/recorder";
 import { doDiscard, endLive, recap } from "../features/recording/finish";
 import { Hal } from "../ui/icons";
 import { Shell } from "../ui/Shell";
@@ -25,6 +26,8 @@ export function Live() {
       <div><div className="muted">{t((live.paused ? "Paused" : "Recording") + " " + live.courseCode)}</div>{live.mic === "on" ? <div className="lvl" title={t("Microphone level")}><b id="lvl"></b></div> : null}</div><button className="ts discard-m" onClick={discardModal}>{t("Discard")}</button><span style={css("flex:1")}></span>
       <div className="live-actions"><button className="btn plain discard" onClick={discardModal}>{t("Discard")}</button><button className="btn plain" onClick={togglePause}>{t(live.paused ? "Resume" : "Pause")}</button>
         <button className="btn dark" onClick={endLive}>{t("End and make notes")}</button></div></div>
+    <div className="live-meta"><input maxLength={120} aria-label={t("Lecture title")} placeholder={t("Name this lecture (optional, you can do it later)")} defaultValue={live.title} onChange={e => { live.title = e.currentTarget.value; }} onBlur={saveLiveMeta} />
+      {S.courses.length > 1 ? <select data-notr="" aria-label={t("Course")} value={live.courseId} onChange={e => { live.courseId = e.currentTarget.value; saveLiveMeta(); }}>{S.courses.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}</select> : null}</div>
     {live.micNote ? <div className="alert" style={css("margin-top:14px")}><span className="tag amber">{t("Microphone")}</span><span>{t(live.micNote + (live.mic === "none" && CONFIG.USE_MOCK ? " The sample transcript below still plays so you can see the screen." : ""))}</span></div> : null}
     {live.netNote ? <div className="alert" style={css("margin-top:14px")}><span className="tag amber">{t("Connection")}</span><span>{t(live.netNote)}</span></div> : null}
     <div id="liveAlert"><LiveAlert /></div>

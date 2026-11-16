@@ -476,3 +476,6 @@ a.toast{text-decoration:underline;text-underline-offset:3px}
 .nsec.closed .sec-t::before{transform:none}
 .nsec .cnt{font-weight:500;margin-left:auto}
 @media print{.sum{display:none!important}}
+.live-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.live-meta input{flex:1;min-width:200px;font:inherit;font-size:16px;font-weight:600;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--ink)}
+.live-meta select{font:inherit;padding:9px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--ink)}

@@ -98,6 +98,7 @@ export const ZH: Record<string, string> = {
   "How to add the lecture": "新增課堂的方式", "Record now": "現在錄音", "Use this device's microphone during class.": "上課時使用這部裝置的麥克風。", "Audio or video file you already have.": "你已有的錄音或影片檔。",
   "Paste a lecture video link": "貼上課堂影片連結", "For classes with an online replay.": "適用於有網上重溫的課堂。", "Record an online class": "錄網上課堂",
   "Capture the sound of a browser tab, such as Zoom in the browser. Desktop Chrome or Edge.": "錄下瀏覽器分頁的聲音，例如在瀏覽器開啟的 Zoom。需使用電腦版 Chrome 或 Edge。",
+  "Lecture title": "課堂標題", "Name this lecture (optional, you can do it later)": "為這堂課命名（可選，之後再改也可以）", "Saved": "已儲存",
   "Course": "課程", "Title (optional)": "標題（可不填）", "Week 10, supply and demand": "第 10 週，供求", "Recording": "錄音", "Drop an audio or video file here, or": "把錄音或影片檔拖到這裡，或", "choose a file": "選擇檔案", "Video link": "影片連結",
   "Slides (optional)": "簡報（可不填）", "Add the slide deck as a PDF and the notes will stick to each slide.": "以 PDF 加入簡報，筆記就會貼到每一頁上。", "Choose a PDF": "選擇 PDF", "Remove": "移除",
   "Language spoken in class": "課堂使用的語言", "English": "英文", "English with Cantonese": "英文夾雜廣東話", "English with Mandarin": "英文夾雜普通話", "Detect automatically": "自動偵測",

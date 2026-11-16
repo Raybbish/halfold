@@ -28,5 +28,5 @@ export function setOffline(off: boolean, e?: HttpError) {
 }
 /* New transcript lines and exam alerts from a chunk reply. sidenote.html rewrote #stream and #liveAlert here without a
    full render; the live page now draws them from `live`, and the transcript is still scrolled to the bottom. */
-export function applyChunk(res: ChunkReply | null, id: string) { if (!res || !live.active || id !== live.id) return; if (res.segments) live.segs.push(...res.segments); if (res.alerts && res.alerts.length) live.alert = res.alerts[res.alerts.length - 1];
+export function applyChunk(res: ChunkReply | null, id: string) { if (!res || !live.active || id !== live.id) return; if (res.segments) live.segs.push(...res.segments); if (res.alerts && res.alerts.length) { live.alert = res.alerts[res.alerts.length - 1]; try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
   if (R.a !== "live") return; refresh(); const st = document.getElementById("stream"); if (st) st.scrollTop = st.scrollHeight; }
