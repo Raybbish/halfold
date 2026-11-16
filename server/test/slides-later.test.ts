@@ -26,7 +26,7 @@ test("slides after the notes: processing before the reply, then every point unde
   assert.equal(during.lecture.status, "processing"); assert.deepEqual(during.detail!.sections, before.sections);
   /* Edits and more slides wait until it is done. */
   const edit = await s.call("PATCH", `/lectures/${id}/points`, { token, json: { section: 0, index: 0, text: "x" } });
-  assert.equal(edit.status, 409); assert.equal(ErrorReplySchema.parse(edit.body).message, "Sid is putting the notes under the slides. Try again in a minute.");
+  assert.equal(edit.status, 409); assert.equal(ErrorReplySchema.parse(edit.body).message, "Hal is putting the notes under the slides. Try again in a minute.");
   assert.equal((await s.call("POST", `/lectures/${id}/slides`, { token, body: pdf() })).status, 409);
   release();
   await s.pipeline.idle();

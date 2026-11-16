@@ -35,7 +35,7 @@ test("Stripe Checkout: a monthly plan and a pass, form-encoded with the secret k
     ? { status: 400, body: { error: { message: "Invalid currency: xyz" } } } : { body: { id: "cs_test_9", url: "https://checkout.stripe.com/c/pay/cs_test_9" } });
   t.after(srv.close);
   const pay = new StripePayments("sk_test_123", "whsec_1", srv.url);
-  const base = { productName: "Sidenote Plus, monthly", currency: "hkd", amount: 9800, successUrl: "https://a.b/#/settings", cancelUrl: "https://a.b/#/settings", userId: "u1" };
+  const base = { productName: "Halfnote Plus, monthly", currency: "hkd", amount: 9800, successUrl: "https://a.b/#/settings", cancelUrl: "https://a.b/#/settings", userId: "u1" };
   assert.deepEqual(await pay.createCheckout({ ...base, mode: "subscription", customer: null, email: "ann@example.edu", metadata: { user: "u1", plan: "plus", card: "plus" } }),
     { id: "cs_test_9", url: "https://checkout.stripe.com/c/pay/cs_test_9" });
   const sub = srv.seen[0];
@@ -43,7 +43,7 @@ test("Stripe Checkout: a monthly plan and a pass, form-encoded with the secret k
   assert.equal(sub.headers["content-type"], "application/x-www-form-urlencoded");
   assert.deepEqual(form(sub.body), {
     mode: "subscription", "line_items[0][quantity]": "1", "line_items[0][price_data][currency]": "hkd", "line_items[0][price_data][unit_amount]": "9800",
-    "line_items[0][price_data][product_data][name]": "Sidenote Plus, monthly", "line_items[0][price_data][recurring][interval]": "month",
+    "line_items[0][price_data][product_data][name]": "Halfnote Plus, monthly", "line_items[0][price_data][recurring][interval]": "month",
     success_url: "https://a.b/#/settings", cancel_url: "https://a.b/#/settings", client_reference_id: "u1", customer_email: "ann@example.edu",
     "metadata[user]": "u1", "metadata[plan]": "plus", "metadata[card]": "plus",
     "subscription_data[metadata][user]": "u1", "subscription_data[metadata][plan]": "plus", "subscription_data[metadata][card]": "plus"
@@ -110,11 +110,11 @@ test("payments: off without a key; a live key is refused unless STRIPE_ALLOW_LIV
 test("Resend: the sign-in email as JSON with the key; an error says what Resend replied; no key prints to the console", async t => {
   const srv = await fakeServer(s => JSON.parse(s.body).to[0] === "bad@x.edu" ? { status: 422, body: { message: "The from address is not verified" } } : { body: { id: "em_1" } });
   t.after(srv.close);
-  const m = new ResendMailer("re_123", "Sidenote <login@sidenote.example>", srv.url);
+  const m = new ResendMailer("re_123", "Halfnote <login@sidenote.example>", srv.url);
   await m.send(codeMail("ann@example.edu", "042137", 10));
   assert.equal(srv.seen[0].url, "/emails"); assert.equal(srv.seen[0].headers.authorization, "Bearer re_123");
   const body = JSON.parse(srv.seen[0].body);
-  assert.deepEqual([body.from, body.to, body.subject], ["Sidenote <login@sidenote.example>", ["ann@example.edu"], "042137 is your Sidenote code"]);
+  assert.deepEqual([body.from, body.to, body.subject], ["Halfnote <login@sidenote.example>", ["ann@example.edu"], "042137 is your Halfnote code"]);
   assert.ok(body.text.includes("042137") && body.html.includes("042137"));
   await assert.rejects(m.send(codeMail("bad@x.edu", "1", 10)), /Resend 422: .*not verified/);
   assert.equal(createMailer(loadConfig({})).provider, "console");

@@ -29,7 +29,7 @@ export function slidesInput(detail: Detail, head: { courseCode: string; title: s
 }
 
 export function slidesPrompt(input: SlidesInput) {
-  const system = `You match lecture notes to the lecture slides for Sidenote, an app for university students. The notes were written from a recording of the lecture before the slides were available. You get the text of each slide page and the numbered points of the notes. Reply with one JSON object and nothing else.
+  const system = `You match lecture notes to the lecture slides for Halfnote, an app for university students. The notes were written from a recording of the lecture before the slides were available. You get the text of each slide page and the numbered points of the notes. Reply with one JSON object and nothing else.
 
 - For each point: "slide" is the number of the slide page it belongs to (null if none fits), and "off" is true when the lecturer said it but it is NOT on the slides: an extra example, an explanation, a hint about the exam, a correction. This is what the student most needs, so judge it carefully against the slide text.
 - "slides": one entry per slide page, with a short title (at most 8 words).

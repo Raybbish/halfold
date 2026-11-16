@@ -86,7 +86,7 @@ test("review pack: a pack that cannot be made is a 502 once, then none; replies 
   await s.call("POST", `/courses/${course}/review-pack`, { token }); await s.packs.idle();
   assert.match(s.notes.packCalls[1].repair!.problem, /not valid JSON/);
   const failed = await s.call("GET", `/courses/${course}/review-pack`, { token });
-  assert.equal(failed.status, 502); assert.equal(ErrorReplySchema.parse(failed.body).message, "Sid could not make the review pack just now. Try again in a moment.");
+  assert.equal(failed.status, 502); assert.equal(ErrorReplySchema.parse(failed.body).message, "Hal could not make the review pack just now. Try again in a moment.");
   assert.deepEqual(await getPack(s, token, course), { status: "none" });
   /* The model's service failing is the same (no second call: deepseek.ts already retries what the service refused). */
   s.notes.packReplies = [new Error("DeepSeek 503")];

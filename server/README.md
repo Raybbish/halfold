@@ -99,7 +99,7 @@ npm start                 # http://localhost:8787
 | 设置 | 默认 | 作用 |
 |---|---|---|
 | `RESEND_API_KEY` | 空 | [Resend](https://resend.com) 的 key，用来发登录码。空着时码打印在服务器终端里，只适合自己电脑上试 |
-| `MAIL_FROM` | `Sidenote <onboarding@resend.dev>` | 发件人。要用你在 Resend 验证过的域名；Resend 的测试发件人只能发到你自己注册 Resend 的邮箱 |
+| `MAIL_FROM` | `Halfnote <onboarding@resend.dev>` | 发件人。要用你在 Resend 验证过的域名；Resend 的测试发件人只能发到你自己注册 Resend 的邮箱 |
 | `EMAIL_DOMAINS` | 空 | 只让这些后缀的邮箱登录，如 `connect.hku.hk,link.cuhk.edu.hk`（子域名也算）。空 = 任何邮箱 |
 | `SESSION_DAYS` | 90 | 多少天不用就要重新登录 |
 | `SIGN_IN` | `email` | `invite` = 回到只用邀请码登录 |

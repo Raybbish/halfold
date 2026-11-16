@@ -1,5 +1,5 @@
 /* Signing in (public endpoints). SIGN_IN=email (phase 4, the default): POST /session/code sends a 6-digit code to the
-   student's address, and POST /session with that code signs them in. An address Sidenote has not seen yet also needs
+   student's address, and POST /session with that code signs them in. An address Halfnote has not seen yet also needs
    an invite code the first time: the address is then bound to that code's account for good. That is how students of
    phases 1 to 3 keep their lectures: they enter their old invite code once, with their email. One invite code is still
    one account, so a code works for one address only.
@@ -16,7 +16,7 @@ import { str, type AppEnv, type Deps } from "./routes";
 const MAX_TRIES = 5;                  // wrong codes before the code stops working
 const RESEND_AFTER_MS = 60_000;       // one code a minute to an address
 const PER_ADDRESS_HOUR = 5;           // and five an hour
-export const NEW_ADDRESS = "This email is new to Sidenote. Enter your invite code to finish signing in. Used Sidenote before? Enter the invite code you signed in with, and your lectures come with you.";
+export const NEW_ADDRESS = "This email is new to Halfnote. Enter your invite code to finish signing in. Used Halfnote before? Enter the invite code you signed in with, and your lectures come with you.";
 
 export const normEmail = (v: unknown) => str(v).toLowerCase();
 const looksLikeEmail = (e: string) => e.length <= 254 && /^[^\s@]{1,64}@[^\s@.]+(\.[^\s@.]+)+$/.test(e);
@@ -52,7 +52,7 @@ export function loginRoutes(deps: Deps) {
     catch (e) {
       console.warn(`[login] sending a code with ${mailer.provider}: ${(e as Error).message}`);
       store.dropLoginCode(email);
-      fail(502, "Sidenote could not send the email just now. Try again in a moment.");
+      fail(502, "Halfnote could not send the email just now. Try again in a moment.");
     }
     return c.body(null, 204);
   });
@@ -71,7 +71,7 @@ export function loginRoutes(deps: Deps) {
     const want = Buffer.from(row!.code_hash), got = Buffer.from(hash(email, code));
     if (want.length !== got.length || !timingSafeEqual(want, got)) {
       if (store.wrongCode(email) >= MAX_TRIES) { store.dropLoginCode(email); fail(401, "That code is not right, and it has now stopped working. Ask for a new one."); }
-      fail(401, "That code is not right. Check the latest email from Sidenote.");
+      fail(401, "That code is not right. Check the latest email from Halfnote.");
     }
     let user = store.userByEmail(email);
     if (!user) {

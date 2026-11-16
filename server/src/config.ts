@@ -122,7 +122,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       emailDomains: list(env.EMAIL_DOMAINS).map(d => d.toLowerCase().replace(/^@/, "")),
       sessionDays: Math.max(1, num(env.SESSION_DAYS, 90))
     },
-    mail: { resendKey: (env.RESEND_API_KEY || "").trim(), from: (env.MAIL_FROM || "Sidenote <onboarding@resend.dev>").trim(), apiBase: (env.RESEND_API_BASE || "https://api.resend.com").replace(/\/+$/, "") },
+    mail: { resendKey: (env.RESEND_API_KEY || "").trim(), from: (env.MAIL_FROM || "Halfnote <onboarding@resend.dev>").trim(), apiBase: (env.RESEND_API_BASE || "https://api.resend.com").replace(/\/+$/, "") },
     stripe: {
       secretKey: (env.STRIPE_SECRET_KEY || "").trim(), webhookSecret: (env.STRIPE_WEBHOOK_SECRET || "").trim(),
       apiBase: (env.STRIPE_API_BASE || "https://api.stripe.com").replace(/\/+$/, ""), allowLive: onOff(env.STRIPE_ALLOW_LIVE, false)

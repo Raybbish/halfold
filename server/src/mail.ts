@@ -30,13 +30,13 @@ export const createMailer = (config: Config): Mailer =>
 
 /* The sign-in email, in English and Chinese (the students' interface language is only known to their browser). */
 export function codeMail(to: string, code: string, minutes: number): Mail {
-  const text = `Your Sidenote sign-in code is ${code}. It works for ${minutes} minutes.\n` +
-    `你的 Sidenote 登入碼是 ${code}，${minutes} 分鐘內有效。\n\n` +
-    `If you did not try to sign in to Sidenote, ignore this email.\n如果你沒有登入 Sidenote，請忽略這封郵件。`;
+  const text = `Your Halfnote sign-in code is ${code}. It works for ${minutes} minutes.\n` +
+    `你的 Halfnote 登入碼是 ${code}，${minutes} 分鐘內有效。\n\n` +
+    `If you did not try to sign in to Halfnote, ignore this email.\n如果你沒有登入 Halfnote，請忽略這封郵件。`;
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5">` +
-    `<p>Your Sidenote sign-in code is<br>你的 Sidenote 登入碼是</p>` +
+    `<p>Your Halfnote sign-in code is<br>你的 Halfnote 登入碼是</p>` +
     `<p style="font-size:30px;font-weight:700;letter-spacing:6px;margin:12px 0">${code}</p>` +
     `<p>It works for ${minutes} minutes. ${minutes} 分鐘內有效。</p>` +
-    `<p style="color:#777;font-size:13px">If you did not try to sign in to Sidenote, ignore this email. 如果你沒有登入 Sidenote，請忽略這封郵件。</p></div>`;
-  return { to, subject: `${code} is your Sidenote code`, text, html };
+    `<p style="color:#777;font-size:13px">If you did not try to sign in to Halfnote, ignore this email. 如果你沒有登入 Halfnote，請忽略這封郵件。</p></div>`;
+  return { to, subject: `${code} is your Halfnote code`, text, html };
 }

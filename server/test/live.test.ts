@@ -146,7 +146,7 @@ test("finish: refused without audio; idempotent; later chunks are 410 but a rese
   const s = live(setup()); t.after(() => s.close());
   const token = await s.signIn(), id = await liveLecture(s, token);
   const none = await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 30 } });
-  assert.equal(none.status, 409); assert.equal(none.body.message, "Sidenote did not receive any audio for this lecture. Delete it and record again.");
+  assert.equal(none.status, 409); assert.equal(none.body.message, "Halfnote did not receive any audio for this lecture. Delete it and record again.");
   /* Only a later piece, never the first: nothing can be read. */
   await send(s, token, id, 1);
   assert.equal((await s.call("POST", `/lectures/${id}/finish`, { token })).status, 409);
@@ -184,7 +184,7 @@ test("the daily limit: a warning near the end, an alert when it is reached, then
   const token = await s.signIn(), id = await liveLecture(s, token);
   assert.deepEqual((await send(s, token, id, 0, fakeChunk(240))).body.alerts, []);
   const warned = await send(s, token, id, 1, fakeChunk(120));
-  assert.deepEqual(warned.body.alerts, [{ t: 360, kind: "Recording", text: "About 4 recording minutes are left today. Sidenote stops saving this recording when they run out; end it then to get notes for what was saved." }]);
+  assert.deepEqual(warned.body.alerts, [{ t: 360, kind: "Recording", text: "About 4 recording minutes are left today. Halfnote stops saving this recording when they run out; end it then to get notes for what was saved." }]);
   assert.deepEqual((await send(s, token, id, 2, fakeChunk(60))).body.alerts, []);   // warned once
   const reached = await send(s, token, id, 3, fakeChunk(180));
   assert.deepEqual(reached.body.alerts.map((a: { kind: string; t: number }) => [a.kind, a.t]), [["Recording", 600]]);
@@ -239,7 +239,7 @@ test("Catch me up: nothing yet; the last five minutes; the model failing; not fo
   const s = live(setup()); t.after(() => s.close());
   const token = await s.signIn(), id = await liveLecture(s, token, { language: "en-yue" });
   const empty = await s.call("POST", `/lectures/${id}/catch-up`, { token });
-  assert.deepEqual(CatchUpReplySchema.parse(empty.body), { points: ["Nothing has been said yet that Sid can sum up. Try again in a minute."] });
+  assert.deepEqual(CatchUpReplySchema.parse(empty.body), { points: ["Nothing has been said yet that Hal can sum up. Try again in a minute."] });
   assert.equal(s.catchUp.calls.length, 0);
 
   for (const seq of [0, 1, 2]) await send(s, token, id, seq);
@@ -258,7 +258,7 @@ test("Catch me up: nothing yet; the last five minutes; the model failing; not fo
 
   s.catchUp.replies.push(new Error("the reply had no points"));
   const failed = await s.call("POST", `/lectures/${id}/catch-up`, { token });
-  assert.equal(failed.status, 502); assert.equal(failed.body.message, "Sid could not sum up the last few minutes just now. Try again in a moment.");
+  assert.equal(failed.status, 502); assert.equal(failed.body.message, "Hal could not sum up the last few minutes just now. Try again in a moment.");
   assert.equal(s.store.costs().filter(c => c.stage === "catchup").length, 3);   // paid for even when unusable
 
   const up = await uploadedLecture(s, token);
