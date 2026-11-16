@@ -10,7 +10,7 @@ import { store } from "../lib/store";
 import { bump } from "../lib/bus";
 import { LANGS, R, S, course, nf } from "../state/app";
 import { act, busy, closeModal, toast } from "../state/overlay";
-import { t } from "../i18n";
+import { LANG, t, trs } from "../i18n";
 import { live, beginRecording } from "../features/recording/recorder";
 import { finalize } from "../features/recording/finish";
 import { CAN_TAB } from "../features/recording/tabAudio";
@@ -41,8 +41,28 @@ function CourseField() {
     <select id="fCourse" defaultValue={nf.courseId || undefined} onChange={e => { nf.courseId = e.currentTarget.value; }}>{S.courses.map(c => <option key={c.id} value={c.id}>{c.code + (c.name ? ", " + c.name : "")}</option>)}</select></div>;
 }
 
+/* The course used last (kept on this device), else the first one. */
+const firstCourse = () => { const lc = store.get("lastCourse"); return lc && course(lc) ? lc : S.courses[0] ? S.courses[0].id : null; };
+
+/* The title when none was typed: the date, in the interface language ("Lecture, Mon 16 Nov", "Mon 16 Nov 課堂"). */
+export function defaultTitle(): string {
+  const d = new Date().toLocaleDateString(LANG === "en" ? "en-GB" : LANG === "zh-Hans" ? "zh-CN" : "zh-HK", { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
+  return LANG === "en" ? "Lecture, " + d : d + (LANG === "zh-Hans" ? " 课堂" : " 課堂");
+}
+
+/* One tap from the home page: record with the last course used and a dated title. With no course yet, a course called
+   "My classes" is made first. Goes through submitNew(), so the recording tip and the daily limit work as on New lecture. */
+export async function quickRecord(): Promise<void> {
+  if (live.active) { location.hash = "#/live"; return; }
+  if (nf.busy) return;
+  let cid = firstCourse();
+  if (!cid) { try { const c = await api.addCourse(trs("My classes"), ""); if (!S.courses.some(x => x.id === c.id)) S.courses.push(c); cid = c.id; } catch (e) { toast((e as Error).message || "Something went wrong. Try again.", { error: true }); return; } }
+  Object.assign(nf, { mode: "record", courseId: cid, title: "", err: "", slides: null, lang: S.settings.classLanguage || "en" });
+  submitNew();
+}
+
 export function NewLecture() {
-  const m = nf.mode; if (!nf.courseId || !course(nf.courseId)) nf.courseId = S.courses[0] ? S.courses[0].id : null; if (!nf.lang) nf.lang = S.settings.classLanguage || "en";
+  const m = nf.mode; if (!nf.courseId || !course(nf.courseId)) nf.courseId = firstCourse(); if (!nf.lang) nf.lang = S.settings.classLanguage || "en";
   const u = S.usage;
   return <Shell active="new">
     <div className="crumb"><a href="#/home">{t("Home")}</a>{t(" / New lecture")}</div>
@@ -69,6 +89,9 @@ export function NewLecture() {
   </Shell>;
 }
 
+/* The reason a lecture could not start: on New lecture under the form, elsewhere (home) as a red notice. */
+function startFailed(msg: string) { nf.err = msg; if (R.a === "new") bump(); else toast(msg, { error: true }); }
+
 function submitNew() {
   if (nf.busy) return;   // already sending: a second click or Enter must not create a second lecture
   if (!nf.courseId) { nf.err = "Add a course first."; return bump(); }
@@ -82,8 +105,14 @@ function submitNew() {
   const done = () => { Object.assign(nf, { title: "", file: null, slides: null, link: "", busy: false }); };
   act(async () => {
     try {
-      const lec = await api.createLecture({ courseId: nf.courseId!, title: nf.title.trim(), language: nf.lang!, source: nf.mode });
-      if (recMode) { const code = course(nf.courseId)!.code; if (nf.slides) api.uploadSlides(lec.id, nf.slides).catch(() => toast("Slides did not upload. The notes will be made without them.")); await beginRecording(lec, code, nf.mode); done(); location.hash = "#/live"; return; }
+      const typed = nf.title.trim(), lec = await api.createLecture({ courseId: nf.courseId!, title: typed || defaultTitle(), autoTitle: !typed, language: nf.lang!, source: nf.mode });
+      if (recMode) { const code = course(nf.courseId)!.code; store.set("lastCourse", nf.courseId!);
+        if (!S.lectures.some(x => x.id === lec.id)) S.lectures.unshift(lec);
+        /* The microphone (or the tab) was refused: the lecture just made is deleted again, and the reason shown. */
+        try { await beginRecording(lec, code, nf.mode); }
+        catch (e) { api.deleteLecture(lec.id).catch(() => {}); S.lectures = S.lectures.filter(x => x.id !== lec.id); startFailed((e as Error).message); return; }
+        if (nf.slides) api.uploadSlides(lec.id, nf.slides).catch(() => toast("Slides did not upload. The notes will be made without them."));
+        done(); location.hash = "#/live"; return; }
       /* An upload goes on in the background (features/upload/upload.ts): straight to the lecture page, which shows it. */
       if (nf.mode === "upload") { if (!S.lectures.some(x => x.id === lec.id)) S.lectures.unshift(lec); S.detail[lec.id] = null;
         startUpload(lec.id, nf.file!, nf.slides); done(); location.hash = "#/lecture/" + encodeURIComponent(lec.id); return; }

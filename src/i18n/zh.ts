@@ -145,6 +145,7 @@ export const ZH: Record<string, string> = {
   "That did not load": "載入失敗", "Page not found": "找不到頁面", "That address does not match anything in Halfnote.": "這個網址在 Halfnote 裡找不到對應的內容。", "Go to home": "回到主頁", "Something went wrong. Try again.": "出了點問題，請再試一次。", "Today": "今天",
   /* phone layout */
   "Main": "主選單", "Return to the recording": "返回錄音", "Record": "錄音", "Upload": "上載", "Online class": "網上課堂",
+  "Class starting?": "要上課了？", "One tap to record. Add the title later.": "點一下就開始錄音，標題之後再補。", "Upload a file, paste a link or record an online class": "上載檔案、貼上連結或錄網上課堂", "Record this class": "錄這堂課", "Pick up where you left off": "接著上次看", "My classes": "我的課程",
   /* recording playback */
   "Recording of this lecture": "這堂課的錄音", "Play recording": "播放錄音", "Pause recording": "暫停播放", "Position in the recording": "錄音位置",
   "Back 15 seconds": "後退 15 秒", "Forward 15 seconds": "前進 15 秒", "Playback speed": "播放速度", "Download recording": "下載錄音",

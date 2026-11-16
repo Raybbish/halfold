@@ -4,6 +4,7 @@
 import { useLayoutEffect, type ReactNode } from "react";
 import { CONFIG } from "../config";
 import { plural } from "../lib/helpers";
+import { store } from "../lib/store";
 import { S, course, cur, daysLeft, dayMon, lecture, meta, setCur, state, type Tab } from "../state/app";
 import { t } from "../i18n";
 import { live } from "../features/recording/recorder";
@@ -99,7 +100,7 @@ export function LectureBody() {
 
 export function LecturePage({ id }: { id: string }) {
   const l = lecture(id); if (!l) return <Shell active="home"><Problem title="This lecture does not exist" text="It may have been deleted." /></Shell>;
-  const c = course(l.course);
+  const c = course(l.course); store.set("lastLec", id);
   setCur({ l, c, d: S.detail[id], shared: false });
   return <Shell active={c ? c.id : ""}><div className="crumb"><a href="#/home">{t("Home")}</a>{c ? <>{t(" / ")}<a href={"#/course/" + encodeURIComponent(c.id)}>{c.code}</a></> : null}{l.week ? t(" / Week " + l.week) : null}</div><LectureBody /></Shell>;
 }

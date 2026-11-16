@@ -5,6 +5,8 @@ import { fmt, mins, plural } from "../lib/helpers";
 import { refresh } from "../lib/bus";
 import { S, colorOf, course, daysLeft, dayMon, lecture, meta, setPendingPoint, setPendingPos, state } from "../state/app";
 import { t } from "../i18n";
+import { store } from "../lib/store";
+import { quickRecord } from "./NewLecture";
 import { live } from "../features/recording/recorder";
 import { up, uploading } from "../features/upload/upload";
 import { addToCalendar } from "../features/export";
@@ -53,14 +55,31 @@ function NoteHits() {
 
 export const CourseCards = () => <>{S.courses.map(c => <a key={c.id} href={"#/course/" + encodeURIComponent(c.id)}><div className="top" style={{ background: colorOf(c) }}>{c.code}</div><div className="bot"><div className="small" style={css("font-weight:600;color:var(--ink)")} data-notr="">{c.name}</div><div className="small muted" style={css("margin-top:4px")}>{t(plural(S.lectures.filter(l => l.course === c.id).length, "lecture"))}</div></div></a>)}<button className="addcard" onClick={addCourseModal}>{t("Add a course")}</button></>;
 
+/* "Class starting?": one tap to record with the course last used. While a recording runs it says so and goes back to it. */
+function RecordCard() {
+  const lc = store.get("lastCourse"), cid = lc && course(lc) ? lc : S.courses[0] && S.courses[0].id;
+  if (live.active) return <div className="rec-hero on"><div className="grow"><h2>{t("Recording")} <span data-notr="">{live.courseCode}</span></h2><p className="clk num" style={css("font-size:24px;font-weight:800;color:var(--ink)")}>{fmt(live.sec)}</p></div><a className="btn dark" href="#/live">{t("Return to the recording")}</a></div>;
+  return <div className="rec-hero"><div className="grow"><h2>{t("Class starting?")}</h2><p>{t("One tap to record. Add the title later.")}</p>
+    {S.courses.length ? <label className="rec-course small">{t("Course")}<select data-notr="" aria-label={t("Course")} defaultValue={cid || undefined} onChange={e => store.set("lastCourse", e.currentTarget.value)}>{S.courses.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}</select></label> : null}
+    <a className="small" href="#/new">{t("Upload a file, paste a link or record an online class")}</a></div>
+    <button className="rec-btn" onClick={() => { quickRecord(); }} aria-label={t("Record this class")}><i></i><span>{t("Record")}</span></button></div>;
+}
+
+/* The lecture opened last, to carry on from. */
+function LastCard() {
+  const id = store.get("lastLec"), l = id ? lecture(id) : undefined; if (!l) return null;
+  return <div className="today"><a className="card tcard" href={"#/lecture/" + encodeURIComponent(l.id)}><span className="small muted">{t("Pick up where you left off")}</span><b data-notr="">{l.title}</b><span className="small muted">{t(meta(l, course(l.course)))}</span></a></div>;
+}
+
 export function Home() {
   /* Text left in the box from earlier in this visit: search the notes again, they may have changed since. */
   useEffect(() => { if (S.lectures.length && norm(state.q).length >= MIN_QUERY) { searchNotes(state.q, true); refresh(); } }, []);
   const up = S.upcoming.filter(u => daysLeft(u.date) >= 0).sort((a, b) => +new Date(a.date) - +new Date(b.date)), w = S.week, n = up[0]; S._up = up;
-  if (!S.lectures.length) return <Shell active="home"><div className="center" style={css("min-height:60vh")}><div style={css("text-align:center;max-width:420px")}><Hal size={84} mood="smile" /><h1 style={css("font-size:30px;margin:16px 0 8px")}>{t("Hi " + S.user!.name + ". Nothing here yet.")}</h1><p className="muted" style={css("margin-bottom:22px")}>{t("Record your next class or upload a recording you already have. Notes, flashcards and a quiz arrive a minute or two after it ends.")}</p><a className="btn primary" href="#/new">{t("Add your first lecture")}</a></div></div></Shell>;
+  if (!S.lectures.length) return <Shell active="home"><div className="center" style={css("min-height:60vh;flex-direction:column;gap:28px")}><div style={css("text-align:center;max-width:420px")}><Hal size={84} mood="smile" /><h1 style={css("font-size:30px;margin:16px 0 8px")}>{t("Hi " + S.user!.name + ". Nothing here yet.")}</h1><p className="muted" style={css("margin-bottom:22px")}>{t("Record your next class or upload a recording you already have. Notes, flashcards and a quiz arrive a minute or two after it ends.")}</p><a className="btn primary" href="#/new">{t("Add your first lecture")}</a></div><div style={css("width:100%;max-width:560px")}><RecordCard /></div></div></Shell>;
   return <Shell active="home">
     <div className="page-h"><div className="hello"><Hal size={52} mood="smile" /><div><h1>{t("Hi " + S.user!.name)}</h1><p className="muted" style={css("margin-top:4px")}>{t(n ? `Next up: ${n.kind.toLowerCase()} for ${n.course}, ${daysLeft(n.date) === 0 ? "today" : "in " + plural(daysLeft(n.date), "day")}.` : "No exam dates on the radar.")}</p></div></div>
       <a className="btn primary desk" href="#/new">{t("New lecture")}</a></div>
+    <div className="top2"><RecordCard /><LastCard /></div>
     {w ? <div className="stats">
       <div className="stat" style={css("background:var(--blue-soft)")}><b className="num">{w.lectures}</b><span>{t("lectures recorded this week")}</span></div>
       <div className="stat" style={css("background:var(--mint-soft)")}><b className="num">{w.known}</b><span>{t("flashcards you know")}</span></div>
