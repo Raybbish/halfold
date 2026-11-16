@@ -188,6 +188,8 @@ export const ZH: Record<string, string> = {
   /* how long recordings are kept */
   "The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.": "這堂課的錄音已不再保留。筆記、逐字稿、閃卡和測驗仍然在這裡。", "See plans": "查看方案",
   /* 中文解釋 in Traditional or Simplified */
+  /* lecture page: topics, one dialog for title and course, share to an app */
+  "Topics": "主題", "Collapse all topics": "收起全部主題", "Expand all topics": "展開全部主題", "Edit title and course": "編輯標題和課程", "Save changes": "儲存變更", "Changes saved": "已儲存變更", "Send to an app": "傳送到應用程式",
   "Show 中文解釋 in": "中文解釋顯示為", "中文解釋": "中文解釋", "Chinese characters": "中文字體"
 };
 export const zhTok = (t: string): string | null => { let m: RegExpMatchArray | null; return t === "Today" ? "今天" : (m = t.match(/^week (\d+)$/)) ? "第 " + m[1] + " 週" : (m = t.match(/^(\d+) min$/)) ? m[1] + " 分鐘" : null; };
@@ -235,6 +237,7 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^([\d.]+ MB) of ([\d.]+ MB) uploaded$/, m => "已上載 " + m[1] + "／" + m[2]],   // added after the migration
   [/^The (\d+) lectures in this course will be deleted too, with their recordings, notes, flashcards, quizzes and shared links\. This cannot be undone\.$/, m => "這門課裡的 " + m[1] + " 堂課也會一併刪除，包括錄音、筆記、閃卡、測驗和已分享的連結，而且無法復原。"],   // added after the migration
   [/^Delete (.+)\?$/, m => "刪除 " + m[1] + "？"],   // added after the migration: the course code is put back as it is
+  [/^(\d+) notes?$/, m => m[1] + " 條筆記"],
   [/^Moved to (.+)$/, m => "已移到 " + m[1]],   // added after the migration
   [/^\/ (.+)$/, m => "/ " + trs(m[1])],
   [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]

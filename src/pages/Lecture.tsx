@@ -23,7 +23,7 @@ import { Slides } from "./lecture/Slides";
 import { Transcript } from "./lecture/Transcript";
 import { Cards } from "./lecture/Cards";
 import { Quiz } from "./lecture/Quiz";
-import { deleteModal, moreMenu, refreshLecture, setTab, share } from "./lecture/actions";
+import { deleteModal, detailsModal, moreMenu, refreshLecture, setTab, share } from "./lecture/actions";
 
 /* p: interface text (translated here), or backend text already wrapped so that it is shown as it is. */
 const Box = ({ mood, h, p, btn }: { mood: Mood; h: ReactNode; p: string | ReactNode; btn: ReactNode }) =>
@@ -86,10 +86,12 @@ export function LectureBody() {
   const keep = au && au.expired ? <div className="alert noprint"><span className="tag grey">{t("Recording")}</span><span>{t("The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.")}</span>{plans}</div>
     : au && left != null && left >= 0 && left <= 7 ? <div className="alert noprint"><span className="tag amber">{t("Recording")}</span><span>{t("The recording of this lecture is kept until " + dayMon(au.keptUntil!) + (left ? ", " + plural(left, "more day") : ", which is today") + ". The notes stay after that.")}</span>{plans}</div> : null;
   const hasSlides = d.slides && d.slides.length;
-  const tabs: [Tab, string][] = [["notes", "Notes"], ...(hasSlides ? [["slides", "Slides"] as [Tab, string]] : []), ["transcript", "Transcript"], ["cards", `Flashcards (${d.flashcards.length})`], ["quiz", `Quiz (${d.quiz.length})`]];
+  /* A tab appears only when it has something in it; if the one on screen is gone, the notes come back. */
+  const tabs: [Tab, string][] = [["notes", "Notes"], ...(hasSlides ? [["slides", "Slides"] as [Tab, string]] : []), ...(d.transcript.length ? [["transcript", "Transcript"] as [Tab, string]] : []), ["cards", `Flashcards (${d.flashcards.length})`], ...(d.quiz.length ? [["quiz", `Quiz (${d.quiz.length})`] as [Tab, string]] : [])];
+  if (!tabs.some(x => x[0] === state.tab)) state.tab = "notes";
   const Body = state.tab === "notes" ? Notes : state.tab === "slides" ? Slides : state.tab === "transcript" ? Transcript : state.tab === "cards" ? Cards : Quiz;
   return <>
-    <div className="page-h" style={css("margin-bottom:10px")}><div><h1 data-notr="">{l.title}</h1><p className="muted num" style={css("margin-top:6px")}>{t(meta(l, c))}</p></div>
+    <div className="page-h" style={css("margin-bottom:10px")}><div><h1 data-notr="">{l.title}</h1><p className="muted num" style={css("margin-top:6px")}>{t(meta(l, c))}{shared ? null : <> <button className="ts" style={css("margin-left:8px")} onClick={detailsModal}>{t("Rename")}</button></>}</p></div>
       {shared ? null : <div style={css("display:flex;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={moreMenu}>{t("More")}</button><button className="btn primary" onClick={share}>{t("Share with class")}</button></div>}</div>
     {keep}<Timeline d={d} dur={l.duration} pos={state.pos} />
     <div id="tabtop"></div>

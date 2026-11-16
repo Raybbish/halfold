@@ -463,3 +463,16 @@ a.toast{text-decoration:underline;text-underline-offset:3px}
 .tcard:hover{text-decoration:none;border-color:var(--ink)}
 .tcard b{color:var(--ink);font-size:17px;line-height:1.3}
 @media (max-width:900px){.top2{grid-template-columns:1fr}.rec-hero{padding:18px}.rec-hero h2{font-size:22px}.rec-btn{width:92px;height:92px;font-size:15px}}
+/* lecture page: the Topics row and topics that fold */
+.sum{padding:18px 22px;margin-bottom:14px}
+.sum h3{font-size:16px;margin-bottom:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;gap:7px;align-items:center;font:inherit;font-size:13.5px;font-weight:600;padding:5px 12px;border:1.5px solid var(--line);border-radius:99px;background:#fff;color:var(--ink);cursor:pointer;text-align:left}
+.chip:hover{border-color:var(--ink)}
+.chip i{flex:none;width:9px;height:9px;border-radius:50%}
+.chip .num{color:var(--muted);font-weight:500}
+.sec-t{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left;display:inline-flex;gap:9px;align-items:center}
+.sec-t::before{content:"";flex:none;width:0;height:0;border-left:7px solid var(--ink);border-top:5px solid transparent;border-bottom:5px solid transparent;transform:rotate(90deg);transition:transform .12s}
+.nsec.closed .sec-t::before{transform:none}
+.nsec .cnt{font-weight:500;margin-left:auto}
+@media print{.sum{display:none!important}}

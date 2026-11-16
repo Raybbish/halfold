@@ -91,6 +91,11 @@ export function plPaint() {
 export function plToggle() {
   const a = pl.a; if (!a || pl.err) return;
   if (!a.paused) return a.pause();
+  plPlay();
+}
+/* Starts the recording where it is (does nothing while it is already playing). */
+export function plPlay() {
+  const a = pl.a; if (!a || pl.err || !a.paused) return;
   const p = a.play(); if (p && p.catch) p.catch(() => {});
   if (!pl.url && !pl.told) { pl.told = true; toast("Sample build: playback is simulated, so there is no sound."); }
   plMedia();

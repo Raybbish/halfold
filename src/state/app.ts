@@ -35,7 +35,8 @@ export const session = {
 /* ---------- screen state ---------- */
 export type Tab = "notes" | "slides" | "transcript" | "cards" | "quiz";
 export const state = { tab: "notes" as Tab, onlyOff: false, zh: false, pos: 0, hit: null as number | null, fc: 0, flip: false, known: new Set<number>(), qi: 0, picked: null as number | null, score: 0, done: false, q: "", tq: "", edit: false, order: null as number[] | null, wrong: [] as number[],
-  found: null as Point | null, goFound: false };   // found: the point a search result opened, shown marked; goFound: scroll to it once
+  found: null as Point | null, goFound: false,
+  closed: new Set<number>() };   // topics folded on the notes tab: this page visit only   // found: the point a search result opened, shown marked; goFound: scroll to it once
 
 /* The current route, #/a/b. route() updates it in place. */
 export const R = { a: "", b: "" };

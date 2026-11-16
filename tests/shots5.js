@@ -25,8 +25,8 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     await page.click('.tabs button:nth-child(2)'); await shot('06-slides');
     await page.click('.tabs button:nth-child(4)'); await shot('07-cards');
     await page.click('.tabs button:nth-child(5)'); await page.click('.qz .opt:nth-of-type(1)'); await shot('08-quiz');
-    await page.evaluate(() => window.scrollTo(0, 0)); await page.click('.page-h button >> nth=0'); await shot('09-more'); await page.keyboard.press('Escape');
-    await page.click('.page-h button >> nth=1'); await shot('10-share'); await page.keyboard.press('Escape');
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.click('.page-h button.btn.plain'); await shot('09-more'); await page.keyboard.press('Escape');
+    await page.click('.page-h button.btn.primary'); await shot('10-share'); await page.keyboard.press('Escape');
     await page.goto(FILE + '#/courses'); await shot('11-courses');
     await page.goto(FILE + '#/course/econ1001'); await shot('12-course');
     await page.goto(FILE + '#/pack/econ1001'); await page.waitForSelector('.page-h'); await page.click('.main .card button.btn.primary'); await page.waitForSelector('.pk', { timeout: 20000 }); await shot('13-pack'); await page.evaluate(() => window.scrollTo(0, 99999)); await shot('13b-pack-bottom');

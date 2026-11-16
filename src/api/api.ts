@@ -126,13 +126,14 @@ export const api = {
   async startCheckout(planId: string): Promise<UrlReply> { if (!CONFIG.USE_MOCK) return http("POST", "/checkout", { planId }); return { url: null }; },
 
 
-  /* PATCH /lectures/:id {title} */
-  async renameLecture(id: string, title: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/lectures/" + id, { title }); const l = DATA.lectures.find(x => x.id === id); if (l) l.title = title; return null; },
+  /* PATCH /lectures/:id {title?, course?} -- only the fields given are sent; a new course moves the lecture to another of the student's courses */
+  async updateLecture(id: string, p: { title?: string; course?: string }): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/lectures/" + id, p); await wait(300);
+    const l = DATA.lectures.find(x => x.id === id); if (!l) return null;
+    if (p.title !== undefined) l.title = p.title;
+    if (p.course !== undefined) { const c = DATA.courses.find(x => x.id === p.course); if (c) { l.course = p.course; DATA.upcoming.forEach(u => { if (u.lecture === id) u.course = c.code; }); } }
+    return null; },
   /* DELETE /lectures/:id */
   async deleteLecture(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/lectures/" + id); DATA.lectures = DATA.lectures.filter(x => x.id !== id); return null; },
-  /* PATCH /lectures/:id {course} -- moves the lecture to another of the student's courses (added after the migration) */
-  async moveLecture(id: string, courseId: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/lectures/" + id, { course: courseId }); await wait(300);
-    const l = DATA.lectures.find(x => x.id === id), c = DATA.courses.find(x => x.id === courseId); if (l && c) { l.course = courseId; DATA.upcoming.forEach(u => { if (u.lecture === id) u.course = c.code; }); } return null; },
   /* PATCH /courses/:id {code, name} (added after the migration) */
   async updateCourse(id: string, code: string, name: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/courses/" + id, { code, name }); await wait(300);
     const c = DATA.courses.find(x => x.id === id); if (c) { const ids = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)); DATA.upcoming.forEach(u => { if (ids.has(u.lecture)) u.course = code; }); c.code = code; c.name = name; } return null; },

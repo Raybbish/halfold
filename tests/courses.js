@@ -26,7 +26,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   const sideCount = (page, id) => page.locator(`.side a.n.c[href="#/course/${id}"] .ct`).innerText().catch(() => null);
   const openEdit = async page => { await clearToasts(page); await page.click('.page-h button:text-is("Edit course")'); await page.waitForSelector('#overlay input[name=code]'); };
   const openDelete = async page => { await openEdit(page); await page.click('#overlay button:text-is("Delete course")'); await page.waitForSelector('#overlay .btn.dark'); };
-  const openMove = async page => { await clearToasts(page); await page.click('.page-h button:text-is("More")'); await page.click('#overlay button:text-is("Move to another course")'); await page.waitForSelector('#overlay select[name=c]'); };
+  const openMove = async page => { await clearToasts(page); await page.click('.page-h button:text-is("More")'); await page.click('#overlay button:text-is("Edit title and course")'); await page.waitForSelector('#overlay select[name=c]'); };
 
   console.log('=== sample data ===');
   { const { ctx, page } = await open();
@@ -46,8 +46,8 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     // Only econ-w9 has full sample notes (and so a More menu).
     await go(page, '#/lecture/econ-w9', '.page-h button:text-is("More")'); await openMove(page);
     const opts = await page.$$eval('#overlay select[name=c] option', os => os.map(o => o.value));
-    check('Move to another course offers every course except the current one', JSON.stringify(opts) === '["math2011","comp1021"]', opts);
-    await page.selectOption('#overlay select[name=c]', 'math2011'); await page.click('#overlay button:text-is("Move lecture")');
+    check('Edit title and course lists every course, the current one selected', JSON.stringify(opts) === '["econ1001","math2011","comp1021"]' && (await page.inputValue('#overlay select[name=c]')) === 'econ1001', opts);
+    await page.selectOption('#overlay select[name=c]', 'math2011'); await page.click('#overlay button:text-is("Save changes")');
     const t2 = await toast(page);
     const moved = { toast: t2, crumb: await page.locator('.crumb a[href^="#/course/"]').innerText(), on: await page.locator('.side a.n.c.on').getAttribute('href'), econ: await sideCount(page, 'econ1001'), math: await sideCount(page, 'math2011'), closed: await noModal(page) };
     check('after moving: toast, breadcrumb and sidebar point to the new course, and the counts change', moved.toast === 'Moved to MATH 2011' && moved.crumb === 'MATH 2011' && moved.on === '#/course/math2011' && moved.econ === '2' && moved.math === '2' && moved.closed, moved);
@@ -85,7 +85,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     const zh = { btn: zhBtn, h3: await page.locator('#overlay h3').innerText(), p: await page.locator('#overlay p.muted').innerText() };
     await page.keyboard.press('Escape');
     await go(page, '#/lecture/econ-w9', '.page-h button'); await page.click('.page-h button >> nth=0'); zh.move = await page.locator('#overlay').innerText(); await page.keyboard.press('Escape');
-    check('the new buttons and dialogs are in Chinese, with the course code left as it is', zh.btn === '編輯課程' && zh.h3 === '刪除 MATH 2011？' && zh.p === '這門課裡的 2 堂課也會一併刪除，包括錄音、筆記、閃卡、測驗和已分享的連結，而且無法復原。' && zh.move.includes('移到其他課程'), zh);
+    check('the new buttons and dialogs are in Chinese, with the course code left as it is', zh.btn === '編輯課程' && zh.h3 === '刪除 MATH 2011？' && zh.p === '這門課裡的 2 堂課也會一併刪除，包括錄音、筆記、閃卡、測驗和已分享的連結，而且無法復原。' && zh.move.includes('編輯標題和課程'), zh);
     await ctx.close(); }
 
   console.log('\n=== real backend (fake API) ===');
@@ -111,7 +111,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     await page.fill('#overlay input[name=code]', 'TEST 1010'); await page.fill('#overlay input[name=name]', 'Renamed'); await page.click('#overlay button:text-is("Save course")'); await toast(page);
     const e = be.sent[0] || {};
     check('saving sends PATCH /courses/:id with the code and name and the token', e.m === 'PATCH' && e.p === '/courses/c1' && JSON.stringify(e.body) === '{"code":"TEST 1010","name":"Renamed"}' && e.auth === 'Bearer tok' && (await page.locator('.page-h h1').innerText()) === 'TEST 1010', be.sent);
-    await go(page, '#/lecture/l1', '.page-h button:text-is("More")'); await openMove(page); await page.click('#overlay button:text-is("Move lecture")'); await toast(page);
+    await go(page, '#/lecture/l1', '.page-h button:text-is("More")'); await openMove(page); await page.selectOption('#overlay select[name=c]', 'c2'); await page.click('#overlay button:text-is("Save changes")'); await toast(page);
     const mv = be.sent[1] || {};
     check('moving sends PATCH /lectures/:id with the new course', mv.m === 'PATCH' && mv.p === '/lectures/l1' && JSON.stringify(mv.body) === '{"course":"c2"}' && (await page.locator('.crumb a[href^="#/course/"]').innerText()) === 'TEST 2002', be.sent);
     await go(page, '#/course/c1', '.page-h h1'); await openDelete(page); await page.click('#overlay .btn.dark'); await toast(page);
@@ -127,7 +127,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
 
   { const be = { sent: [], single: true }; const { ctx, page } = await open({ USE_MOCK: false }, backend(be));
     await go(page, '#/lecture/l1', '.page-h button:text-is("More")'); await page.click('.page-h button:text-is("More")');
-    check('with only one course the More menu has no Move button', (await page.locator('#overlay button:text-is("Move to another course")').count()) === 0 && (await page.locator('#overlay button:text-is("Rename")').count()) === 1);
+    check('with only one course the More menu has no Move button, and the dialog no course list', (await page.locator('#overlay button:text-is("Move to another course")').count()) === 0 && (await page.locator('#overlay button:text-is("Edit title and course")').count()) === 1 && await (async () => { await page.click('#overlay button:text-is("Edit title and course")'); await page.waitForSelector('#overlay input[name=t]'); return (await page.locator('#overlay select').count()) === 0; })());
     await ctx.close(); }
 
   { const be = { sent: [], fail: 401 }; const { ctx, page } = await open({ USE_MOCK: false }, backend(be));

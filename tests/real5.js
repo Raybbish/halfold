@@ -142,9 +142,9 @@ const DETAIL = () => ({ alerts: [{ t: 18, kind: 'Midterm', text: 'Midterm on Thu
   console.log('\n=== 3. "No body" endpoint answers 200 with an empty body (rename) ===');
   await session({}, async ({ page, login }) => {
     await login(); await page.goto(ORIGIN + '/#/lecture/econ-w9'); await page.waitForSelector('.tabs');
-    await page.click('.page-h button:text-is("More")'); await page.click('text=Rename'); await page.fill('input[name=t]', 'Renamed'); await page.click('text=Save title');
+    await page.click('.page-h button:text-is("More")'); await page.click('text=Edit title and course'); await page.fill('input[name=t]', 'Renamed'); await page.click('text=Save changes');
     await page.waitForSelector('.toast');
-    check('rename succeeds', (await txt(page.locator('.toast'))) === 'Title saved' && (await txt(page.locator('.page-h h1'))) === 'Renamed', await txt(page.locator('.toast')));
+    check('rename succeeds', (await txt(page.locator('.toast'))) === 'Changes saved' && (await txt(page.locator('.page-h h1'))) === 'Renamed', await txt(page.locator('.toast')));
   });
 
   console.log('\n=== 4. Sign-in errors and expired sessions ===');
@@ -200,8 +200,7 @@ const DETAIL = () => ({ alerts: [{ t: 18, kind: 'Midterm', text: 'Midterm on Thu
       await page.waitForFunction(() => pl.a && pl.a.readyState >= 1);
       check(`[${label}] audio metadata loads`, Math.round((await st()).dur) === 300, (await st()).dur);
       await page.locator('.pt .ts').nth(1).click(); await page.waitForTimeout(500); let s = await st();
-      check(`[${label}] tapping 1:35 seeks the recording and opens that transcript line, still paused`, Math.round(s.t) === 95 && s.paused && s.tab === 'transcript' && s.hit === 90 && s.hitEl === 'seg-90' && s.cur === '1:35', s);
-      if (label === 'phone') await page.locator('#pPlay').tap(); else await page.click('#pPlay');
+      check(`[${label}] tapping 1:35 starts the recording from there and opens that transcript line`, Math.abs(s.t - 95) < 2 && !s.paused && s.tab === 'transcript' && s.hit === 90 && s.hitEl === 'seg-90' && s.cur.startsWith('1:3'), s);
       await page.waitForTimeout(6500); s = await st();
       check(`[${label}] play advances time, bar, timeline head and transcript line`, !s.paused && s.t > 100 && s.t < 104 && s.hit === 100 && s.hitEl === 'seg-100' && parseFloat(s.head) > 33 && +s.bar >= 100, s);
       await page.click('#pRate'); await page.click('.pb.fwd'); await page.waitForTimeout(400); s = await st();

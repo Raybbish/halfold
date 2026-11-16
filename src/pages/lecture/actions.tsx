@@ -7,7 +7,7 @@ import { R, S, course, cur, dayMon, state, type Tab } from "../../state/app";
 import { act, busy, closeModal, toast, uploadDialog, uploadProgress } from "../../state/overlay";
 import { route } from "../../state/router";
 import { t } from "../../i18n";
-import { pl, plSeek, segAt } from "../../features/player/player";
+import { pl, plPlay, plSeek, segAt } from "../../features/player/player";
 import { doExport } from "../../features/export";
 import { pollNotes } from "../../features/recording/finish";
 import { holdWatch } from "../../features/notes/watch";
@@ -17,9 +17,10 @@ import { val } from "../../ui/form";
 
 const C = () => cur!, D = () => cur!.d!;
 
-/* Every timestamp opens the transcript at that line and moves the recording there (without starting it). */
+/* Every timestamp opens the transcript at that line (when there is one) and starts the recording from there (when there is one). */
 export function jump(t: number) { const list = D().transcript; state.pos = t; state.tq = ""; plSeek(t);
-  if (list.length) { const seg = segAt(t) || list[0]; state.hit = seg.t; state.tab = "transcript"; bump(); const el = document.getElementById("seg-" + seg.t); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); } else bump(); }
+  if (list.length) { const seg = segAt(t) || list[0]; state.hit = seg.t; state.tab = "transcript"; bump(); const el = document.getElementById("seg-" + seg.t); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); } else bump();
+  plPlay(); }
 export function setTab(k: Tab) {
   state.tab = k; if (k === "transcript" && pl.a) { const s = segAt(state.pos); if (s) state.hit = s.t; }
   bump();
@@ -45,13 +46,25 @@ export function onLectureKey(e: KeyboardEvent) {
   else if (state.tab === "quiz" && !state.done) { if (/^[1-9]$/.test(e.key)) pick(+e.key - 1); else if (e.key === "Enter" && tag !== "BUTTON") nextQ(); }
 }
 
-/* ---------- More menu: exports, add slides, rename, move, delete ---------- */
+/* ---------- More menu: exports, add slides, edit title and course, delete ---------- */
 export function moreMenu() { const au = C().d && C().d!.audio; openModal(() => <><h3 data-notr="">{C().l.title}</h3>{au && au.keptUntil && !au.expired ? <p className="small muted" style={css("margin-top:6px")}>{t("Recording kept until " + dayMon(au.keptUntil) + ".")}</p> : null}
   <div style={css("display:grid;gap:8px;margin-top:14px")}><button className="btn plain" onClick={() => doExport("pdf")}>{t("Print or save notes as PDF")}</button><button className="btn plain" onClick={() => doExport("md")}>{t("Download notes as Markdown")}</button><button className="btn plain" onClick={() => doExport("anki")}>{t("Download flashcards for Anki")}</button><button className="btn plain" onClick={() => doExport("txt")}>{t("Download transcript as text")}</button>{C().d && C().d!.audio && C().d!.audio!.url ? <a className="btn plain" href={C().d!.audio!.url!} download="">{t("Download recording")}</a> : null}
-    {C().d && !C().d!.slides.length ? <button className="btn plain" onClick={() => { closeModal(); pickSlides(); }}>{t("Add slides")}</button> : null}<button className="btn plain" onClick={renameModal}>{t("Rename")}</button>{S.courses.some(c => c.id !== C().l.course) ? <button className="btn plain" onClick={moveModal}>{t("Move to another course")}</button> : null}<button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
-function renameModal() { openModal(() => <><h3>{t("Rename lecture")}</h3><form onSubmit={e => { e.preventDefault(); doRename(e.currentTarget); }}><label className="field"><span>{t("Title")}</span><input name="t" defaultValue={C().l.title} required maxLength={120} /></label>
-  <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button type="button" className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary">{t("Save title")}</button></div></form></>); }
-function doRename(f: HTMLFormElement) { const title = val(f, "t").trim(); if (!title) return; act(async () => { await api.renameLecture(C().l.id, title); C().l.title = title; closeModal(); toast("Title saved"); bump(); }); }
+    {C().d && !C().d!.slides.length ? <button className="btn plain" onClick={() => { closeModal(); pickSlides(); }}>{t("Add slides")}</button> : null}<button className="btn plain" onClick={detailsModal}>{t("Edit title and course")}</button><button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
+/* One dialog for the title and the course. Only what changed is sent. A new course drops the review packs of both courses
+   from the store, so they load again with the lecture in its new place, and the exam dates of the lecture follow it. With
+   one course there is no list to choose from. */
+export function detailsModal() { const l = C().l;
+  openModal(() => <><h3>{t("Edit title and course")}</h3><form onSubmit={e => { e.preventDefault(); doDetails(e.currentTarget); }}><label className="field"><span>{t("Title")}</span><input name="t" defaultValue={l.title} required maxLength={120} data-notr="" /></label>
+    {S.courses.length > 1 ? <label className="field"><span>{t("Course")}</span><select name="c" defaultValue={l.course} data-notr="">{S.courses.map(c => <option key={c.id} value={c.id}>{c.code + (c.name ? ", " + c.name : "")}</option>)}</select></label> : null}
+    <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button type="button" className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary">{t("Save changes")}</button></div></form></>); }
+function doDetails(f: HTMLFormElement) { const l = C().l, title = val(f, "t").trim(), sel = f.elements.namedItem("c"), courseId = sel ? val(f, "c") : l.course;
+  if (!title) return;
+  const p: { title?: string; course?: string } = {}; if (title !== l.title) p.title = title; if (courseId !== l.course) p.course = courseId;
+  if (!p.title && !p.course) { closeModal(); return; }
+  act(async () => { const from = l.course, to = course(courseId); await api.updateLecture(l.id, p);
+    if (p.title) l.title = title;
+    if (p.course) { l.course = courseId; if (to) S.upcoming.forEach(u => { if (u.lecture === l.id) u.course = to.code; }); delete S.pack[from]; delete S.pack[courseId]; }
+    closeModal(); toast(p.course && to ? "Moved to " + to.code : "Changes saved"); bump(); }); }
 /* ---------- adding slides after the lecture (added after the migration) ----------
    For a lecture whose notes were made without slides. The PDF is sent with the same upload as on New lecture (progress
    bar, Cancel); the backend then files the existing points under the slides, keeping the student's own notes and edits,
@@ -80,16 +93,6 @@ function addSlides(f: File) {
   } finally { holdWatch(id, false); } });
 }
 
-/* Moving a lecture to another course (added after the migration). The review packs of both courses are dropped from
-   the store, so they load again with the lecture in its new place. */
-function moveModal() { const others = S.courses.filter(c => c.id !== C().l.course);
-  openModal(() => <><h3>{t("Move to another course")}</h3><form onSubmit={e => { e.preventDefault(); doMove(val(e.currentTarget, "c")); }}>
-    <label className="field"><span>{t("Course")}</span><select name="c" defaultValue={others[0].id}>{others.map(c => <option key={c.id} value={c.id}>{c.code + (c.name ? ", " + c.name : "")}</option>)}</select></label>
-    <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button type="button" className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary">{t("Move lecture")}</button></div></form></>); }
-function doMove(courseId: string) { const to = course(courseId); if (!to) return;
-  act(async () => { const l = C().l, from = l.course; await api.moveLecture(l.id, courseId); l.course = courseId;
-    S.upcoming.forEach(u => { if (u.lecture === l.id) u.course = to.code; }); delete S.pack[from]; delete S.pack[courseId];
-    closeModal(); toast("Moved to " + to.code); bump(); }); }
 export function deleteModal() { openModal(() => <><h3>{t("Delete this lecture?")}</h3><p className="muted">{t("The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.")}</p>
   <div style={css("display:flex;gap:10px;justify-content:flex-end;margin-top:16px")}><button className="btn plain" onClick={closeModal}>{t("Keep lecture")}</button><button className="btn dark" onClick={doDelete}>{t("Delete lecture")}</button></div></>); }
 function doDelete() { act(async () => { const id = C().l.id, c = C().c; await api.deleteLecture(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id]; closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
@@ -98,7 +101,8 @@ function doDelete() { act(async () => { const id = C().l.id, c = C().c; await ap
 export function share() { act(async () => { const l = C().l; if (!l.shareUrl) { const r = await api.createShareLink(l.id); l.shareUrl = r.url; }
   openModal(() => <><h3>{t("Share with your class")}</h3><p className="muted">{t("Anyone with the link can read the notes, transcript, flashcards and quiz" + (CONFIG.SHARE_AUDIO ? ", and play the recording" : ". The recording stays private") + ". They cannot see your other lectures.")}</p>
     <div className="copy"><input id="shareUrl" readOnly defaultValue={l.shareUrl || ""} aria-label={t("Share link")} /><button className="btn primary sm" onClick={copyLink}>{t("Copy link")}</button></div>
-    <div style={css("display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap")}><a className="btn plain" href={l.shareUrl || ""}>{t("Preview shared page")}</a><button className="btn plain" style={css("color:var(--red)")} onClick={stopSharing}>{t("Stop sharing")}</button></div></>); }); }
+    <div style={css("display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap")}><span style={css("display:flex;gap:10px;flex-wrap:wrap")}><a className="btn plain" href={l.shareUrl || ""}>{t("Preview shared page")}</a>{typeof navigator.share === "function" ? <button className="btn plain" onClick={nativeShare}>{t("Send to an app")}</button> : null}</span><button className="btn plain" style={css("color:var(--red)")} onClick={stopSharing}>{t("Stop sharing")}</button></div></>); }); }
+function nativeShare() { const l = C().l; try { Promise.resolve(navigator.share({ title: l.title, text: (C().c ? C().c!.code + ": " : "") + l.title, url: l.shareUrl || "" })).catch(() => {}); } catch (e) {} }
 function copyLink() { const i = document.getElementById("shareUrl") as HTMLInputElement; i.select(); const fb = () => { try { document.execCommand("copy"); } catch (_) {} }; try { navigator.clipboard.writeText(i.value).catch(fb); } catch (e) { fb(); } toast("Link copied"); }
 /* The shared page this visit loaded is kept under the id in the link (#/s/:id). A backend gives the link an id of its
    own, so that is the one forgotten here; in sample mode it is the lecture's id. */

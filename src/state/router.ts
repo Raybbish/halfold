@@ -20,7 +20,7 @@ export async function route() {
   if (a === "signin" && S.token) { location.hash = "#/home"; return; }
   if (a === "live" && !live.active) { location.hash = "#/new"; return; }
   const changed = R.a !== a || R.b !== b; Object.assign(R, { a, b }); const seq = ++routeSeq; S.error = null;
-  if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [], found: null, goFound: false }); setPendingPos(0); }
+  if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [], found: null, goFound: false, closed: new Set() }); setPendingPos(0); }
   const hit = changed && a === "lecture" && pendingPoint && pendingPoint.lecture === b ? pendingPoint : null; setPendingPoint(null);
   const needHome = !PUBLIC.includes(a) && !S.homeLoaded, needLec = a === "lecture" && !(b in S.detail), needSh = a === "s" && !S.shared[b], needPack = a === "pack" && !S.pack[b], needPlans = a === "settings" && !S.plans;
   /* While loading: the app's shell with a skeleton, or Hal in the middle of an empty page. */
