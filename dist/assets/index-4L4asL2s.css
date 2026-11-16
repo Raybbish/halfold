@@ -190,6 +190,9 @@ footer.f{padding:26px 0 44px;color:var(--muted);font-size:14px;background:#fff}
 .field{display:block;margin-bottom:16px}
 .field>span{display:block;font-size:14px;font-weight:700;color:var(--ink);margin-bottom:6px}
 .field input,.field select{width:100%;font:inherit;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--text)}
+.field>span.field-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.field-h .ts{line-height:1}   /* a taller button would make the row taller than a plain label and move the form down */
+.nocourse{padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--muted);font-size:14.5px}
 .drop{border:2px dashed #B8C2D2;border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);background:var(--surface)}
 .live-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .dot{width:14px;height:14px;border-radius:50%;background:var(--coral);animation:pulse 1.4s infinite}
