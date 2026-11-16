@@ -104,7 +104,7 @@ export const ZH: Record<string, string> = {
   "Start recording": "開始錄音", "Make notes": "整理筆記",
   "Your browser will ask to use the microphone. On a laptop, recording continues while you use other tabs. On an iPhone, keep this page open and the screen on.": "瀏覽器會要求使用麥克風。用手提電腦時，切換到其他分頁也會繼續錄音。用 iPhone 時，請保持這個頁面開啟、螢幕亮著。",
   "Your browser will ask what to share. Choose the tab that is playing the class and turn on the option to share tab audio. Only the sound is recorded.": "瀏覽器會問你要分享甚麼。請選擇正在播放課堂的分頁，並開啟分享分頁音訊的選項。只會錄下聲音。",
-  "Choose the recording to upload.": "請選擇要上載的錄音。", "Paste the full link, starting with https://": "請貼上完整連結，以 https:// 開頭", "Add a course first.": "請先新增課程。",
+  "Choose the recording to upload.": "請選擇要上載的錄音。", "Paste the full link, starting with https://": "請貼上完整連結，以 https:// 開頭", "Add a course first.": "請先新增課程。", "You have no courses yet. Every lecture belongs to a course, so add one first.": "你還沒有課程。每堂課都要歸入一門課程，請先新增一門。",
   "You have used today's recording minutes. Upload a recording instead, or come back tomorrow.": "你已用完今天的錄音時間。可以改為上載錄音，或明天再來。",
   "A recording is already running. End it before starting another.": "已有錄音正在進行，請先結束再開始新的。", "Slides need to be a PDF.": "簡報必須是 PDF。",
   "Uploading": "上載中", "Keep this page open until the upload finishes.": "上載完成前請保持這個頁面開啟。",

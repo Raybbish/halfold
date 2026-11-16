@@ -26,6 +26,11 @@ module.exports = [
     reason: 'lecture More menu: a Move to another course button (added after the migration)'
   },
   {
+    match: /(^|\/)(m|d)-(en|zh)-14(-new|b-before-you-record)\.png$|^(375|1280)-(en|zh)\/new(-upload|-upload-file|-link-error|-tab|-rec-tip)?\.png$/,
+    maxPixels: 1500,
+    reason: 'New lecture page (and the Before you record dialog over it): Add a course is a button beside the Course label now, not the last item of the course list (DIFFERENCES.md part 1, item 8)'
+  },
+  {
     match: /(^|\/)(m|d)-(en|zh)-18-after-end\.png$/,
     maxPixels: 100000,
     reason: 'notes of a lecture recorded without slides: sample mode now makes them without slides (no slide labels, no sidenote marks), as a real backend does; sidenote.html gave every new lecture the full sample notes'

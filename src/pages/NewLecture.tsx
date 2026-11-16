@@ -29,6 +29,17 @@ function setFile(key: FileKey, f: File | undefined) { if (!f) return; if (f.size
 
 const mode = (m: Source) => () => { nf.mode = m; nf.err = ""; bump(); };
 
+/* The course of the new lecture. The list holds only the student's courses; Add a course is a button of its own, and the
+   course added there is chosen (doAddCourse sets nf.courseId). sidenote.html had Add a course as the last item of the list:
+   with no course yet it was the only item and already chosen, so choosing it did nothing. With no course yet there is no
+   list, only a line saying so and the button. */
+function CourseField() {
+  const add = <button type="button" className="ts" onClick={addCourseModal}>{t("Add a course")}</button>;
+  if (!S.courses.length) return <div className="field"><span>{t("Course")}</span><div className="nocourse">{t("You have no courses yet. Every lecture belongs to a course, so add one first.")}{" "}{add}</div></div>;
+  return <div className="field"><span className="field-h"><label htmlFor="fCourse">{t("Course")}</label>{add}</span>
+    <select id="fCourse" defaultValue={nf.courseId || undefined} onChange={e => { nf.courseId = e.currentTarget.value; }}>{S.courses.map(c => <option key={c.id} value={c.id}>{c.code + (c.name ? ", " + c.name : "")}</option>)}</select></div>;
+}
+
 export function NewLecture() {
   const m = nf.mode; if (!nf.courseId || !course(nf.courseId)) nf.courseId = S.courses[0] ? S.courses[0].id : null; if (!nf.lang) nf.lang = S.settings.classLanguage || "en";
   const u = S.usage;
@@ -43,7 +54,7 @@ export function NewLecture() {
       {CAN_TAB ? <button role="radio" aria-checked={m === "tab"} className={m === "tab" ? "on" : ""} onClick={mode("tab")}><b><span className="w">{t("Record an online class")}</span><span className="n">{t("Online class")}</span></b><span className="small muted d">{t("Capture the sound of a browser tab, such as Zoom in the browser. Desktop Chrome or Edge.")}</span></button> : null}
     </div>
     <form className="card" style={css("padding:22px;max-width:640px")} onSubmit={e => { e.preventDefault(); submitNew(); }}>
-      <label className="field"><span>{t("Course")}</span><select defaultValue={nf.courseId || undefined} onChange={e => { const s = e.currentTarget; if (s.value === "__add") { s.value = nf.courseId || ""; addCourseModal(); } else nf.courseId = s.value; }}>{S.courses.map(c => <option key={c.id} value={c.id}>{c.code + (c.name ? ", " + c.name : "")}</option>)}<option value="__add">{t("Add a course")}</option></select></label>
+      <CourseField />
       <label className="field"><span>{t("Title (optional)")}</span><input placeholder={t("Week 10, supply and demand")} maxLength={120} defaultValue={nf.title} onChange={e => { nf.title = e.currentTarget.value; }} /></label>
       {m === "upload" ? <div className="field"><span>{t("Recording")}</span><FileBox k="file" id="fRec" accept="audio/*,video/*" empty={<>{t("Drop an audio or video file here, or ")}<button type="button" className="ts" style={css("font-size:inherit")} onClick={() => document.getElementById("fRec")!.click()}>{t("choose a file")}</button><div className="small">{t("MP3, M4A, WAV, MP4. Up to " + CONFIG.MAX_UPLOAD_MB + " MB.")}</div></>} /></div> : null}
       {m === "link" ? <label className="field"><span>{t("Video link")}</span><input type="url" placeholder={t("https://")} defaultValue={nf.link} onChange={e => { nf.link = e.currentTarget.value; }} /></label> : null}
