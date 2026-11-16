@@ -10,9 +10,10 @@ export const ICON = {
 };
 
 export type Mood = "plain" | "smile" | "wow" | "sad";
-/* Hal, the half note with a face. */
-export function Hal({ size = 28, mood = "plain", color = "#FFD93B" }: { size?: number; mood?: Mood; color?: string }) {
-  const ink = "#16233B", mouth = mood === "smile" ? <path d="M9.4 23.2q3.2 2.2 6.4-.9" fill="none" stroke={ink} strokeWidth="1.7" strokeLinecap="round" /> : mood === "wow" ? <path d="M9.9 22.9q3 3.6 6-1.8z" fill={ink} /> : mood === "sad" ? <path d="M9.6 24.8q3-2.6 6-1" fill="none" stroke={ink} strokeWidth="1.7" strokeLinecap="round" /> : null;
-  return <svg className="sid" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M23 18.6V4" stroke={ink} strokeWidth="2.6" strokeLinecap="round" /><ellipse cx="13.4" cy="20.8" rx="10.2" ry="7.7" transform="rotate(-18 13.4 20.8)" fill={color} stroke={ink} strokeWidth="2.2" /><circle className="eye" cx="9.4" cy="19.4" r="1.75" fill={ink} /><circle className="eye" cx="15.9" cy="17.5" r="1.75" fill={ink} />{mouth}</svg>;
+/* Hal, the logo: a sticky note split in two. Yellow is what is on the slides, dark is what the lecturer said. The mood prop is kept so callers
+   do not change, but this drawing has no mouth. */
+export function Hal({ size = 28, color = "#FFD93B" }: { size?: number; mood?: Mood; color?: string }) {
+  const ink = "#16233B";
+  return <svg className="sid" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h13v26H3z" fill={color} /><path d="M16 3h13v17l-9 9h-4z" fill={ink} /><path d="M29 20h-9v9z" fill="#fff" /><path d="M3 3h26v17l-9 9H3z" fill="none" stroke={ink} strokeWidth="2" strokeLinejoin="round" /><path d="M29 20h-9v9" fill="none" stroke={ink} strokeWidth="2" strokeLinejoin="round" /><circle className="eye" cx="10" cy="13" r="2.2" fill={ink} /><circle className="eye" cx="22" cy="13" r="2.2" fill="#FFD93B" /></svg>;
 }
 export const Logo = ({ href }: { href: string }) => <a className="logo" href={href} data-notr=""><Hal size={30} />halfnote</a>;

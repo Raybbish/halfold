@@ -1,5 +1,5 @@
 // The product is called Halfnote and the mascot Hal. Real-backend mode (fake API by request interception): the page title and
-// the home-screen name, the logo (the half note mascot), the tag on a point that is not on the slides and the filter for it, no
+// the home-screen name, the logo (the split sticky note), the tag on a point that is not on the slides and the filter for it, no
 // leftover "Sidenote" or "Sid" on the main pages in English and Chinese, and the internal storage name still sidenote.session.
 const { chromium, ORIGIN, serve, setConfig } = require('./harness');
 const results = [];
@@ -27,7 +27,13 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
 
   const logoText = (await page.locator('.logo').first().innerText()).trim();
   check('title and home-screen name say Halfnote', /^Halfnote: /.test(await page.title()) && await page.getAttribute('meta[name=apple-mobile-web-app-title]', 'content') === 'Halfnote', await page.title());
-  check('logo text is "halfnote" and the mascot is the half note', logoText === 'halfnote' && await page.locator('.logo').first().locator('svg ellipse').count() === 1, { logoText, ellipses: await page.locator('.logo svg ellipse').count() });
+  const logoSvg = page.locator('.logo').first().locator('svg');
+  const shape = await logoSvg.evaluate(svg => ({ left: [...svg.querySelectorAll('path')].some(p => p.getAttribute('d') === 'M3 3h13v26H3z' && p.getAttribute('fill') === '#FFD93B'), right: [...svg.querySelectorAll('path')].some(p => p.getAttribute('d') === 'M16 3h13v17l-9 9h-4z' && p.getAttribute('fill') === '#16233B'), eyes: svg.querySelectorAll('circle.eye').length, ellipses: svg.querySelectorAll('ellipse').length }));
+  check('logo text is "halfnote" and the logo is the yellow half, the navy half, two eyes and no ellipse', logoText === 'halfnote' && shape.left && shape.right && shape.eyes === 2 && shape.ellipses === 0, { logoText, shape });
+  const icon = decodeURIComponent(await page.getAttribute('link[rel=icon]', 'href'));
+  check('the favicon is the new logo (has the yellow left half)', icon.includes("d='M3 3h13v26H3z'") && !icon.includes('ellipse'), icon);
+  const weight = await page.locator('.logo').first().evaluate(e => getComputedStyle(e).fontWeight);
+  check('the wordmark is font-weight 800', weight === '800', weight);
 
   await page.goto(ORIGIN + '/#/lecture/l1'); await page.waitForSelector('.pt.off');
   const offTag = (await page.locator('.pt.off .tag').first().innerText()).trim(), toolsText = await page.locator('.tools').innerText();
