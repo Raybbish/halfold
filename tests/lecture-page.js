@@ -91,6 +91,16 @@ const DETAIL2 = () => ({ alerts: [], slides: [], flashcards: [], transcript: [],
     check('the closed topics are forgotten when the page is visited again', (await closedOf(page)).every(x => !x), await closedOf(page));
     check('a lecture with one topic has no Topics row and no "Collapse all topics"', await (async () => { await lecture(page, 'l2'); return (await page.locator('.chips').count()) === 0 && (await page.locator('button[data-act=collapse]').count()) === 0; })());
 
+    // "Print or save notes as PDF" with two topics folded: what is on the page when the print dialog opens (window.print is
+    // replaced so that the page can be read at that moment) has every topic open with all its notes.
+    await lecture(page, 'l1'); await page.click('#sec-0 .sec-t'); await page.click('#sec-2 .sec-t'); await page.waitForTimeout(100);
+    const folded = (await closedOf(page)).filter(Boolean).length;
+    await page.evaluate(() => { window.__printed = null; window.print = () => { window.__printed = { closed: document.querySelectorAll('.nsec.closed').length, pts: [...document.querySelectorAll('.nsec .pt')].map(p => p.innerText.replace(/\s+/g, ' ')) }; }; });
+    await page.click('.page-h button:text-is("More")'); await page.click('#overlay button:text-is("Print or save notes as PDF")'); await page.waitForTimeout(600);
+    const printed = await page.evaluate(() => window.__printed), want = ['Cost is what you give up', 'Trade-offs everywhere', 'Example with coffee', 'Supply slopes up', 'Shifts of supply', 'Demand slopes down'];
+    check('printing the notes as PDF shows every topic open with all its notes, also the folded ones', folded === 2 && !!printed && printed.closed === 0 && printed.pts.length === 6 && want.every(w => printed.pts.some(x => x.includes(w))), { folded, printed });
+    await lecture(page, 'l2');
+
     await lecture(page, 'l1');
     await page.click('.page-h button:text-is("More")'); const more = await page.locator('#overlay').innerText();
     check('the More menu has "Edit title and course" instead of Rename and Move', /Edit title and course/.test(more) && !/^Rename$|Move to another course/m.test(more), more);

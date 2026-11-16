@@ -33,6 +33,10 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   const keys = [...new Set((shortcuts.toLowerCase().match(/\b(arrows?|space|number keys?|enter|escape|esc|shift|ctrl|control|cmd|alt|tab|delete|backspace)\b/g) || []).map(k => k.replace(/s$/, '').replace(/^esc$/, 'escape').replace(/^number key$/, 'number')))];
   const known = ['arrow', 'space', 'number', 'enter', 'escape'];   // onLectureKey (arrows, space, 1 to 9, Enter) and the Escape listener in main.tsx
   check('help lists only keyboard keys this app has', keys.length >= 4 && keys.every(k => known.includes(k)), { keys, shortcuts });
+  const help = await text('body'), sentences = help.split(/(?<=\.)\s+|\n+/);
+  const ownCards = sentences.filter(x => /own cards|turn any note/i.test(x)), courseSearch = sentences.filter(x => /search/i.test(x) && /\bCourses\b/.test(x));
+  check('help does not mention writing your own cards, and says the search box is on Home only (#/courses has none)', !ownCards.length && !courseSearch.length && sentences.some(x => /^On Home, the search box/.test(x)), { ownCards, courseSearch });
+  check('help names the tag the notes use, "Not on slides", not "Halfnotes"', help.includes('Not on slides') && !/Halfnotes?:/.test(help), sentences.filter(x => /slides/.test(x)));
 
   check('landing says "Works in the browser on a laptop or a phone. Nothing to install." and keeps playing the recording from that moment',
     landing.includes('Works in the browser on a laptop or a phone. Nothing to install.') && /play the recording from that moment/.test(landing) && !/Canvas|Hong Kong/.test(landing), landing.match(/Canvas|Hong Kong/));

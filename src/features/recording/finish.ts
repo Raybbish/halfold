@@ -8,12 +8,13 @@ import { R, S, cur, lecture } from "../../state/app";
 import { act, busy, closeModal, modal, toast } from "../../state/overlay";
 import { route } from "../../state/router";
 import type { LectureStatus } from "../../types";
-import { live, stopRecording } from "./recorder";
+import { live, saveLiveMeta, stopRecording } from "./recorder";
 import { outbox, dropped, flush } from "./outbox";
 import { unmark } from "./orphan";
 import { watch } from "../notes/watch";
 
-export function endLive() { const id = live.id!, dur = live.sec, stopped = stopRecording(); live.active = false; finishAfterUpload(id, dur, stopped); }
+/* A title still being typed is sent first: on an iPhone, tapping End with the keyboard up does not leave the title box, so its blur never comes. */
+export function endLive() { saveLiveMeta(); const id = live.id!, dur = live.sec, stopped = stopRecording(); live.active = false; finishAfterUpload(id, dur, stopped); }
 /* Waits for the recorder's last piece and for the queue to empty, and only then asks for the notes. If the end of the
    audio cannot be sent, a locked dialog ("Waiting for a connection") offers to try again (drawn by ui/Overlay.tsx). */
 export function finishAfterUpload(id: string, dur: number, stopped?: Promise<unknown>) { act(async () => { busy("Sending the last of the audio", "Keep this page open."); await stopped;

@@ -73,7 +73,7 @@ export function saveLiveMeta() {
   if (c && c.id !== live.savedCourse) { p.course = c.id; live.courseCode = c.code; store.set("lastCourse", c.id); bump(); }
   if (!Object.keys(p).length) return;
   if (p.title) live.savedTitle = p.title; if (p.course) live.savedCourse = p.course;
-  api.updateLecture(id, p).then(() => { const l = lecture(id); if (l) Object.assign(l, p, p.title ? { autoTitle: false } : {}); S.homeLoaded = false; mark(); toast("Saved"); }).catch(e => toast((e as Error).message, { error: true }));
+  api.updateLecture(id, p).then(() => { const l = lecture(id); if (l) Object.assign(l, p, p.title ? { autoTitle: false } : {}); S.homeLoaded = false; if (live.active && live.id === id) mark(); toast("Saved"); }).catch(e => toast((e as Error).message, { error: true }));   // the answer can come after End (endLive saves first): no mark for a recording that has ended
 }
 export function togglePause() { live.paused = !live.paused; try { if (rec.mr && rec.mr.state !== "inactive") live.paused ? rec.mr.pause() : rec.mr.resume(); } catch (e) {} bump(); }
 export function stopRecording() {   // resolves once the recorder has handed over its last piece of audio

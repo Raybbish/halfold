@@ -11,6 +11,7 @@ import { pl, plPlay, plSeek, segAt } from "../../features/player/player";
 import { doExport } from "../../features/export";
 import { pollNotes } from "../../features/recording/finish";
 import { holdWatch } from "../../features/notes/watch";
+import { forgetOrphan } from "../../features/recording/orphan";
 import { openModal } from "../../ui/Overlay";
 import { css } from "../../ui/css";
 import { val } from "../../ui/form";
@@ -95,7 +96,11 @@ function addSlides(f: File) {
 
 export function deleteModal() { openModal(() => <><h3>{t("Delete this lecture?")}</h3><p className="muted">{t("The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.")}</p>
   <div style={css("display:flex;gap:10px;justify-content:flex-end;margin-top:16px")}><button className="btn plain" onClick={closeModal}>{t("Keep lecture")}</button><button className="btn dark" onClick={doDelete}>{t("Delete lecture")}</button></div></>); }
-function doDelete() { act(async () => { const id = C().l.id, c = C().c; await api.deleteLecture(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id]; closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
+/* An interrupted recording on this device (the never-finished card offers Delete for it too) is forgotten with its lecture,
+   as Discard it would. */
+function doDelete() { act(async () => { const id = C().l.id, c = C().c; await api.deleteLecture(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id];
+  if (S.orphan && S.orphan.id === id) await forgetOrphan();
+  closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
 
 /* ---------- sharing ---------- */
 export function share() { act(async () => { const l = C().l; if (!l.shareUrl) { const r = await api.createShareLink(l.id); l.shareUrl = r.url; }

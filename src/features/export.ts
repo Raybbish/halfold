@@ -12,7 +12,7 @@ export function notesMarkdown() { const { l, c } = cur!, d = cur!.d!; let o = "#
   d.sections.forEach(s => { o += "\n## " + s.title + (s.slides ? " (" + s.slides + ")" : "") + "\n\n" + s.points.map(p => "- " + (p.t != null ? "[" + fmt(p.t) + "] " : "") + (p.off ? "**Halfnote:** " : "") + p.text + (zhText(p) ? "\n  - " + zhText(p) : "")).join("\n") + "\n"; });
   return o; }
 export function doExport(f: "pdf" | "md" | "anki" | "txt") { const { l, c } = cur!, d = cur!.d!, base = slug((c ? c.code + " " : "") + l.title); closeModal();
-  if (f === "pdf") { Object.assign(state, { tab: "notes", onlyOff: false, edit: false }); bump(); setTimeout(() => window.print(), 200); return; }
+  if (f === "pdf") { Object.assign(state, { tab: "notes", onlyOff: false, edit: false, closed: new Set() }); bump(); setTimeout(() => window.print(), 200); return; }   // every topic open: a folded one would print without its notes
   if (f === "anki") return download(base + "-flashcards.txt", d.flashcards.map(x => oneLine(x.q) + "\t" + oneLine(x.a)).join("\n"), "text/plain");
   if (f === "txt") return download(base + "-transcript.txt", d.transcript.map(s => "[" + fmt(s.t) + "] " + s.text).join("\n\n"), "text/plain");
   download(base + "-notes.md", notesMarkdown(), "text/markdown"); }

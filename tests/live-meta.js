@@ -9,18 +9,20 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   const errs = [];
   const open = async (courseCount, width = 1280) => {
     const all = [{ id: 'c1', code: 'TEST 1001', name: '' }, { id: 'c2', code: 'TEST 2002', name: '' }];
-    const be = { sent: 0, patches: [], courses: all.slice(0, courseCount) };
+    const be = { sent: 0, patches: [], log: [], patchDelay: 0, courses: all.slice(0, courseCount) };
     const ctx = await browser.newContext({ viewport: { width, height: width < 900 ? 780 : 800 }, isMobile: width < 900, hasTouch: width < 900, permissions: ['microphone'] });
     await ctx.addInitScript(() => { try { localStorage.setItem('sidenote.recTip', '1'); localStorage.setItem('sidenote.lastCourse', 'c1'); window.__vib = 0; navigator.vibrate = () => { window.__vib++; return true; }; } catch (e) {} });
     await setConfig(ctx, { USE_MOCK: false, POLL_MS: 50, CHUNK_SECONDS: 1 });
     await ctx.route('**/*', async route => {
       const req = route.request(), u = new URL(req.url()), m = req.method(), j = (o, s = 200) => route.fulfill({ status: s, contentType: 'application/json', body: JSON.stringify(o) });
       if (!u.pathname.startsWith('/api/')) return serve(route, { USE_MOCK: false, POLL_MS: 50, CHUNK_SECONDS: 1 });
-      const p = u.pathname.slice(4);
+      const p = u.pathname.slice(4); be.log.push(m + ' ' + p);
       if (p === '/session') return j({ token: 'tok', user: { name: 'T' } });
       if (p === '/home') return j({ user: { name: 'T' }, courses: be.courses, lectures: [], upcoming: [], settings: { classLanguage: 'en', zhDefault: false } });
       if (m === 'POST' && p === '/lectures') { const b = JSON.parse(req.postData() || '{}'); return j({ id: 'lnew', course: b.courseId, title: b.title, date: 'Today', duration: 0, status: 'recording' }); }
-      if (m === 'PATCH' && p === '/lectures/lnew') { be.patches.push(req.postData()); return j(null); }
+      if (m === 'PATCH' && p === '/lectures/lnew') { be.patches.push(req.postData()); if (be.patchDelay) await new Promise(r => setTimeout(r, be.patchDelay)); return j(null).catch(() => {}); }
+      if (m === 'POST' && p === '/lectures/lnew/finish') return j({ status: 'processing' });
+      if (m === 'GET' && p === '/lectures/lnew') return j({ lecture: { id: 'lnew', course: 'c1', title: 'Week 11', date: 'Today', duration: 0, status: 'processing' }, detail: null });
       if (m === 'POST' && /\/chunks$/.test(p)) return j({ segments: [], alerts: be.alert && !be.sent++ ? [{ t: 5, kind: 'Exam', text: 'Exam on Friday' }] : [] });
       if (/\/status$/.test(p)) return j({ status: 'recording' });
       return j({ message: 'Not found' }, 404);
@@ -43,6 +45,17 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     check('choosing another course saves it, shows its code and remembers it', be.patches[1] === '{"course":"c2"}' && /TEST 2002/.test(top) && lc === 'c2', { p: be.patches, top, lc });
     await page.focus('.live-meta input'); await page.fill('.live-meta input', ''); await page.press('.live-meta input', 'Tab'); await page.waitForTimeout(300);
     check('the dated title is not sent again when the box is left empty', be.patches.length === 2, be.patches);
+    await ctx.close(); }
+  // On an iPhone, tapping End with the keyboard up does not take the focus from the title box, so the box is never left:
+  // the click is sent from the page here, which keeps the focus in the box. The answer to the PATCH comes late (after
+  // /finish) and must not leave a "recording in progress" mark behind.
+  { const { ctx, page, be } = await open(2); be.patchDelay = 800;
+    await page.fill('.live-meta input', 'Week 11'); await page.waitForTimeout(1200);
+    const focused = await page.evaluate(() => document.activeElement === document.querySelector('.live-meta input'));
+    await page.evaluate(() => [...document.querySelectorAll('.live-actions button')].find(b => b.textContent.trim() === 'End and make notes').click());
+    await page.waitForFunction(() => location.hash.startsWith('#/lecture/'), null, { timeout: 8000 }).catch(() => {}); await page.waitForTimeout(1200);
+    const api = be.log.filter(x => /^(PATCH|POST) \/lectures\/lnew(\/finish)?$/.test(x)), mark = await page.evaluate(() => localStorage.getItem('sidenote.live'));
+    check('ending the recording while the title box still has the focus sends the title (PATCH) before /finish, and leaves no recording mark', focused && api[0] === 'PATCH /lectures/lnew' && api.includes('POST /lectures/lnew/finish') && be.patches[0] === '{"title":"Week 11"}' && mark === null, { focused, api, patches: be.patches, mark });
     await ctx.close(); }
   { const { ctx, page } = await open(1);
     const n = await page.locator('.live-meta select').count(), input = await page.locator('.live-meta input').count();

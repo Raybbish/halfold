@@ -63,6 +63,19 @@ const trad = s => [...s].filter(c => BAD.includes(c));
   check('a rule sentence (ZHR) and a date come out in Simplified', /月/.test(rs) && /[一-鿿]/.test(rs) && !trad(rs).length, rs);
   const titles = await page.locator('[data-notr]').allInnerTexts();
   check('backend text stays as sent in Simplified', titles.some(x => x.includes('週 9 測試')), titles.slice(0, 5));
+  // Backend text inside a rule sentence (ZHR) stays as sent too; only the sentence around it is Simplified: the user's name
+  // in "Hi <name>", a course code in the lecture's meta line and in the "Recording <code>" bar.
+  await page.evaluate(() => { const b = window.__sidenote; b.S.user.name = '張學友'; b.DATA.courses.find(c => c.id === 'econ1001').code = '經濟學 1001'; b.S.homeLoaded = false; b.route(); });   // this is already #/home
+  await page.waitForSelector('.hello h1'); await page.waitForTimeout(400);
+  const hi = await page.locator('.hello h1').innerText();
+  await page.goto(ORIGIN + '/#/lecture/econ-w9'); await page.waitForTimeout(400);
+  const metaLine = await page.locator('.page-h p.muted').first().innerText();
+  await page.evaluate(() => Object.assign(window.__sidenote.live, { active: true, courseCode: '經濟學 1001', sec: 5 }));
+  await page.goto(ORIGIN + '/#/settings'); await page.waitForTimeout(300);
+  const pill = (await page.locator('.pill-rec').first().innerText().catch(() => '')).replace(/\s+/g, ' ');
+  await page.evaluate(() => Object.assign(window.__sidenote.live, { active: false, courseCode: '' }));
+  check('in Simplified, backend text inside a rule sentence stays as sent: "Hi <name>", a course code in the meta line and in "Recording <code>"',
+    hi === '你好，張學友' && metaLine.startsWith('經濟學 1001，') && /第 9 周/.test(metaLine) && /^正在录音 經濟學 1001 /.test(pill), { hi, metaLine, pill });
   await page.goto(ORIGIN + '/#/lecture/econ-w9'); await page.waitForTimeout(400);
   check('lecture title stays as sent on the lecture page', (await page.locator('.page-h h1').innerText()) === '週 9 測試');
   await page.selectOption('.lang', 'zh-Hant'); await page.waitForTimeout(300);

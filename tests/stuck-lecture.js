@@ -14,7 +14,7 @@ const KB = 1024;
   const errs = [], log = [], posts = [];
   const lec = (id, status, extra) => ({ id, course: 'c1', title: 'Week 9', date: 'Today', status, ...extra });
   let LECTURES = [lec('lrec', 'recording', { source: 'record' }), lec('ltab', 'recording', { source: 'tab' }), lec('lup', 'recording', { source: 'upload' }), lec('lup2', 'recording', { source: 'upload' }), lec('lhold', 'recording', { source: 'upload' }), lec('llink0', 'recording', { source: 'link' }), lec('llink', 'recording', { source: 'link', link: 'https://vimeo.com/1' }),
-    lec('lold', 'recording'), lec('lfail', 'failed', { source: 'record' }), lec('lfail2', 'failed', { source: 'record' })];
+    lec('lold', 'recording'), lec('lfail', 'failed', { source: 'record' }), lec('lfail2', 'failed', { source: 'record' }), lec('lorph', 'recording', { source: 'record' })];
   const cfg = { USE_MOCK: false, POLL_MS: 50, MAX_UPLOAD_MB: 1 };
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, permissions: ['microphone'] });
   await setConfig(ctx, cfg);
@@ -97,6 +97,22 @@ const KB = 1024;
   await page.setInputFiles('#fRe', { name: 'big.m4a', mimeType: 'audio/mp4', buffer: Buffer.alloc(1100 * KB, 1) }); await sleep(400);
   const toastText = await page.locator('.toast').last().innerText().catch(() => '');
   check('a file over the limit is refused and not sent', /larger than 1 MB/.test(toastText) && !posts.length && await h3() === 'This lecture was never finished', { toastText, posts });
+
+  // A recording on this device that was cut off by a closed tab (its mark in localStorage, a piece of audio in IndexedDB):
+  // deleting its lecture from the "never finished" card also forgets it here, so the "was interrupted" notice is gone,
+  // and stays gone after a reload.
+  await page.evaluate(async () => { localStorage.setItem('sidenote.live', JSON.stringify({ id: 'lorph', code: 'TEST 1001', sec: 45, at: Date.now() - 600000 }));
+    await window.__sidenote.idb.put({ key: 'lorph:0', id: 'lorph', seq: 0, blob: new Blob(['x']), sec: 3, code: 'TEST 1001' }); });
+  await page.reload(); await page.waitForSelector('.shell'); await sleep(700);
+  const notice = () => page.locator('.main .alert:has-text("was interrupted")').count();
+  await go('lorph'); const shown = await notice(), orphBtns = (await page.locator('.main .card .brow .btn').allInnerTexts()).join('|'); log.length = 0;
+  await page.click('.main .card button:text-is("Delete lecture")'); await page.click('#overlay .modal button:text-is("Delete lecture")'); await sleep(600);
+  const after = await notice(), left = await page.evaluate(async () => ({ mark: localStorage.getItem('sidenote.live'), chunks: ((await window.__sidenote.idb.all()) || []).filter(c => c.id === 'lorph').length }));
+  await page.reload(); await page.waitForSelector('.shell'); await sleep(900);
+  const gone = await notice();
+  check('deleting an interrupted recording\'s lecture also removes the "was interrupted" notice, its saved audio and its mark, also after a reload',
+    shown === 1 && orphBtns === 'Make notes from what was recorded|Delete lecture' && log.includes('DELETE /lectures/lorph') && after === 0 && !left.mark && left.chunks === 0 && gone === 0,
+    { shown, orphBtns, deleted: log.includes('DELETE /lectures/lorph'), after, left, afterReload: gone });
 
   // A recording being made right now keeps its own card.
   await page.evaluate(() => { location.hash = '#/new'; }); await page.waitForSelector('.choice'); await page.click('.choice button:nth-child(1)');

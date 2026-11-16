@@ -18,13 +18,14 @@ const DETAIL = withSlides => ({ alerts: [], transcript: [{ t: 0, text: 'line' }]
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   const errs = [];
   // One browser context with its own fake backend, signed in and on the home page.
-  //   be.set(id, s)  what the lecture's status is from now on ('processing', 'ready', 'failed', or 404 for a deleted lecture)
-  //   be.polls(id)   how many status requests for that lecture have been received
+  //   be.set(id, s)  what the lecture's status is from now on ('processing', 'ready', 'failed', 404 for a deleted lecture,
+  //                  or another error code such as 502 that /status answers for now)
+  //   be.polls(id)   how many status requests for that lecture have been received; be.times[id] when each one arrived
   const open = async (lectures, opts = {}) => {
     const cfg = { USE_MOCK: false, POLL_MS: opts.poll ?? 50 };
-    const be = { log: [], st: {}, inflight: {}, max: {}, after404: {}, sent404: {}, slides: {}, hold: opts.hold ?? 60, finish: opts.finish || 200, lectures };
+    const be = { log: [], st: {}, inflight: {}, max: {}, after404: {}, sent404: {}, slides: {}, times: {}, hold: opts.hold ?? 60, finish: opts.finish || 200, lectures };
     const find = id => be.lectures.find(l => l.id === id);
-    be.set = (id, s) => { be.st[id] = s; const l = find(id); if (l && s !== 404) l.status = s; };
+    be.set = (id, s) => { be.st[id] = s; const l = find(id); if (l && typeof s === 'string') l.status = s; };
     be.polls = id => be.log.filter(x => x === `GET /lectures/${id}/status`).length;
     lectures.forEach(l => { be.st[l.id] = l.status; });
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -37,10 +38,11 @@ const DETAIL = withSlides => ({ alerts: [], transcript: [{ t: 0, text: 'line' }]
       if (p === '/session') return j({ token: 'tok', user: { name: 'T' } });
       if (p === '/home') return j({ user: { name: 'T' }, courses: [{ id: 'c1', code: 'TEST 1001' }], lectures: be.lectures, upcoming: [], settings: { classLanguage: 'en', zhDefault: false } });
       if ((mm = /^\/lectures\/(\w+)\/status$/.exec(p))) {
-        const id = mm[1]; if (be.sent404[id]) be.after404[id] = (be.after404[id] || 0) + 1;
+        const id = mm[1]; if (be.sent404[id]) be.after404[id] = (be.after404[id] || 0) + 1; (be.times[id] = be.times[id] || []).push(Date.now());
         be.inflight[id] = (be.inflight[id] || 0) + 1; be.max[id] = Math.max(be.max[id] || 0, be.inflight[id]);
         await sleep(be.hold); be.inflight[id]--;
         if (be.st[id] === 404) { be.sent404[id] = true; return j({ message: 'This lecture does not exist.' }, 404); }
+        if (typeof be.st[id] === 'number') return j({ message: 'Bad gateway' }, be.st[id]);   // the server is restarting, say
         return j({ status: be.st[id] });
       }
       if (m === 'POST' && (mm = /^\/lectures\/(\w+)\/(finish|retry)$/.exec(p))) { if (be.finish !== 200) return j({ message: 'The server is busy.' }, be.finish); be.set(mm[1], 'processing'); return j({ status: 'processing' }); }
@@ -121,6 +123,29 @@ const DETAIL = withSlides => ({ alerts: [], transcript: [{ t: 0, text: 'line' }]
     const after = await page.locator('.main button:text-is("Check again")').count();
     const checkAgainShown = during === 0 && after === 1 && be.polls('l8') === 600;
     check('watching stops after 600 tries and the page offers "Check again"', checkAgainShown, { during, after, polls: be.polls('l8') });
+    // "Check again" reads the lecture again; it is still being written, so it is watched again (this visit stopped
+    // watching it without an answer), and the page updates by itself when the notes are ready.
+    await page.click('.main button:text-is("Check again")');
+    const again = await until(() => be.polls('l8') > 600), hidden = await until(async () => (await page.locator('.main button:text-is("Check again")').count()) === 0);
+    be.set('l8', 'ready'); await page.waitForSelector('.nsec', { timeout: 5000 }).catch(() => {});
+    const notes = await page.locator('.nsec').count();
+    check('after watching stopped, "Check again" starts watching again and the page updates when the notes are ready', again && hidden && notes > 0, { again, hidden, notes, polls: be.polls('l8') });
+    await ctx.close(); }
+
+  // Errors (a 502 while the server restarts, the network gone for a minute) do not stop the watch: it asks again, waiting
+  // twice as long after each error (up to 20 times POLL_MS, a minute at the usual 3 s), and back at POLL_MS after an answer.
+  { const { ctx, page, be } = await open([lec('l12', 'processing')], { poll: 10, hold: 0 });
+    be.set('l12', 502);
+    await until(() => be.polls('l12') >= 25, 20000);
+    const gaps = ts => ts.slice(1).map((x, i) => x - ts[i]), errGaps = gaps(be.times.l12).slice(-5);
+    be.set('l12', 'processing'); const mark = be.polls('l12');
+    await until(() => be.polls('l12') >= mark + 6, 5000);
+    const okGaps = gaps(be.times.l12.slice(mark + 1));
+    be.set('l12', 'ready'); await page.waitForSelector('a.toast', { timeout: 5000 }).catch(() => {});
+    const toast = await lastToast(page);
+    check('errors from /status (more than 20 in a row) do not stop the watch: it waits longer after each one, then the notice still arrives',
+      errGaps.length === 5 && errGaps.every(g => g >= 150) && okGaps.length >= 4 && okGaps.every(g => g < 100) && toast.tag === 'A' && toast.href.endsWith('#/lecture/l12') && /Your notes are ready/.test(toast.text),
+      { errGaps, okGaps, toast, polls: be.polls('l12') });
     await ctx.close(); }
 
   console.log('\n=== Try again ===');

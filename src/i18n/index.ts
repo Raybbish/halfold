@@ -25,9 +25,18 @@ export let LANG: UiLang = firstLang();
 export const isZh = () => LANG !== "en";
 
 export function trs(s: string): string { if (LANG === "en" || !s) return s; const k = s.replace(/\s+/g, " ").trim(); if (!k) return s; let o: string | null | undefined = ZH[k];
-  if (o == null) for (const [re, fn] of ZHR) { const m = k.match(re); if (m) { o = fn(m); if (o != null) break; } }
-  if (o != null && LANG === "zh-Hans") o = t2s(o);
+  if (o == null) o = rule(k); else if (LANG === "zh-Hans") o = t2s(o);
   return o == null ? s : s.match(/^\s*/)![0] + o + s.match(/\s*$/)![0]; }
+/* A rule sentence (ZHR). In Simplified only the sentence's own words are converted, never what it carries from the backend
+   ("Hi " + a name, a course code, a meta line): every non-ASCII character of the matched text is swapped for a private-use
+   stand-in before the rule runs (the rules only look into the ASCII parts: numbers and English words) and put back after t2s(). */
+function rule(k: string): string | null {
+  for (const [re, fn] of ZHR) { const m = k.match(re); if (!m) continue;
+    if (LANG !== "zh-Hans") { const o = fn(m); if (o != null) return o; continue; }
+    const kept: string[] = [], hide = (ch: string) => { let i = kept.indexOf(ch); if (i < 0) i = kept.push(ch) - 1; return String.fromCharCode(0xE000 + i); };
+    const o = fn(Object.assign(Array.from(m, g => g == null ? g : Array.from(g, ch => ch < "\u0080" ? ch : hide(ch)).join("")), { index: m.index, input: m.input }) as RegExpMatchArray);
+    if (o != null) return Array.from(t2s(o), ch => { const i = ch.charCodeAt(0) - 0xE000; return i >= 0 && i < kept.length ? kept[i] : ch; }).join(""); }
+  return null; }
 
 /* The interface text of one text node or attribute, in the current language. */
 export const t = (s: string) => trs(s);
