@@ -9,6 +9,7 @@ import { t } from "../i18n";
 import { live } from "../features/recording/recorder";
 import { recoverOrphan } from "../features/recording/orphan";
 import { retryNotes } from "../features/recording/finish";
+import { isWatching } from "../features/notes/watch";
 import { hasAudio, pl, plLoad, plStop } from "../features/player/player";
 import { Player } from "../features/player/PlayerBar";
 import { Hal, type Mood } from "../ui/icons";
@@ -26,6 +27,14 @@ import { moreMenu, refreshLecture, setTab, share } from "./lecture/actions";
 const Box = ({ mood, h, p, btn }: { mood: Mood; h: ReactNode; p: string | ReactNode; btn: ReactNode }) =>
   <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Hal size={52} mood={mood} /><div className="grow"><h3>{h}</h3><p className="muted" style={css("margin:8px 0 16px")}>{typeof p === "string" ? t(p) : p}</p>{btn}</div></div>;
 
+/* Notes being written. The lecture is checked in the background (features/notes/watch.ts) and this page updates by
+   itself; "Check again" appears only when nothing is checking any more (it gave up after a long wait). */
+const Writing = ({ id }: { id: string }) =>
+  <div className="card wait"><Hal size={52} mood="wow" /><div className="grow"><h3>{t("Hal is writing your notes")}</h3><p className="muted">{t("First the transcript, then notes, flashcards and a quiz. This usually takes about two minutes.")}</p>
+    <div className="bar ind" role="progressbar" aria-label={t("Writing notes")}><b></b></div>
+    <p className="small muted">{t("You do not have to wait here. This page updates by itself, and the lecture is on your home page when it is ready.")}</p>
+    <div className="brow"><a className="btn plain sm" href="#/home">{t("Go to home")}</a>{isWatching(id) ? null : <button className="btn plain sm" onClick={refreshLecture}>{t("Check again")}</button>}</div></div></div>;
+
 export function LectureBody() {
   /* The audio object lives in player.ts. After each draw it is loaded for this lecture, or stopped when there is none. */
   useLayoutEffect(() => { if (!cur || !cur.d) return; if (hasAudio()) plLoad(); else plStop(); });
@@ -37,7 +46,7 @@ export function LectureBody() {
       ? <Box mood="wow" h={t("This lecture is being recorded")} p="The notes are written when you end the recording." btn={<a className="btn primary" href="#/live">{t("Return to the recording")}</a>} />
       : <Box mood="plain" h={t("This recording was not finished")} p="The page was closed before the recording ended. Hal can still write notes from the part that was saved." btn={<button className="btn primary" onClick={() => S.orphan && S.orphan.id === l.id ? recoverOrphan() : retryNotes(true)}>{t("Make notes from what was saved")}</button>} />;
     if (CONFIG.USE_MOCK && l.status !== "processing") return <Box mood="plain" h={<span data-notr="">{l.title}</span>} p="The sample data has full notes for one lecture, ECON 1001 week 9. Every lecture uses this same page." btn={<a className="btn primary" href="#/lecture/econ-w9">{t("Open ECON 1001 week 9")}</a>} />;
-    return <Box mood="wow" h={t("Hal is still writing these notes")} p="This usually takes a minute or two after the lecture ends." btn={<button className="btn primary" onClick={refreshLecture}>{t("Check again")}</button>} />;
+    return <Writing id={l.id} />;
   }
   const audio = hasAudio();
   /* How long a recording is kept depends on the student's plan. The backend may send audio.keptUntil (a date) or

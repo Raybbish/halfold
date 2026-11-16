@@ -10,6 +10,7 @@ import { LANG, setLang, t, trs } from "../i18n";
 import { zhScript } from "../i18n/zhScript";
 import { live } from "../features/recording/recorder";
 import { plStop } from "../features/player/player";
+import { unwatchAll } from "../features/notes/watch";
 import { Shell } from "../ui/Shell";
 import { css } from "../ui/css";
 import { checked, val } from "../ui/form";
@@ -37,7 +38,7 @@ export function Settings() {
   </Shell>;
 }
 function saveSettings(f: HTMLFormElement) { act(async () => { const p = { name: val(f, "name").trim(), classLanguage: val(f, "lang"), zhDefault: checked(f, "zh"), zhScript: val(f, "zs") as ZhScript }; await api.updateSettings(p); S.user!.name = p.name; S.settings = { classLanguage: p.classLanguage, zhDefault: p.zhDefault, zhScript: p.zhScript }; store.set("zhScript", p.zhScript); nf.lang = p.classLanguage; session.save(); toast("Settings saved"); bump(); }); }
-export function signOut() { if (live.active) { toast("End or discard the recording before signing out."); return; } live.id = null; plStop(); session.clear(); location.hash = "#/"; }
+export function signOut() { if (live.active) { toast("End or discard the recording before signing out."); return; } live.id = null; plStop(); unwatchAll(); session.clear(); location.hash = "#/"; }
 
 /* Names, prices and features come from the backend and are shown as they are (data-notr); only the two button labels are interface text. */
 function Plans() { const p = S.plans;

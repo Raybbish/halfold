@@ -430,3 +430,14 @@ body.is-offline .offline-bar{display:block}
 .seg2 button.on{background:var(--ink);color:#fff}
 @media (max-width:900px){.seg2 button{padding:6px 14px}}
 @media print{.seg2{display:none!important}}
+
+/* ---------- notes written in the background: notices that link, the card while Hal writes ---------- */
+.toast.bad{background:var(--coral);color:var(--ink)}
+a.toast{text-decoration:underline;text-underline-offset:3px}
+.wait{padding:26px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.wait h3{margin-bottom:6px}
+.bar{height:10px;border:1.5px solid var(--ink);border-radius:99px;background:#fff;overflow:hidden;margin:14px 0 8px;max-width:420px}
+.bar b{display:block;height:100%;background:var(--blue);border-radius:99px;transition:width .2s}
+.bar.ind b{width:35%;animation:slide 1.6s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+.brow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}

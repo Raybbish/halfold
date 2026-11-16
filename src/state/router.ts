@@ -6,8 +6,9 @@ import { api } from "../api/api";
 import { bump } from "../lib/bus";
 import { plStop } from "../features/player/player";
 import { live } from "../features/recording/recorder";
+import { resumeWatch } from "../features/notes/watch";
 import { closeModal } from "./overlay";
-import { R, S, findPoint, session, setPendingPoint, setPendingPos, pendingPoint, pendingPos, state, view } from "./app";
+import { R, S, findPoint, lecture, session, setPendingPoint, setPendingPos, pendingPoint, pendingPos, state, view } from "./app";
 
 export const PUBLIC = ["", "s", "signin"];
 let routeSeq = 0;
@@ -25,8 +26,10 @@ export async function route() {
   /* While loading: the app's shell with a skeleton, or Hal in the middle of an empty page. */
   if (needHome || needLec || needSh || needPack || needPlans) { view.loader = S.homeLoaded && !PUBLIC.includes(a) ? "shell" : "center"; bump(); }
   try {
-    if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault; }
+    if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault;
+      S.lectures.forEach(l => { if (l.status === "processing") resumeWatch(l.id); }); }   // notes still being written (after a reload, say) are checked in the background
     if (needLec) { const r = await api.getLecture(b); S.detail[b] = r.detail; const i = S.lectures.findIndex(x => x.id === b); if (i < 0) S.lectures.unshift(r.lecture); else S.lectures[i] = r.lecture; }
+    if (a === "lecture") { const l = lecture(b); if (l && l.status === "processing") resumeWatch(b); }
     if (needSh) S.shared[b] = await api.getShared(b);
     if (needPack) S.pack[b] = await api.getReviewPack(b);
     if (needPlans) S.plans = await api.getPlans().catch(() => ({ plans: [], current: null }));   // Settings still opens when the plans endpoint is not there yet

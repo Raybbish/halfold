@@ -26,5 +26,10 @@ export function uploadProgress(loaded: number, total: number) { const m = overla
 export async function act(fn: () => Promise<unknown> | unknown) { try { await fn(); } catch (e) { closeModal(); toast((e as Error).message || "Something went wrong. Try again."); } }
 
 /* A short notice at the bottom (top on phones). Outside #app, as before: a .toast element with role=status,
-   removed after 2.6 seconds. The scripts read the last .toast. */
-export function toast(msg: string) { const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); el.textContent = trs(msg); document.body.appendChild(el); setTimeout(() => el.remove(), 2600); }
+   removed after 2.6 seconds. The scripts read the last .toast.
+   error: red. href: the whole notice is a link, with "Open" after the text (gone once it is clicked).
+   Either one keeps it for 6 seconds. */
+export function toast(msg: string, opt: { error?: boolean; href?: string } = {}) {
+  const el = document.createElement(opt.href ? "a" : "div"); el.className = "toast" + (opt.error ? " bad" : ""); el.setAttribute("role", "status");
+  if (opt.href) { (el as HTMLAnchorElement).href = opt.href; el.addEventListener("click", () => el.remove()); }
+  el.textContent = trs(msg) + (opt.href ? "  " + trs("Open") : ""); document.body.appendChild(el); setTimeout(() => el.remove(), opt.error || opt.href ? 6000 : 2600); }

@@ -159,6 +159,13 @@ export const ZH: Record<string, string> = {
   "This recording was not finished": "這段錄音沒有完成", "The page was closed before the recording ended. Hal can still write notes from the part that was saved.": "頁面在錄音結束前被關閉了。Hal 仍然可以用已儲存的部分整理筆記。",
   "Make notes from what was saved": "用已儲存的部分整理筆記", "This usually takes a minute or two.": "通常需要一兩分鐘。",
   "The notes could not be written. You can try again from the lecture.": "筆記未能完成，可以在課堂頁再試一次。",
+  /* notes written in the background, and notices that link to the lecture */
+  "First the transcript, then notes, flashcards and a quiz. This usually takes about two minutes.": "先整理逐字稿，再寫筆記、閃卡和測驗，通常約需兩分鐘。",
+  "You do not have to wait here. This page updates by itself, and the lecture is on your home page when it is ready.": "不用在這裡等。這個頁面會自動更新，完成後課堂會出現在主頁。",
+  "Starting again": "正在重新開始", "A few seconds.": "只需幾秒。", "Open": "開啟",
+  "Your notes are ready.": "你的筆記整理好了。", "The notes for a lecture could not be written.": "有一堂課的筆記未能整理出來。",
+  "Upload finished. The notes are being written.": "上載完成，正在整理筆記。",
+  "The lecture was saved, but its notes could not be started. Open it to try again.": "課堂已儲存，但筆記未能開始整理。打開課堂再試一次。",
   /* recording */
   "End or discard the recording before signing out.": "請先結束或捨棄錄音，再登出。", "The microphone stopped. End the recording to keep what you have so far.": "麥克風停止了。請結束錄音，以保留目前錄到的內容。",
   "Halfnote could not save the audio just now. Recording continues and it will keep trying. Keep this page open.": "Halfnote 暫時未能儲存音訊。錄音會繼續，並會不斷重試。請保持這個頁面開啟。", "Connection": "連線",

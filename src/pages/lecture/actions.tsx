@@ -10,6 +10,7 @@ import { t } from "../../i18n";
 import { pl, plSeek, segAt } from "../../features/player/player";
 import { doExport } from "../../features/export";
 import { pollNotes } from "../../features/recording/finish";
+import { holdWatch } from "../../features/notes/watch";
 import { openModal } from "../../ui/Overlay";
 import { css } from "../../ui/css";
 import { val } from "../../ui/form";
@@ -55,7 +56,8 @@ function doRename(f: HTMLFormElement) { const title = val(f, "t").trim(); if (!t
    For a lecture whose notes were made without slides. The PDF is sent with the same upload as on New lecture (progress
    bar, Cancel); the backend then files the existing points under the slides, keeping the student's own notes and edits,
    and reports "processing" until that is done. The lecture is read again at the end: if it still has no slides, adding
-   them failed and the notes are as they were. */
+   them failed and the notes are as they were. This keeps its locked dialogs and its own polling; meanwhile the background
+   check of notes (features/notes/watch.ts) is held off this lecture, so it is never polled twice. */
 export function pickSlides() {
   const old = document.getElementById("slidesPick"); if (old) old.remove();   // left over when the last picker was closed without a file
   const i = document.createElement("input"); i.type = "file"; i.accept = "application/pdf,.pdf"; i.id = "slidesPick"; i.hidden = true;
@@ -66,7 +68,7 @@ function addSlides(f: File) {
   if (!/pdf$/i.test(f.type || f.name)) { toast("Slides need to be a PDF."); return; }
   if (f.size > CONFIG.MAX_UPLOAD_MB * 1048576) { toast("That file is larger than " + CONFIG.MAX_UPLOAD_MB + " MB."); return; }
   const id = C().l.id, stop = new AbortController();
-  act(async () => {
+  act(async () => { holdWatch(id, true); try {
     uploadDialog(f.size, () => stop.abort());
     try { await api.uploadSlides(id, f, { signal: stop.signal, onProgress: (sent, of) => uploadProgress(f.size * sent / of, f.size) }); }
     catch (e) { if ((e as Error).name !== "AbortError") throw e; closeModal(); toast("Upload cancelled."); return; }
@@ -75,7 +77,7 @@ function addSlides(f: File) {
     if (status === "processing") { delete S.detail[id]; closeModal(); toast("Still working. The notes will be under the slides when ready."); return; }
     const r = await api.getLecture(id); S.detail[id] = r.detail; const i = S.lectures.findIndex(x => x.id === id); if (i >= 0) S.lectures[i] = r.lecture;
     closeModal(); toast(r.detail && r.detail.slides.length ? "Slides added" : "The slides could not be added. The notes are as they were."); bump();
-  });
+  } finally { holdWatch(id, false); } });
 }
 
 /* Moving a lecture to another course (added after the migration). The review packs of both courses are dropped from
