@@ -20,7 +20,7 @@ const UI: UiLang[] = ["en", "zh-Hant", "zh-Hans"];
 function firstLang(): UiLang { const s = store.get("lang"); if (s === "zh") return "zh-Hant"; if (UI.includes(s as UiLang)) return s as UiLang;
   let old = false; try { for (let i = 0; i < localStorage.length; i++) if ((localStorage.key(i) || "").startsWith("sidenote.")) { old = true; break; } } catch (e) {}
   if (old) { store.set("lang", "en"); return "en"; }
-  const n = (navigator.language || "en").toLowerCase(); return /^zh/.test(n) ? (/tw|hk|mo|hant/.test(n) ? "zh-Hant" : "zh-Hans") : "en"; }
+  const n = (navigator.language || "en").toLowerCase(), r: UiLang = /^zh/.test(n) ? (/tw|hk|mo|hant/.test(n) ? "zh-Hant" : "zh-Hans") : "en"; store.set("lang", r); return r; }
 export let LANG: UiLang = firstLang();
 export const isZh = () => LANG !== "en";
 

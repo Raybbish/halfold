@@ -17,7 +17,7 @@ const trad = s => [...s].filter(c => BAD.includes(c));
   const open = async (locale, pre) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale });
     const page = await ctx.newPage(); page.on('pageerror', e => errs.push(e.message));
-    if (pre) { await page.goto(ORIGIN + '/'); await page.evaluate(pre); }
+    if (pre) { await page.goto(ORIGIN + '/'); await page.evaluate(() => localStorage.removeItem('sidenote.lang')); await page.evaluate(pre); }
     await page.goto(ORIGIN + '/'); await page.reload(); await page.waitForTimeout(300);
     return { ctx, page };
   };
@@ -39,6 +39,12 @@ const trad = s => [...s].filter(c => BAD.includes(c));
   check('old saved "zh" opens in Traditional', s.lang === 'zh-Hant' && s.html === 'zh-Hant', s.lang); await r.ctx.close();
   r = await open('en-US', () => localStorage.setItem('sidenote.lang', 'zh-Hans')); s = await state(r.page);
   check('saved zh-Hans wins over an English browser', s.lang === 'zh-Hans', s.lang); await r.ctx.close();
+
+  for (const [loc, want] of [['zh-CN', 'zh-Hans'], ['zh-HK', 'zh-Hant']]) {
+    r = await open(loc); await r.page.goto(ORIGIN + '/#/signin'); await r.page.fill('input[name=code]', 'x'); await r.page.click('form.auth button'); await r.page.waitForSelector('.shell');
+    await r.page.reload(); await r.page.waitForSelector('.shell'); s = await state(r.page);
+    check(`new ${loc} visitor signs in and reloads: still ${want}`, s.lang === want && s.html === want && s.saved === want, [s.lang, s.saved]); await r.ctx.close();
+  }
 
   // One Simplified visit through the pages.
   r = await open('zh-CN'); const page = r.page;
