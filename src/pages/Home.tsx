@@ -6,13 +6,15 @@ import { refresh } from "../lib/bus";
 import { S, colorOf, course, daysLeft, dayMon, lecture, meta, setPendingPoint, setPendingPos, state } from "../state/app";
 import { t } from "../i18n";
 import { live } from "../features/recording/recorder";
+import { up, uploading } from "../features/upload/upload";
 import { addToCalendar } from "../features/export";
 import { MIN_QUERY, found, norm, searchNotes } from "../features/search";
 import { Hal } from "../ui/icons";
 import { Shell, addCourseModal } from "../ui/Shell";
 import { css } from "../ui/css";
 
-export const statusTag = (l: Lecture) => l.status === "processing" ? <span className="tag grey">{t("Writing notes")}</span> : l.status === "failed" ? <span className="tag red">{t("Not written")}</span>
+/* A lecture whose recording is being uploaded right now is "Uploading", not "Not finished". */
+export const statusTag = (l: Lecture) => uploading() && up.id === l.id ? <span className="tag amber">{t("Uploading")}</span> : l.status === "processing" ? <span className="tag grey">{t("Writing notes")}</span> : l.status === "failed" ? <span className="tag red">{t("Not written")}</span>
   : l.status === "recording" ? (live.active && live.id === l.id ? <span className="tag amber">{t("Recording")}</span> : <span className="tag grey">{t("Not finished")}</span>) : null;
 
 /* The note matches from the server for the text in the box (features/search.ts). While a new search is on its way

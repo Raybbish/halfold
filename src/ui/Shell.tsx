@@ -11,6 +11,7 @@ import { act, closeModal, toast } from "../state/overlay";
 import { LANG, isZh, setLang, t } from "../i18n";
 import { live } from "../features/recording/recorder";
 import { recoverOrphan, dropOrphan } from "../features/recording/orphan";
+import { up, upPct } from "../features/upload/upload";
 import { ICON, Logo, Hal } from "./icons";
 import { openModal } from "./Overlay";
 import { css } from "./css";
@@ -36,6 +37,7 @@ export function Shell({ active, children }: { active: string; children: ReactNod
     <header className="mtop"><Logo href="#/home" />{CONFIG.USE_MOCK ? <span className="mtag">{t("Sample data")}</span> : null}<span className="sp"></span><LangBtn /><a className={`ico ${active === "settings" ? "on" : ""}`} href="#/settings" aria-label={t("Settings")}>{ICON.settings}</a></header>
     <main className="main"><div className="inner">
       {live.active && R.a !== "live" ? <a className="pill-rec" href="#/live"><i></i>{t("Recording " + live.courseCode + " ")}<span className="clk num">{fmt(live.sec)}</span>{t(" Return")}</a> : null}
+      <UploadPill />
       <OrphanNotice />
       {children}</div></main>
     {R.a === "live" ? null : <nav className="mnav" aria-label={t("Main")}>
@@ -49,6 +51,15 @@ export const Skeleton = () => <><div className="sk" style={css("width:40%;height
 
 export function Problem({ title, text, btn }: { title: string; text: string; btn?: ReactNode }) {
   return <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Hal size={52} mood="sad" /><div className="grow"><h3>{t(title)}</h3><p className="muted" style={css("margin:8px 0 16px")}>{t(text)}</p>{btn || <a className="btn primary" href="#/home">{t("Go to home")}</a>}</div></div>;
+}
+
+/* An upload going on in the background (features/upload/upload.ts), on every page but its lecture's, phones included:
+   "Uploading 45%" (the percentage moves without a redraw), or red when it failed. Both open the lecture. */
+function UploadPill() {
+  if (!up.id || !up.state || (R.a === "lecture" && R.b === up.id)) return null;
+  const href = "#/lecture/" + encodeURIComponent(up.id);
+  return up.state === "failed" ? <a className="pill-rec bad" href={href}>{t("The upload did not finish. Open")}</a>
+    : <a className="pill-rec up" href={href}><i></i>{t("Uploading") + " "}<span className="num upPct" data-notr="">{upPct() + "%"}</span></a>;
 }
 
 /* A recording cut off by a closed tab (see features/recording/orphan.ts). */

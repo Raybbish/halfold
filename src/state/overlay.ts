@@ -20,7 +20,9 @@ export const overlayChannel = createChannel();
 export function modal(body: ModalBody, locked?: boolean) { overlay.modal = { body, locked: !!locked }; overlay.seq++; overlayChannel.bump(); }
 export function closeModal() { if (!overlay.modal) return; overlay.modal = null; overlayChannel.bump(); }
 export function busy(title: string, text: string) { modal({ kind: "busy", title, text }, true); }
-/* The upload dialog: a progress bar and a Cancel button. uploadProgress() moves the bar without opening a new dialog. */
+/* The upload dialog: a progress bar and a Cancel button. uploadProgress() moves the bar without opening a new dialog.
+   Only adding slides to a lecture that has notes still waits in it; a new lecture's recording uploads in the
+   background (features/upload/upload.ts). */
 export function uploadDialog(total: number, cancel: () => void) { modal({ kind: "upload", loaded: 0, total, cancel }, true); }
 export function uploadProgress(loaded: number, total: number) { const m = overlay.modal; if (!m || m.body.kind !== "upload") return; m.body.loaded = loaded; m.body.total = total; overlayChannel.bump(); }
 export async function act(fn: () => Promise<unknown> | unknown) { try { await fn(); } catch (e) { closeModal(); toast((e as Error).message || "Something went wrong. Try again."); } }

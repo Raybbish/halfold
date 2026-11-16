@@ -10,6 +10,7 @@ import { live } from "../features/recording/recorder";
 import { recoverOrphan } from "../features/recording/orphan";
 import { retryNotes } from "../features/recording/finish";
 import { isWatching } from "../features/notes/watch";
+import { cancelUpload, ownReason, runUpload, up, upPct } from "../features/upload/upload";
 import { hasAudio, pl, plLoad, plStop } from "../features/player/player";
 import { Player } from "../features/player/PlayerBar";
 import { Hal, type Mood } from "../ui/icons";
@@ -35,11 +36,27 @@ const Writing = ({ id }: { id: string }) =>
     <p className="small muted">{t("You do not have to wait here. This page updates by itself, and the lecture is on your home page when it is ready.")}</p>
     <div className="brow"><a className="btn plain sm" href="#/home">{t("Go to home")}</a>{isWatching(id) ? null : <button className="btn plain sm" onClick={refreshLecture}>{t("Check again")}</button>}</div></div></div>;
 
+/* The recording of this lecture is being uploaded in the background (features/upload/upload.ts). The bar and the
+   percentage move without a redraw (paint() there finds #upBar and .upPct). */
+function Uploading() { const pct = upPct();
+  return <div className="card wait"><Hal size={52} mood="wow" /><div className="grow"><h3>{t("Uploading the recording")}</h3><p className="muted" data-notr="">{up.name}</p>
+    <div className="bar" role="progressbar" aria-label={t("Upload progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><b id="upBar" style={{ width: pct + "%" }}></b></div>
+    <p className="small muted"><b className="num upPct" data-notr="">{pct + "%"}</b>{" "}<span>{t("Keep this tab open until the upload finishes. You can use the rest of Halfnote while you wait.")}</span></p>
+    <div className="brow"><button className="btn plain sm" onClick={cancelUpload}>{t("Cancel upload")}</button></div></div></div>;
+}
+/* The upload failed. The file is still in memory: Send it again sends it to this same lecture. The reason is the server's
+   message, shown as it is, or one of ours. */
+const UploadFailed = () =>
+  <div className="card wait"><Hal size={52} mood="sad" /><div className="grow"><h3>{t("The upload did not finish")}</h3><p className="muted">{ownReason(up.err) ? t(up.err) : <span data-notr="">{up.err}</span>}</p>
+    <p className="small muted">{t("The file is still selected, so you can send it again without choosing it.")}</p>
+    <div className="brow"><button className="btn primary" onClick={() => runUpload()}>{t("Send it again")}</button><button className="btn plain" onClick={cancelUpload}>{t("Delete this lecture")}</button></div></div></div>;
+
 export function LectureBody() {
   /* The audio object lives in player.ts. After each draw it is loaded for this lecture, or stopped when there is none. */
   useLayoutEffect(() => { if (!cur || !cur.d) return; if (hasAudio()) plLoad(); else plStop(); });
   const { l, c, d, shared } = cur!;
   if (!d) {
+    if (!shared && up.id === l.id) return up.state === "failed" ? <UploadFailed /> : <Uploading />;
     /* lecture.error: why it failed, from the backend (a video link that needs a sign-in, ...), shown as it is. */
     if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{l.error}</span> : "Your recording is safe. Hal can try again from it."} btn={<button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button>} />;
     if (l.status === "recording") return live.active && live.id === l.id

@@ -2,7 +2,8 @@
 // sidenote.html translated every text node not marked data-notr, so a course code, a chapter title, a slide label or
 // a file name that happened to equal a dictionary key (or match a ZHR pattern) came out in Chinese. Here the sample
 // data is given such values on purpose, the interface is switched to Chinese, and every place that shows them is read.
-// Also checks that the six unused dictionary keys are gone.
+// Also checks that the five unused dictionary keys are gone. ("Slides did not upload. You can add them later." was a sixth;
+// the background upload uses it again, so it is back in the dictionary.)
 const { chromium, ORIGIN } = require('./harness');
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail)}`); };
@@ -14,7 +15,6 @@ const REMOVED = [
   "Tap a timestamp and read the lecturer's exact words.",
   'Anyone with the link can read the notes, flashcards and quiz. They cannot see your other lectures.',
   'The notes, flashcards, quiz and any shared link will be removed. This cannot be undone.',
-  'Slides did not upload. You can add them later.',
   'The end of your recording has not been sent yet. Keep this page open and try again when you are back online.',
   'The notes could not be written. Open the lecture to try again.'
 ];

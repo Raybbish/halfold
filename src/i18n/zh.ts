@@ -166,6 +166,16 @@ export const ZH: Record<string, string> = {
   "Your notes are ready.": "你的筆記整理好了。", "The notes for a lecture could not be written.": "有一堂課的筆記未能整理出來。",
   "Upload finished. The notes are being written.": "上載完成，正在整理筆記。",
   "The lecture was saved, but its notes could not be started. Open it to try again.": "課堂已儲存，但筆記未能開始整理。打開課堂再試一次。",
+  /* uploading in the background */
+  "Uploading the recording": "正在上載錄音",
+  "Keep this tab open until the upload finishes. You can use the rest of Halfnote while you wait.": "上載完成前請不要關閉這個分頁。等待期間可以繼續使用 Halfnote 的其他頁面。",
+  "The upload did not finish": "上載沒有完成", "The file is still selected, so you can send it again without choosing it.": "檔案仍然選取著，不用重新選擇就可以再傳一次。",
+  "Send it again": "再傳一次", "Delete this lecture": "刪除這堂課",
+  "Another upload is still running. Wait for it to finish first.": "另一個檔案還在上載，請等它完成。",
+  "The upload did not finish.": "上載沒有完成。", "The upload did not finish. Open": "上載沒有完成，點此查看", "The upload failed.": "上載失敗。",
+  "The connection was lost before the upload finished.": "上載完成前連線中斷了。", "Upload cancelled. Nothing was kept.": "已取消上載，沒有保留任何內容。",
+  "Slides did not upload. You can add them later.": "簡報未能上載，可以之後再加。",
+  "Wait for the upload to finish or cancel it before signing out.": "請等上載完成或先取消，再登出。",
   /* recording */
   "End or discard the recording before signing out.": "請先結束或捨棄錄音，再登出。", "The microphone stopped. End the recording to keep what you have so far.": "麥克風停止了。請結束錄音，以保留目前錄到的內容。",
   "Halfnote could not save the audio just now. Recording continues and it will keep trying. Keep this page open.": "Halfnote 暫時未能儲存音訊。錄音會繼續，並會不斷重試。請保持這個頁面開啟。", "Connection": "連線",
