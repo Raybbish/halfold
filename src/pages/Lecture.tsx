@@ -10,7 +10,7 @@ import { live } from "../features/recording/recorder";
 import { recoverOrphan } from "../features/recording/orphan";
 import { retryNotes } from "../features/recording/finish";
 import { isWatching } from "../features/notes/watch";
-import { cancelUpload, ownReason, runUpload, up, upPct } from "../features/upload/upload";
+import { cancelUpload, ownReason, reupload, runUpload, up, upPct } from "../features/upload/upload";
 import { hasAudio, pl, plLoad, plStop } from "../features/player/player";
 import { Player } from "../features/player/PlayerBar";
 import { Hal, type Mood } from "../ui/icons";
@@ -22,7 +22,7 @@ import { Slides } from "./lecture/Slides";
 import { Transcript } from "./lecture/Transcript";
 import { Cards } from "./lecture/Cards";
 import { Quiz } from "./lecture/Quiz";
-import { moreMenu, refreshLecture, setTab, share } from "./lecture/actions";
+import { deleteModal, moreMenu, refreshLecture, setTab, share } from "./lecture/actions";
 
 /* p: interface text (translated here), or backend text already wrapped so that it is shown as it is. */
 const Box = ({ mood, h, p, btn }: { mood: Mood; h: ReactNode; p: string | ReactNode; btn: ReactNode }) =>
@@ -51,6 +51,18 @@ const UploadFailed = () =>
     <p className="small muted">{t("The file is still selected, so you can send it again without choosing it.")}</p>
     <div className="brow"><button className="btn primary" onClick={() => runUpload()}>{t("Send it again")}</button><button className="btn plain" onClick={cancelUpload}>{t("Delete this lecture")}</button></div></div></div>;
 
+/* A lecture that was started but never got its notes, and is not being recorded or uploaded right now. What can be done
+   depends on how it was made: the server refuses a file for a live recording, and refuses to make notes for an upload
+   whose file never arrived. No source (an old lecture) is treated like a recording. */
+function Unfinished() { const { l } = cur!, src = l.source;
+  const mine = !!S.orphan && S.orphan.id === l.id;
+  const rec = !src || src === "record" || src === "tab";
+  const finish = <button className="btn primary" onClick={() => mine ? recoverOrphan() : retryNotes(true)}>{t("Make notes from what was recorded")}</button>;
+  const send = <button className={"btn " + (src === "upload" ? "primary" : "plain")} onClick={() => document.getElementById("fRe")!.click()}>{t("Send a recording file")}</button>;
+  return <div className="card wait"><Hal size={52} mood="sad" /><div className="grow"><h3>{t("This lecture was never finished")}</h3><p className="muted">{t("It was started, but its notes were not made. Finish it from what was recorded, send the recording again, or delete it.")}</p>
+    <input type="file" id="fRe" accept="audio/*,video/*" hidden onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) reupload(f); }} />
+    <div className="brow">{rec ? finish : src === "link" ? <button className="btn primary" onClick={() => retryNotes(true)}>{t("Make notes from the link")}</button> : send}<button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div></div></div>; }
+
 export function LectureBody() {
   /* The audio object lives in player.ts. After each draw it is loaded for this lecture, or stopped when there is none. */
   useLayoutEffect(() => { if (!cur || !cur.d) return; if (hasAudio()) plLoad(); else plStop(); });
@@ -58,10 +70,10 @@ export function LectureBody() {
   if (!d) {
     if (!shared && up.id === l.id) return up.state === "failed" ? <UploadFailed /> : <Uploading />;
     /* lecture.error: why it failed, from the backend (a video link that needs a sign-in, ...), shown as it is. */
-    if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{l.error}</span> : "Your recording is safe. Hal can try again from it."} btn={<button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button>} />;
+    if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{l.error}</span> : "Your recording is safe. Hal can try again from it."} btn={<div className="brow"><button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button><button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div>} />;
     if (l.status === "recording") return live.active && live.id === l.id
       ? <Box mood="wow" h={t("This lecture is being recorded")} p="The notes are written when you end the recording." btn={<a className="btn primary" href="#/live">{t("Return to the recording")}</a>} />
-      : <Box mood="plain" h={t("This recording was not finished")} p="The page was closed before the recording ended. Hal can still write notes from the part that was saved." btn={<button className="btn primary" onClick={() => S.orphan && S.orphan.id === l.id ? recoverOrphan() : retryNotes(true)}>{t("Make notes from what was saved")}</button>} />;
+      : <Unfinished />;
     if (CONFIG.USE_MOCK && l.status !== "processing") return <Box mood="plain" h={<span data-notr="">{l.title}</span>} p="The sample data has full notes for one lecture, ECON 1001 week 9. Every lecture uses this same page." btn={<a className="btn primary" href="#/lecture/econ-w9">{t("Open ECON 1001 week 9")}</a>} />;
     return <Writing id={l.id} />;
   }

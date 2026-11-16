@@ -178,8 +178,8 @@ const DETAIL = () => ({ alerts: [{ t: 18, kind: 'Midterm', text: 'Midterm on Thu
     await page.click('button:text-is("Try again")'); await page.waitForSelector('.tabs', { timeout: 15000 });
     check('retry calls POST /retry and opens the notes', log.some(x => x.includes('retry bad1')) && page.url().endsWith('#/lecture/bad1'));
     await page.goto(ORIGIN + '/#/lecture/half1'); await page.waitForSelector('.main .card h3');
-    check('unfinished recording can still be turned into notes', (await txt(page.locator('.main .card').first())).startsWith('This recording was not finished'));
-    await page.click('text=Make notes from what was saved'); await page.waitForSelector('.tabs', { timeout: 15000 });
+    check('unfinished recording can still be turned into notes', (await txt(page.locator('.main .card').first())).startsWith('This lecture was never finished'));
+    await page.click('text=Make notes from what was recorded'); await page.waitForSelector('.tabs', { timeout: 15000 });
     check('that calls finish for the unfinished lecture', log.some(x => x.includes('finish half1')));
   });
 

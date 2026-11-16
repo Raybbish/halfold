@@ -31,13 +31,13 @@ const results = []; const check = (name, ok, detail) => { results.push(ok); cons
     'The recording of this lecture is kept until ' + dayMon('2026-11-16') + ', 5 more days. The notes stay after that.',
     'The recording of this lecture is kept until ' + dayMon('2026-11-11') + ', which is today. The notes stay after that.',
     'Recording kept until ' + dayMon('2026-12-11') + '.', 'Recordings are kept for 30 days on your plan.', 'Recording ECON 1001',
-    'These notes could not be written', 'Make notes from what was saved', 'Not written', 'Not finished', 'End or discard the recording before signing out.',
+    'These notes could not be written', 'Make notes from what was recorded', 'Not written', 'Not finished', 'End or discard the recording before signing out.',
     'The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.', 'Download recording', 'See plans', 'Connection'].map(trs));
   console.log(t.join('\n'));
   check('every added message has a Chinese version', t.every(x => /[一-鿿]/.test(x)) && t[2].includes('11月16日') && t[6] === '正在錄音 ECON 1001');
   // every English string in the added code is either in the dictionary or matched by a pattern
   const added = ['Main', 'Return to the recording', 'Record', 'Upload', 'Online class', 'Recording of this lecture', 'Play recording', 'Pause recording', 'Position in the recording', 'Back 15 seconds', 'Forward 15 seconds', 'Playback speed',
-    'The recording could not be played.', 'Sample build: playback is simulated, so there is no sound.', 'This lecture is being recorded', 'The notes are written when you end the recording.', 'This recording was not finished',
+    'The recording could not be played.', 'Sample build: playback is simulated, so there is no sound.', 'This lecture is being recorded', 'The notes are written when you end the recording.', 'This lecture was never finished', 'Send a recording file', 'Make notes from the link',
     'The page was closed before the recording ended. Hal can still write notes from the part that was saved.', 'Your recording is safe. Hal can try again from it.', 'This usually takes a minute or two.',
     'The notes could not be written. You can try again from the lecture.', 'The microphone stopped. End the recording to keep what you have so far.',
     'Halfnote could not save the audio just now. Recording continues and it will keep trying. Keep this page open.', 'The end of your recording has not been sent yet. Keep this page open and try again in a moment.',

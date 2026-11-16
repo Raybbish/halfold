@@ -10,7 +10,8 @@
 import { api } from "../../api/api";
 import type { HttpError } from "../../api/http";
 import { bump } from "../../lib/bus";
-import { R, S } from "../../state/app";
+import { CONFIG } from "../../config";
+import { R, S, cur } from "../../state/app";
 import { toast } from "../../state/overlay";
 import { finalize } from "../recording/finish";
 
@@ -41,6 +42,12 @@ function paint() { const pct = upPct();
 
 /* New lecture -> Upload, after the lecture is created. */
 export function startUpload(id: string, file: File, slides: File | null) { Object.assign(up, { id, name: file.name, file, slides }); runUpload(); }
+
+/* Send a recording file (the lecture page of a lecture that was never finished): to the lecture shown, as one upload. */
+export function reupload(f: File) { if (!cur) return;
+  if (up.id) return toast("Another upload is still running. Wait for it to finish first.", { error: true });
+  if (f.size > CONFIG.MAX_UPLOAD_MB * 1048576) return toast("That file is larger than " + CONFIG.MAX_UPLOAD_MB + " MB.", { error: true });
+  startUpload(cur.l.id, f, null); }
 
 /* Sends up.file (then up.slides) to up.id. Also "Send it again" after a failure. */
 export async function runUpload() {

@@ -1,4 +1,4 @@
-// Notes written in the background (batch 1, item 3). After a lecture ends, after "Make notes from what was saved" and
+// Notes written in the background (batch 1, item 3). After a lecture ends, after "Make notes from what was recorded" and
 // after "Try again", the app goes straight to the lecture page, which shows "Hal is writing your notes" instead of a
 // locked dialog; the lecture is checked in the background and the page updates by itself. On another page a clickable
 // notice says the notes are ready (red when they failed). Real-backend mode, fake API by request interception: each
@@ -62,10 +62,10 @@ const DETAIL = withSlides => ({ alerts: [], transcript: [{ t: 0, text: 'line' }]
   console.log('=== a lecture whose notes are being written ===');
   { const { ctx, page, be } = await open([lec('l1', 'recording', { source: 'record' })]);
     await page.goto(ORIGIN + '/#/lecture/l1'); await page.waitForSelector('.main .card h3');
-    await page.click('button:text-is("Make notes from what was saved")');
+    await page.click('button:text-is("Make notes from what was recorded")');
     await page.waitForSelector(WRITING, { timeout: 5000 }).catch(() => {});
     const h3 = await page.locator('.main .card h3').first().innerText(), m1 = await modals(page);
-    check('after "Make notes from what was saved" the lecture page shows "Hal is writing your notes", with no locked dialog', h3 === 'Hal is writing your notes' && !m1 && be.log.includes('POST /lectures/l1/finish'), { h3, modals: m1 });
+    check('after "Make notes from what was recorded" the lecture page shows "Hal is writing your notes", with no locked dialog', h3 === 'Hal is writing your notes' && !m1 && be.log.includes('POST /lectures/l1/finish'), { h3, modals: m1 });
     await until(() => be.polls('l1') > 0); be.set('l1', 'ready');
     await page.waitForSelector('.nsec', { timeout: 5000 }).catch(() => {});
     check('the page updates by itself when the notes are ready', (await page.locator('.nsec').count()) > 0 && page.url().endsWith('#/lecture/l1') && !(await modals(page)), { url: page.url(), log: be.log.slice(-4) });
@@ -92,7 +92,7 @@ const DETAIL = withSlides => ({ alerts: [], transcript: [{ t: 0, text: 'line' }]
   console.log('\n=== one loop per lecture, also after a reload ===');
   { const { ctx, page, be } = await open([lec('l6', 'recording', { source: 'record' })], { poll: 20, hold: 80 });
     await page.goto(ORIGIN + '/#/lecture/l6'); await page.waitForSelector('.main .card h3');
-    await page.click('button:text-is("Make notes from what was saved")'); await page.waitForSelector(WRITING, { timeout: 5000 }).catch(() => {});
+    await page.click('button:text-is("Make notes from what was recorded")'); await page.waitForSelector(WRITING, { timeout: 5000 }).catch(() => {});
     const roam = async () => { for (const h of ['#/home', '#/lecture/l6', '#/home']) { await page.goto(ORIGIN + '/' + h); await page.waitForSelector('.shell'); await sleep(250); }
       await page.evaluate(() => { S.homeLoaded = false; route(); }); await sleep(250); await page.goto(ORIGIN + '/#/lecture/l6'); await sleep(250);
       await page.evaluate(() => window.__sidenote.watch && window.__sidenote.watch('l6')); await sleep(400); };   // a second start, as another finalize or Try again would make

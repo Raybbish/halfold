@@ -90,7 +90,7 @@ function doMove(courseId: string) { const to = course(courseId); if (!to) return
   act(async () => { const l = C().l, from = l.course; await api.moveLecture(l.id, courseId); l.course = courseId;
     S.upcoming.forEach(u => { if (u.lecture === l.id) u.course = to.code; }); delete S.pack[from]; delete S.pack[courseId];
     closeModal(); toast("Moved to " + to.code); bump(); }); }
-function deleteModal() { openModal(() => <><h3>{t("Delete this lecture?")}</h3><p className="muted">{t("The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.")}</p>
+export function deleteModal() { openModal(() => <><h3>{t("Delete this lecture?")}</h3><p className="muted">{t("The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.")}</p>
   <div style={css("display:flex;gap:10px;justify-content:flex-end;margin-top:16px")}><button className="btn plain" onClick={closeModal}>{t("Keep lecture")}</button><button className="btn dark" onClick={doDelete}>{t("Delete lecture")}</button></div></>); }
 function doDelete() { act(async () => { const id = C().l.id, c = C().c; await api.deleteLecture(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id]; closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
 

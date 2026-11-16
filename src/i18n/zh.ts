@@ -156,6 +156,8 @@ export const ZH: Record<string, string> = {
   /* lectures whose notes are missing */
   "Not written": "未能完成", "Not finished": "未完成", "These notes could not be written": "這份筆記未能完成", "Your recording is safe. Hal can try again from it.": "你的錄音還在，Hal 可以用它再試一次。",
   "This lecture is being recorded": "這堂課正在錄音", "The notes are written when you end the recording.": "結束錄音後就會整理筆記。",
+  "This lecture was never finished": "這堂課沒有完成", "It was started, but its notes were not made. Finish it from what was recorded, send the recording again, or delete it.": "這堂課已經開始，但筆記沒有整理出來。可以用已錄下的內容完成、重新傳送錄音，或刪除它。",
+  "Make notes from what was recorded": "用已錄下的內容整理筆記", "Send a recording file": "傳送錄音檔案", "Make notes from the link": "用連結整理筆記",
   "This recording was not finished": "這段錄音沒有完成", "The page was closed before the recording ended. Hal can still write notes from the part that was saved.": "頁面在錄音結束前被關閉了。Hal 仍然可以用已儲存的部分整理筆記。",
   "Make notes from what was saved": "用已儲存的部分整理筆記", "This usually takes a minute or two.": "通常需要一兩分鐘。",
   "The notes could not be written. You can try again from the lecture.": "筆記未能完成，可以在課堂頁再試一次。",
