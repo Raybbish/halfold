@@ -61,7 +61,7 @@ function Unfinished() { const { l } = cur!, src = l.source;
   const send = <button className={"btn " + (src === "upload" ? "primary" : "plain")} onClick={() => document.getElementById("fRe")!.click()}>{t("Send a recording file")}</button>;
   return <div className="card wait"><Hal size={52} mood="sad" /><div className="grow"><h3>{t("This lecture was never finished")}</h3><p className="muted">{t("It was started, but its notes were not made. Finish it from what was recorded, send the recording again, or delete it.")}</p>
     <input type="file" id="fRe" accept="audio/*,video/*" hidden onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) reupload(f); }} />
-    <div className="brow">{rec ? finish : src === "link" ? <button className="btn primary" onClick={() => retryNotes(true)}>{t("Make notes from the link")}</button> : send}<button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div></div></div>; }
+    <div className="brow">{rec ? finish : src === "link" ? (l.link ? <button className="btn primary" onClick={() => retryNotes(true)}>{t("Make notes from the link")}</button> : null) : send}<button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div></div></div>; }
 
 export function LectureBody() {
   /* The audio object lives in player.ts. After each draw it is loaded for this lecture, or stopped when there is none. */

@@ -13,7 +13,7 @@ const KB = 1024;
   const browser = await chromium.launch({ headless: true, args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--no-sandbox'] });
   const errs = [], log = [], posts = [];
   const lec = (id, status, extra) => ({ id, course: 'c1', title: 'Week 9', date: 'Today', status, ...extra });
-  let LECTURES = [lec('lrec', 'recording', { source: 'record' }), lec('ltab', 'recording', { source: 'tab' }), lec('lup', 'recording', { source: 'upload' }), lec('lup2', 'recording', { source: 'upload' }), lec('llink', 'recording', { source: 'link', link: 'https://vimeo.com/1' }),
+  let LECTURES = [lec('lrec', 'recording', { source: 'record' }), lec('ltab', 'recording', { source: 'tab' }), lec('lup', 'recording', { source: 'upload' }), lec('lup2', 'recording', { source: 'upload' }), lec('lhold', 'recording', { source: 'upload' }), lec('llink0', 'recording', { source: 'link' }), lec('llink', 'recording', { source: 'link', link: 'https://vimeo.com/1' }),
     lec('lold', 'recording'), lec('lfail', 'failed', { source: 'record' }), lec('lfail2', 'failed', { source: 'record' })];
   const cfg = { USE_MOCK: false, POLL_MS: 50, MAX_UPLOAD_MB: 1 };
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, permissions: ['microphone'] });
@@ -29,7 +29,7 @@ const KB = 1024;
     let mm = /^\/lectures\/(\w+)$/.exec(p);
     if (m === 'GET' && mm) { const l = LECTURES.find(x => x.id === mm[1]); return l ? j({ lecture: l, detail: null }) : j({ message: 'Not found' }, 404); }
     if (m === 'DELETE' && mm) { LECTURES = LECTURES.filter(x => x.id !== mm[1]); return route.fulfill({ status: 204 }).catch(() => {}); }
-    if (m === 'POST' && (mm = /^\/lectures\/(\w+)\/recording$/.exec(p))) { posts.push(p); return route.fulfill({ status: 204 }).catch(() => {}); }
+    if (m === 'POST' && (mm = /^\/lectures\/(\w+)\/recording$/.exec(p))) { posts.push(p); if (mm[1] === 'lhold') return new Promise(() => {}); return route.fulfill({ status: 204 }).catch(() => {}); }
     if (m === 'POST' && (mm = /^\/lectures\/(\w+)\/(finish|retry)$/.exec(p))) { const l = LECTURES.find(x => x.id === mm[1]); if (l) l.status = 'processing'; return j({ status: 'processing' }); }
     if (m === 'POST' && /\/chunks$/.test(p)) return j({});
     if (/\/status$/.test(p)) return j({ status: 'processing' });
@@ -50,6 +50,15 @@ const KB = 1024;
   check('an upload whose file never arrived: "Send a recording file" first, then "Delete lecture"', upl === 'Send a recording file|Delete lecture', upl);
   const lnk = await btns('llink');
   check('a link lecture with its link: "Make notes from the link" and "Delete lecture"', lnk === 'Make notes from the link|Delete lecture', lnk);
+  const lnk0 = await btns('llink0');
+  check('a link lecture whose link never attached: only "Delete lecture"', lnk0 === 'Delete lecture', lnk0);
+  await go('lhold');
+  await page.setInputFiles('#fRe', { name: 'week9.m4a', mimeType: 'audio/mp4', buffer: Buffer.alloc(100 * KB, 1) });
+  await page.waitForSelector('.main h3:text-is("Uploading the recording")', { timeout: 5000 }).catch(() => {});
+  const during = await h3();
+  await page.reload(); await page.waitForSelector('.main .card h3'); await sleep(300);
+  const afterReload = (await page.locator('.main .card .brow .btn').allInnerTexts()).join('|');
+  check('after a reload mid-upload the lecture offers "Send a recording file"', during === 'Uploading the recording' && afterReload === 'Send a recording file|Delete lecture', { during, afterReload });
   const old = await btns('lold');
   check('a lecture without source behaves like a recording', old === 'Make notes from what was recorded|Delete lecture', old);
 
