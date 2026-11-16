@@ -2,7 +2,7 @@
 
 把课堂录音（可带 PDF 课件）变成笔记，前端用 `USE_MOCK: false` 就能显示。录音可以上传，也可以在浏览器里现场录（实时逐字稿、考试提示、Catch me up）；写好笔记后可以回放。之后学生可以改笔记、补传课件、分享给同学、做整门课的复习包、搜索全部笔记。学生用邮箱验证码登录（第一次加邀请码），有免费和付费方案，用 Stripe 付款。设计和取舍见 [DESIGN.md](DESIGN.md)，接口约定见 `../reference/INTEGRATION.md` 和 `../API-CHANGES.md`。
 
-需要 Node 22.12 以上和 `ffmpeg`（含 `ffprobe`）。
+需要 Node 22.12 以上和 `ffmpeg`（含 `ffprobe`）。贴视频链接要 `yt-dlp`（见“视频链接”），没有时链接课回 501，其他功能不受影响。
 
 ## 跑起来
 
@@ -30,6 +30,24 @@ npm start                 # http://localhost:8787
 | `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本 |
 | `npm run feedback` | 学生在课堂页 “What is wrong in these notes?” 里写的反馈，新的在前（`-- --all` 看全部） |
 | `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
+
+## 视频链接
+
+学生贴一个公开的视频链接（YouTube、Google Drive 公开文件、Vimeo、Dropbox、公开的 Zoom 和 Panopto，或直接的 .mp4、.mp3 地址），后端在后台用 yt-dlp 下载下来，然后和上传的录音一样写笔记。要学校账号登录的回放下载不了，学生会看到原因（`lecture.error`）和改用“录网上课堂”或上传的建议。设计见 [DESIGN.md](DESIGN.md) 的“视频链接（公开链接）”。
+
+- 安装：`brew install yt-dlp`，会一起装上 deno（YouTube 要用它）。用 `pipx install yt-dlp` 的话要另装 deno，否则 YouTube 的链接全部失败。启动时的日志里有 `links: yt-dlp <版本>`，没找到时是 `links: off`。
+- **要定期更新**：视频网站改版后，旧版本的 yt-dlp 会下载失败。brew 装的用 `brew upgrade yt-dlp`，pipx 装的用 `pipx upgrade yt-dlp`（`yt-dlp -U` 只对官方的单文件版本有效）。更新后不用重启。
+- 播放列表的链接只下载第一个视频。网站没有单独的音轨时，选不高于 480p 的视频（够转写，也不容易超过上传上限）。下载不用 ffmpeg：yt-dlp 会把加密的播放列表交给 ffmpeg，而 ffmpeg 不走代理、也停不下来，所以这类链接会失败。
+- YouTube 常把服务器（数据中心）的 IP 当成机器人挡掉，这时学生看到“网站暂时拒绝下载”，可以稍后重试或下载后上传。这一版不带 cookies 去下载。
+- yt-dlp 的所有请求都经过本进程里的一个代理（`src/links/guard.ts`），代理只连公网地址、只连 80 和 443 端口，所以学生不能借链接让服务器访问内网或本机。
+
+| 设置 | 默认 | 作用 |
+|---|---|---|
+| `YTDLP` | `yt-dlp` | yt-dlp 的路径 |
+| `LINK_DOWNLOAD_MINUTES` | `30` | 一次下载最多多久，超过就停下，课堂标为失败 |
+| `LINK_CONCURRENCY` | `2` | 同时下载几个链接。和写笔记的 `PIPELINE_CONCURRENCY` 分开算，慢的下载不会挡住别的课 |
+
+文件大小沿用 `MAX_UPLOAD_MB`，长度最多 5 小时。
 
 ## 对比转写服务
 
@@ -186,6 +204,7 @@ src/
   notes/           DeepSeek：提示词 prompt.ts、调用 deepseek.ts、整理和校验 normalize.ts、繁简 zh.ts、Catch me up catchup.ts、
                    补传课件 slides.ts、复习包 pack.ts
   slides.ts        PDF 每页的文字
+  links/           视频链接：yt-dlp 下载和失败原因 ytdlp.ts、只连公网地址的代理 guard.ts
 scripts/           invite、plan、costs、compare-stt、feedback
 plans.json         方案、价格和每个方案的限制
 test/              契约、上传、流程、整理、服务商请求、ffmpeg 和网页；现场录音（模拟浏览器）、真实分段、回放；
@@ -197,7 +216,7 @@ test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的
 
 ## 还没做的
 
-- 视频链接（`attachLink` 回 501，请学生下载后上传）。
+- 要登录才能看的视频链接（学校账号下的 Panopto、Canvas、Moodle）：服务器没有学生的登录状态。
 - FPS、PayMe 付款：Stripe 不支持，要另接 Airwallex 或 PayMe for Business。现在可以收转账后用 `npm run plan -- give` 手动开通。
 - Google 登录、学校单点登录。
 - 方案卡片的中文：后端不知道学生的界面语言。

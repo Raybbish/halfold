@@ -21,11 +21,14 @@ import type { ReviewPacks } from "./packs";
 import type { Billing } from "./billing";
 import type { Mailer } from "./mail";
 import type { CatchUpReply, ChunkReply, Source, StatusReply } from "../../src/types";
+import { linkProblem } from "./links/guard";
+import type { LinkDownloader } from "./links/ytdlp";
 
 export interface Jobs { enqueue(lectureId: string): void; cancel(lectureId: string): void }
+/* links: yt-dlp, or null when it is not on this machine (link lectures are then refused). */
 export interface Deps {
   config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter; packs: ReviewPacks;
-  billing: Billing; mailer: Mailer;
+  billing: Billing; mailer: Mailer; links: LinkDownloader | null;
 }
 export type AppEnv = { Variables: { user: UserRow } };
 
@@ -104,7 +107,7 @@ export function privateRoutes(deps: Deps) {
     if (!store.course(user.id, courseId)) fail(404, "This course does not exist.");
     if (!CLASS_LANGUAGES.includes(language)) fail(400, "Choose the language of the class.");
     if (!SOURCES.includes(source)) fail(400, "Choose how to add the lecture.");
-    if (source === "link") fail(501, "Adding a link is not available yet. Download the recording and upload the file.");
+    if (source === "link" && !deps.links) fail(501, "Adding a link is not available yet. Download the recording and upload the file.");
     /* The plan's lectures a month (plans.json), recorded or uploaded. */
     billing.checkLecture(user.id);
     if (source === "record" || source === "tab") {
@@ -137,6 +140,18 @@ export function privateRoutes(deps: Deps) {
     } finally { await files.discard(got.tempPath); }
     /* Deleted between the check above and the move: the move recreated its folder. */
     if (!store.lecture(id)) await files.removeLecture(id);
+    return c.body(null, 204);
+  });
+
+  /* Video links (DESIGN.md, 视频链接): only the link is kept here. It is downloaded after finish, in the pipeline (a
+     download takes minutes, longer than a proxy waits for a reply). Sent again before finish, it replaces the link. */
+  r.post("/lectures/:id/link", async c => {
+    const user = c.get("user"), id = c.req.param("id"), l = mine(user.id, id), b = await jsonBody(c);
+    if (l.source !== "link") fail(409, "This lecture is not made from a video link.");
+    if (l.status !== "recording") fail(409, "The notes for this lecture have already been started from its link.");
+    const url = typeof b.url === "string" ? b.url : "", problem = linkProblem(url);
+    if (problem) fail(400, problem);
+    store.setLink(id, url.trim());
     return c.body(null, 204);
   });
 
@@ -250,6 +265,8 @@ export function privateRoutes(deps: Deps) {
       if (!l.recording_file && !store.hasChunk(id, 0)) fail(409, "Sidenote did not receive any audio for this lecture. Delete it and record again.");
       /* The notes come from the whole recording, transcribed again in one go: the live rounds can stop. */
       live.stop(id);
+    } else if (l.source === "link") {
+      if (!l.recording_file && !l.link) fail(409, "Paste the link to the lecture video first.");
     } else if (!l.recording_file) fail(409, "Sidenote did not receive a recording for this lecture. Delete it and upload the file again.");
     if (store.startProcessing(id, ["recording", "failed"], duration)) jobs.enqueue(id);
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? "processing" });
@@ -257,10 +274,12 @@ export function privateRoutes(deps: Deps) {
 
   r.get("/lectures/:id/status", c => c.json<StatusReply>({ status: mine(c.get("user").id, c.req.param("id")).status }));
 
-  /* Writes the notes again from the kept recording. Only a failed lecture is queued; any other status is returned as it is. */
+  /* Writes the notes again from the kept recording (a link lecture whose download failed downloads it again). Only a
+     failed lecture is queued; any other status is returned as it is. */
   r.post("/lectures/:id/retry", c => {
     const id = c.req.param("id"), l = mine(c.get("user").id, id);
-    if (l.status === "failed" && (l.recording_file || (isLive(l) && store.hasChunk(id, 0))) && store.startProcessing(id, ["failed"])) jobs.enqueue(id);
+    const canRedo = l.recording_file || (isLive(l) && store.hasChunk(id, 0)) || (l.source === "link" && l.link);
+    if (l.status === "failed" && canRedo && store.startProcessing(id, ["failed"])) jobs.enqueue(id);
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? l.status });
   });
 

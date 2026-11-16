@@ -18,7 +18,7 @@ export const UserSchema: z.ZodType<User> = z.strictObject({ name: z.string() });
 export const CourseSchema: z.ZodType<Course> = z.strictObject({ id, code: z.string().min(1), name: z.string().optional(), color: z.string().optional() });
 export const LectureSchema: z.ZodType<Lecture> = z.strictObject({
   id, course: id, title: z.string(), week: z.number().int().optional(), date: z.string(), duration: seconds.optional(),
-  status: StatusSchema.optional(), shareUrl: z.string().nullable().optional()
+  status: StatusSchema.optional(), shareUrl: z.string().nullable().optional(), link: z.string().nullable().optional(), error: z.string().min(1).optional()
 });
 export const UpcomingSchema: z.ZodType<Upcoming> = z.strictObject({ date: ymd, kind: z.string(), text: z.string(), course: z.string(), lecture: id, t: seconds });
 export const WeekSchema: z.ZodType<Week> = z.strictObject({ lectures: z.number(), known: z.number(), quiz: z.number(), days: z.array(z.number()).optional() });

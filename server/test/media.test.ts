@@ -64,12 +64,12 @@ test("the built front end is served at / with USE_MOCK off, assets by path, noth
   fs.writeFileSync(path.join(web, "assets", "index-1.js"), "console.log(1)");
   fs.writeFileSync(path.join(path.dirname(web), "secret.txt"), "secret");
   const s = setup(); t.after(() => s.close());
-  const app = createApp({ config: { ...s.config, webDir: web }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline, live: s.live, catchUp: s.catchUp, packs: s.packs, billing: s.billing, mailer: s.mailer });
+  const app = createApp({ config: { ...s.config, webDir: web }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline, live: s.live, catchUp: s.catchUp, packs: s.packs, billing: s.billing, mailer: s.mailer, links: s.links });
   const page = await (await app.request("/")).text();
   const cfg = `<script>window.SIDENOTE_CONFIG = ${JSON.stringify({ USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: null, SIGN_IN: "email" })};</script>`;
   assert.ok(page.indexOf(cfg) >= 0 && page.indexOf(cfg) < page.indexOf('<script type="module"'), "settings come before the app's script");
   /* EXAMPLE_SHARE_ID: "Example notes" on the public pages opens that shared lecture. */
-  const example = createApp({ config: { ...s.config, webDir: web, exampleShareId: "Ab12Cd34" }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline, live: s.live, catchUp: s.catchUp, packs: s.packs, billing: s.billing, mailer: s.mailer });
+  const example = createApp({ config: { ...s.config, webDir: web, exampleShareId: "Ab12Cd34" }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline, live: s.live, catchUp: s.catchUp, packs: s.packs, billing: s.billing, mailer: s.mailer, links: s.links });
   assert.ok((await (await example.request("/")).text()).includes('"EXAMPLE_SHARE_ID":"Ab12Cd34"'));
   const js = await app.request("/assets/index-1.js");
   assert.equal(js.status, 200); assert.match(js.headers.get("content-type")!, /javascript/); assert.equal(await js.text(), "console.log(1)");

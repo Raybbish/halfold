@@ -22,15 +22,17 @@ import { Cards } from "./lecture/Cards";
 import { Quiz } from "./lecture/Quiz";
 import { moreMenu, refreshLecture, setTab, share } from "./lecture/actions";
 
-const Box = ({ mood, h, p, btn }: { mood: Mood; h: ReactNode; p: string; btn: ReactNode }) =>
-  <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Sid size={52} mood={mood} /><div className="grow"><h3>{h}</h3><p className="muted" style={css("margin:8px 0 16px")}>{t(p)}</p>{btn}</div></div>;
+/* p: interface text (translated here), or backend text already wrapped so that it is shown as it is. */
+const Box = ({ mood, h, p, btn }: { mood: Mood; h: ReactNode; p: string | ReactNode; btn: ReactNode }) =>
+  <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Sid size={52} mood={mood} /><div className="grow"><h3>{h}</h3><p className="muted" style={css("margin:8px 0 16px")}>{typeof p === "string" ? t(p) : p}</p>{btn}</div></div>;
 
 export function LectureBody() {
   /* The audio object lives in player.ts. After each draw it is loaded for this lecture, or stopped when there is none. */
   useLayoutEffect(() => { if (!cur || !cur.d) return; if (hasAudio()) plLoad(); else plStop(); });
   const { l, c, d, shared } = cur!;
   if (!d) {
-    if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p="Your recording is safe. Sid can try again from it." btn={<button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button>} />;
+    /* lecture.error: why it failed, from the backend (a video link that needs a sign-in, ...), shown as it is. */
+    if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{l.error}</span> : "Your recording is safe. Sid can try again from it."} btn={<button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button>} />;
     if (l.status === "recording") return live.active && live.id === l.id
       ? <Box mood="wow" h={t("This lecture is being recorded")} p="The notes are written when you end the recording." btn={<a className="btn primary" href="#/live">{t("Return to the recording")}</a>} />
       : <Box mood="plain" h={t("This recording was not finished")} p="The page was closed before the recording ended. Sid can still write notes from the part that was saved." btn={<button className="btn primary" onClick={() => S.orphan && S.orphan.id === l.id ? recoverOrphan() : retryNotes(true)}>{t("Make notes from what was saved")}</button>} />;
