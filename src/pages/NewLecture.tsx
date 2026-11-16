@@ -52,11 +52,12 @@ export function defaultTitle(): string {
 
 /* One tap from the home page: record with the last course used and a dated title. With no course yet, a course called
    "My classes" is made first. Goes through submitNew(), so the recording tip and the daily limit work as on New lecture. */
+let starting = false;   // the first course is being made: a second tap must not make another
 export async function quickRecord(): Promise<void> {
   if (live.active) { location.hash = "#/live"; return; }
-  if (nf.busy) return;
+  if (nf.busy || starting) return;
   let cid = firstCourse();
-  if (!cid) { try { const c = await api.addCourse(trs("My classes"), ""); if (!S.courses.some(x => x.id === c.id)) S.courses.push(c); cid = c.id; } catch (e) { toast((e as Error).message || "Something went wrong. Try again.", { error: true }); return; } }
+  if (!cid) { starting = true; try { const c = await api.addCourse(trs("My classes"), ""); if (!S.courses.some(x => x.id === c.id)) S.courses.push(c); cid = c.id; } catch (e) { toast((e as Error).message || "Something went wrong. Try again.", { error: true }); return; } finally { starting = false; } }
   Object.assign(nf, { mode: "record", courseId: cid, title: "", err: "", slides: null, lang: S.settings.classLanguage || "en" });
   submitNew();
 }
@@ -90,16 +91,16 @@ export function NewLecture() {
 }
 
 /* The reason a lecture could not start: on New lecture under the form, elsewhere (home) as a red notice. */
-function startFailed(msg: string) { nf.err = msg; if (R.a === "new") bump(); else toast(msg, { error: true }); }
+function startFailed(msg: string) { if (R.a === "new") { nf.err = msg; bump(); } else { nf.err = ""; toast(msg, { error: true }); } }
 
 function submitNew() {
   if (nf.busy) return;   // already sending: a second click or Enter must not create a second lecture
-  if (!nf.courseId) { nf.err = "Add a course first."; return bump(); }
-  if (nf.mode === "upload" && !nf.file) { nf.err = "Choose the recording to upload."; return bump(); }
-  if (nf.mode === "upload" && uploading()) { nf.err = "Another upload is still running. Wait for it to finish first."; return bump(); }
-  if (nf.mode === "link" && !/^https?:\/\/\S+\.\S+/.test(nf.link.trim())) { nf.err = "Paste the full link, starting with https://"; return bump(); }
+  if (!nf.courseId) return startFailed("Add a course first.");
+  if (nf.mode === "upload" && !nf.file) return startFailed("Choose the recording to upload.");
+  if (nf.mode === "upload" && uploading()) return startFailed("Another upload is still running. Wait for it to finish first.");
+  if (nf.mode === "link" && !/^https?:\/\/\S+\.\S+/.test(nf.link.trim())) return startFailed("Paste the full link, starting with https://");
   const recMode = nf.mode === "record" || nf.mode === "tab";
-  if (recMode && S.usage && S.usage.minutesToday >= S.usage.minutesLimit) { nf.err = "You have used today's recording minutes. Upload a recording instead, or come back tomorrow."; return bump(); }
+  if (recMode && S.usage && S.usage.minutesToday >= S.usage.minutesLimit) return startFailed("You have used today's recording minutes. Upload a recording instead, or come back tomorrow.");
   if (recMode && !store.get("recTip")) return recTipModal();
   nf.err = ""; nf.busy = true; bump();   // grey out the button while the lecture is being created
   const done = () => { Object.assign(nf, { title: "", file: null, slides: null, link: "", busy: false }); };

@@ -23,8 +23,8 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
       if (!u.pathname.startsWith('/api/')) return serve(route, { USE_MOCK: false, POLL_MS: 50 });
       const p = u.pathname.slice(4); be.log.push(m + ' ' + p); const body = () => { try { return JSON.parse(req.postData() || '{}'); } catch (e) { return {}; } };
       if (p === '/session') return j({ token: 'tok', user: { name: 'T' } });
-      if (p === '/home') return j({ user: { name: 'T' }, courses: be.courses, lectures: be.lectures, upcoming: [], settings: { classLanguage: 'en', zhDefault: false } });
-      if (m === 'POST' && p === '/courses') { const b = body(); be.courseBody = b; const c = { id: 'cn' + be.courses.length, code: b.code, name: b.name || '' }; be.courses.push(c); return j(c); }
+      if (p === '/home') return j({ user: { name: 'T' }, courses: be.courses, lectures: be.lectures, upcoming: [], usage: opts.usage, settings: { classLanguage: 'en', zhDefault: false } });
+      if (m === 'POST' && p === '/courses') { await new Promise(r => setTimeout(r, 400)); const b = body(); be.courseBody = b; const c = { id: 'cn' + be.courses.length, code: b.code, name: b.name || '' }; be.courses.push(c); return j(c); }
       if (m === 'POST' && p === '/lectures') { const b = body(); be.posts.push(b); return j({ id: 'lnew', course: b.courseId, title: b.title, date: 'Today', duration: 0, status: 'recording' }); }
       const one = /^\/lectures\/([\w-]+)$/.exec(p);
       if (m === 'GET' && one) return j({ lecture: be.lectures.find(x => x.id === one[1]), detail: null });
@@ -66,6 +66,22 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     check('a student with no lectures yet also gets the Record card', hr && hr.h2 === 'Class starting?' && hr.record, hr);
     await page.click('.rec-btn'); await page.waitForFunction(() => location.hash === '#/live', null, { timeout: 8000 }).catch(() => {});
     check('with no course yet, Record first adds a course called "My classes"', be.log.indexOf('POST /courses') >= 0 && be.log.indexOf('POST /courses') < be.log.indexOf('POST /lectures') && be.courseBody && be.courseBody.code === 'My classes', { log: be.log, c: be.courseBody });
+    await ctx.close(); }
+
+  { const { ctx, page, be } = await open({ courses: [], lectures: [] });
+    await page.click('.rec-btn'); await page.click('.rec-btn').catch(() => {}); await page.waitForFunction(() => location.hash === '#/live', null, { timeout: 8000 }).catch(() => {}); await page.waitForTimeout(500);
+    const n = be.log.filter(x => x === 'POST /courses').length;
+    check('with no course, two quick taps on Record create exactly one course', n === 1, { n, log: be.log });
+    await ctx.close(); }
+
+  console.log('\n=== daily limit ===');
+  { const { ctx, page, be } = await open({ usage: { minutesToday: 60, minutesLimit: 60 } });
+    await page.click('.rec-btn'); await page.waitForSelector('.toast', { timeout: 4000 }).catch(() => {}); await page.waitForTimeout(300);
+    const cls = await page.locator('.toast').last().getAttribute('class').catch(() => ''), txt = await page.locator('.toast').last().innerText().catch(() => '');
+    check('with the daily minutes used up, Record on home shows the limit as a red notice and creates no lecture', /bad/.test(cls) && /used today's recording minutes/.test(txt) && !be.log.includes('POST /lectures') && page.url().indexOf('#/live') < 0, { cls, txt, log: be.log });
+    await page.evaluate(() => { location.hash = '#/new'; }); await page.waitForSelector('form.card'); await page.waitForTimeout(300);
+    const stale = await page.locator('form.card .err').count();
+    check('New lecture afterwards shows no stale error', stale === 0, stale);
     await ctx.close(); }
 
   console.log('\n=== microphone refused ===');
