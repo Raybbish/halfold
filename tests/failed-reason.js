@@ -8,7 +8,7 @@ const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail)}`); };
 
 const REASON = 'This video needs a sign-in or permission to watch, so it could not be downloaded. Record it with Record an online class while it plays, or download the video and upload the file.';
-const SAFE = 'Your recording is safe. Sid can try again from it.';
+const SAFE = 'Your recording is safe. Hal can try again from it.';
 
 (async () => {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });

@@ -70,7 +70,7 @@ function addSlides(f: File) {
     uploadDialog(f.size, () => stop.abort());
     try { await api.uploadSlides(id, f, { signal: stop.signal, onProgress: (sent, of) => uploadProgress(f.size * sent / of, f.size) }); }
     catch (e) { if ((e as Error).name !== "AbortError") throw e; closeModal(); toast("Upload cancelled."); return; }
-    busy("Sid is putting the notes under the slides", "This usually takes a minute or two. Your own notes and edits stay.");
+    busy("Hal is putting the notes under the slides", "This usually takes a minute or two. Your own notes and edits stay.");
     const status = await pollNotes(id);
     if (status === "processing") { delete S.detail[id]; closeModal(); toast("Still working. The notes will be under the slides when ready."); return; }
     const r = await api.getLecture(id); S.detail[id] = r.detail; const i = S.lectures.findIndex(x => x.id === id); if (i >= 0) S.lectures[i] = r.lecture;
@@ -115,4 +115,4 @@ export function delPoint(si: number, pi: number) { editing = { si, pi }; openMod
 function doDelPoint() { const { si, pi } = editing as { si: number; pi: number }; act(async () => { await api.deletePoint(C().l.id, si, pi); D().sections[si].points.splice(pi, 1); closeModal(); toast("Note deleted"); bump(); }); }
 export function feedbackModal() { openModal(() => <><h3>{t("What is wrong in these notes?")}</h3><form onSubmit={e => { e.preventDefault(); sendFeedback(val(e.currentTarget, "t")); }}><label className="field"><span>{t("Tell us what the lecturer actually said, or what is missing")}</span><textarea name="t" rows={4} required maxLength={1000} data-notr=""></textarea></label>
   <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button type="button" className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary">{t("Send")}</button></div></form></>); }
-function sendFeedback(text: string) { act(async () => { await api.sendFeedback(C().l.id, text.trim()); closeModal(); toast("Thank you. This helps Sid write better notes."); }); }
+function sendFeedback(text: string) { act(async () => { await api.sendFeedback(C().l.id, text.trim()); closeModal(); toast("Thank you. This helps Hal write better notes."); }); }

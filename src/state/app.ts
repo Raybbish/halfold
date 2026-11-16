@@ -61,7 +61,7 @@ export const view = { loader: "blank" as "blank" | "shell" | "center" | null };
 /* Sign-in form. A redraw used to clear the inputs, so what was typed is kept here (React keeps it now as well). */
 export const auth = { err: "", busy: false, code: "", name: "",
   /* SIGN_IN "email": the address and the code typed, which step is shown, and whether the server asked for an invite code
-     (an address new to Sidenote). Kept as they are typed: every redraw draws the form anew. */
+     (an address new to Halfnote). Kept as they are typed: every redraw draws the form anew. */
   email: "", otp: "", step: "email" as "email" | "code", invite: false };
 
 /* New lecture form. */

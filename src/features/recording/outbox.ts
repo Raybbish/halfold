@@ -22,7 +22,7 @@ async function sendAll() {
 }
 export function setOffline(off: boolean, e?: HttpError) {
   if (off === live.offline) return; live.offline = off;
-  live.netNote = !off ? "" : e && e.status ? "Sidenote could not save the audio just now. Recording continues and it will keep trying. Keep this page open."
+  live.netNote = !off ? "" : e && e.status ? "Halfnote could not save the audio just now. Recording continues and it will keep trying. Keep this page open."
     : "Connection lost. Recording continues and the audio will be sent when you are back online. Keep this page open.";
   if (live.active && R.a === "live") bump();
 }

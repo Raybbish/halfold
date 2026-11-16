@@ -8,7 +8,7 @@ import { PUBLIC, route } from "./state/router";
 import { t } from "./i18n";
 import { useStore } from "./ui/useStore";
 import { Shell, Skeleton, Problem } from "./ui/Shell";
-import { Logo, Sid } from "./ui/icons";
+import { Logo, Hal } from "./ui/icons";
 import { Overlay } from "./ui/Overlay";
 import { css } from "./ui/css";
 import { Landing } from "./pages/Landing";
@@ -26,7 +26,7 @@ function page(a: string, b: string): ReactNode {
   return a === "home" ? <Home /> : a === "course" ? <Course id={b} /> : a === "courses" ? <Courses />
     : a === "lecture" ? <LecturePage id={b} /> : a === "s" ? <Shared id={b} /> : a === "new" ? <NewLecture />
     : a === "live" ? <Live /> : a === "pack" ? <ReviewPack id={b} /> : a === "settings" ? <Settings />
-    : a === "signin" ? <SignIn /> : a === "" ? <Landing /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Sidenote." /></Shell>;
+    : a === "signin" ? <SignIn /> : a === "" ? <Landing /> : <Shell active=""><Problem title="Page not found" text="That address does not match anything in Halfnote." /></Shell>;
 }
 
 /* afterRender() from sidenote.html: keep the chosen tab in view when the tab row scrolls sideways. */
@@ -41,7 +41,7 @@ export function App() {
   const { a, b } = R;
   let body: ReactNode = null;
   if (view.loader === "shell") body = <Shell active=""><Skeleton /></Shell>;
-  else if (view.loader === "center") body = <div className="center"><Sid size={56} mood="wow" /></div>;
+  else if (view.loader === "center") body = <div className="center"><Hal size={56} mood="wow" /></div>;
   else if (view.loader === null) {
     if (S.error) {
       const card = <Problem title="That did not load" text={S.error} btn={<button className="btn primary" onClick={() => route()}>{t("Try again")}</button>} />;

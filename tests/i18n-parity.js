@@ -4,8 +4,8 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 
 const SAMPLES = [
-  'Recording stopped for about 42 seconds while Sidenote was in the background. Keep this page open with the screen on.',
-  'Recording stopped for about 5 min while Sidenote was in the background. Keep this page open with the screen on.',
+  'Recording stopped for about 42 seconds while Halfnote was in the background. Keep this page open with the screen on.',
+  'Recording stopped for about 5 min while Halfnote was in the background. Keep this page open with the screen on.',
   'The recording of this lecture is kept until 16 Nov, which is today. The notes stay after that.',
   'The recording of this lecture is kept until 16 Nov, 5 more days. The notes stay after that.',
   'The recording of this lecture is kept until 16 Nov, 1 more day. The notes stay after that.',
@@ -26,7 +26,7 @@ const SAMPLES = [
   'MP3, M4A, WAV, MP4. Up to 500 MB.', 'That file is larger than 500 MB.',
   '/ New lecture', '/ ECON 1001', '/ Recording', '/ Settings', '/ Review pack', ' / Week 9',
   'ECON 1001, week 9, Tue 10 Nov, 90 min', 'ECON 1001, Today', 'ECON 1001, Principles of Microeconomics', 'ECON 1001, 26 Nov',
-  ' Return', 'Recording ECON 1001 ', ' Sidenotes only (said, but not on the slides)', '\n      Home  ', ' Record one class and the notes are ready when it ends.',
+  ' Return', 'Recording ECON 1001 ', ' Only what is not on the slides', '\n      Home  ', ' Record one class and the notes are ready when it ends.',
   'ECON 1001', 'Opportunity cost', '', ' ', '.', '0:18', 'Today', 'week 9', 'Nothing to summarise yet. The lecturer has only covered announcements.'
 ];
 

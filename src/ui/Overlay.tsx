@@ -8,7 +8,7 @@ import { overlay, overlayChannel, closeModal, modal } from "../state/overlay";
 import { finishAfterUpload } from "../features/recording/finish";
 import { t } from "../i18n";
 import { useStore } from "./useStore";
-import { Sid } from "./icons";
+import { Hal } from "./icons";
 import { css } from "./css";
 import { mb } from "../lib/helpers";
 
@@ -16,15 +16,15 @@ import { mb } from "../lib/helpers";
 export const openModal = (view: FC, locked?: boolean) => modal({ kind: "view", view }, locked);
 
 function Busy({ title, text }: { title: string; text: string }) {
-  return <div style={css("text-align:center")}><Sid size={64} mood="wow" /><h3 style={css("margin-top:12px")}>{t(title)}</h3><p className="muted">{t(text)}</p></div>;
+  return <div style={css("text-align:center")}><Hal size={64} mood="wow" /><h3 style={css("margin-top:12px")}>{t(title)}</h3><p className="muted">{t(text)}</p></div>;
 }
 function Waiting({ id, dur }: { id: string; dur: number }) {
-  return <div style={css("text-align:center")}><Sid size={56} mood="sad" /><h3 style={css("margin-top:12px")}>{t("Waiting for a connection")}</h3><p className="muted">{t("The end of your recording has not been sent yet. Keep this page open and try again in a moment.")}</p><button className="btn primary" style={css("margin-top:16px")} onClick={() => finishAfterUpload(id, +dur)}>{t("Try again")}</button></div>;
+  return <div style={css("text-align:center")}><Hal size={56} mood="sad" /><h3 style={css("margin-top:12px")}>{t("Waiting for a connection")}</h3><p className="muted">{t("The end of your recording has not been sent yet. Keep this page open and try again in a moment.")}</p><button className="btn primary" style={css("margin-top:16px")} onClick={() => finishAfterUpload(id, +dur)}>{t("Try again")}</button></div>;
 }
 
 function Upload({ loaded, total, cancel }: { loaded: number; total: number; cancel: () => void }) {
   const pct = total ? Math.min(100, loaded / total * 100) : 0;
-  return <div style={css("text-align:center")}><Sid size={64} mood="wow" /><h3 style={css("margin-top:12px")}>{t("Uploading")}</h3><p className="muted">{t("Keep this page open until the upload finishes.")}</p>
+  return <div style={css("text-align:center")}><Hal size={64} mood="wow" /><h3 style={css("margin-top:12px")}>{t("Uploading")}</h3><p className="muted">{t("Keep this page open until the upload finishes.")}</p>
     <div className="ubar" style={css("margin-top:18px")} role="progressbar" aria-label={t("Upload progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><b style={{ width: pct + "%" }}></b></div>
     <p className="small muted num" style={css("margin-top:8px")}>{t(mb(loaded) + " of " + mb(total) + " uploaded")}</p>
     <button className="btn plain" style={css("margin-top:16px")} onClick={cancel}>{t("Cancel upload")}</button></div>;

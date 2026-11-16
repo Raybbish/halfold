@@ -1,12 +1,12 @@
 // Signing in with an emailed code: CONFIG.SIGN_IN "email", which the backend sets from its phase 4 (added after the migration).
 // Real-backend mode (fake API by request interception): the two steps and the requests sent, a wrong code, an email new
-// to Sidenote (the server answers 403 and the invite code field appears), Send a new code, Use another email, a refused
+// to Halfnote (the server answers 403 and the invite code field appears), Send a new code, Use another email, a refused
 // send, Chinese. Sample mode with SIGN_IN "email". Without SIGN_IN the page is the invite-code form of sidenote.html.
 const { chromium, ORIGIN, serve, setConfig } = require('./harness');
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail)}`); };
-const NEW = 'This email is new to Sidenote. Enter your invite code to finish signing in. Used Sidenote before? Enter the invite code you signed in with, and your lectures come with you.';
-const WRONG = 'That code is not right. Check the latest email from Sidenote.';
+const NEW = 'This email is new to Halfnote. Enter your invite code to finish signing in. Used Halfnote before? Enter the invite code you signed in with, and your lectures come with you.';
+const WRONG = 'That code is not right. Check the latest email from Halfnote.';
 
 (async () => {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
@@ -40,7 +40,7 @@ const WRONG = 'That code is not right. Check the latest email from Sidenote.';
   const toCode = async (page, email) => { await page.fill('input[name=email]', email); await submit(page); await page.waitForSelector('input[name=otp]'); };
 
   { const { ctx, page } = await open({});
-    check('without SIGN_IN the sign-in page is the invite-code form, as before', await count(page, 'input[name=code]') === 1 && await count(page, 'input[name=email]') === 0 && (await form(page)).includes('Sidenote is invite only for now.'));
+    check('without SIGN_IN the sign-in page is the invite-code form, as before', await count(page, 'input[name=code]') === 1 && await count(page, 'input[name=email]') === 0 && (await form(page)).includes('Halfnote is invite only for now.'));
     await ctx.close(); }
 
   { const be = { sent: [] }; const { ctx, page } = await open(EMAIL, backend(be));
@@ -61,7 +61,7 @@ const WRONG = 'That code is not right. Check the latest email from Sidenote.';
     await toCode(page, 'new@example.edu');
     await page.fill('input[name=otp]', '123456'); await submit(page); await page.waitForSelector('input[name=code]');
     const kept = await page.inputValue('input[name=otp]');
-    check('an email new to Sidenote (403): the message, fields for the invite code and a name, and the code typed stays', (await page.locator('.err').innerText()) === NEW && await count(page, 'input[name=name]') === 1 && kept === '123456', kept);
+    check('an email new to Halfnote (403): the message, fields for the invite code and a name, and the code typed stays', (await page.locator('.err').innerText()) === NEW && await count(page, 'input[name=name]') === 1 && kept === '123456', kept);
     await page.fill('input[name=code]', 'a3f9c2'); await page.fill('input[name=name]', 'Nina'); await submit(page); await page.waitForSelector('.shell');
     const si = be.sent.filter(x => x.p === '/session').pop();
     check('sending again with the invite code signs in', JSON.stringify(si.body) === '{"email":"new@example.edu","code":"123456","name":"Nina","inviteCode":"a3f9c2"}' && (await page.evaluate(() => window.__sidenote.S.token)) === 'tok' && page.url().endsWith('#/home'), si);
@@ -84,7 +84,7 @@ const WRONG = 'That code is not right. Check the latest email from Sidenote.';
     await toCode(page, 'chan@example.edu'); await page.fill('input[name=otp]', '123456'); await submit(page); await page.waitForSelector('input[name=code]');
     const zh2 = { form: await form(page), err: await page.locator('.err').innerText() };
     check('the email sign-in is in Chinese, the email address left as it is', zh1.includes('輸入你的電郵地址') && zh1.includes('發送登入碼') && zh2.form.includes('已把 6 位數登入碼寄到 chan@example.edu。') && zh2.form.includes('邀請碼')
-      && zh2.form.includes('重新發送登入碼') && zh2.err.startsWith('這個電郵地址是第一次登入 Sidenote。'), { zh1, zh2 });
+      && zh2.form.includes('重新發送登入碼') && zh2.err.startsWith('這個電郵地址是第一次登入 Halfnote。'), { zh1, zh2 });
     await ctx.close(); }
 
   { const { ctx, page } = await open({ SIGN_IN: 'email' });

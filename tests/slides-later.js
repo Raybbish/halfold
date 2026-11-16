@@ -63,7 +63,7 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
     await viaMore(page, pdf());
     const t2 = await toast(page);
     const seen = await page.evaluate(() => window.__seen);
-    check('adding slides shows the upload, then the wait while Sid files the notes', seen.includes('Uploading') && seen.includes('Sid is putting the notes under the slides'), seen);
+    check('adding slides shows the upload, then the wait while Hal files the notes', seen.includes('Uploading') && seen.includes('Hal is putting the notes under the slides'), seen);
     const after = { toast: t2, tabs: await tabs(page), tags: await page.locator('.nsec h3 .tag').count(), hint: await hint(page), mine: (await page.locator('.nsec').first().innerText()).includes('My own point about week 10') };
     check('then the notes are under the slides: Slides tab, slide labels, no more Add slides', after.toast === 'Slides added' && after.tabs.includes('Slides') && after.tags > 0 && after.hint === 0 && await noModal(page), after);
     check('the note the student added is still there', after.mine);
@@ -83,7 +83,7 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
     await page.evaluate(() => { window.__seen = []; });
     await clearToasts(page); const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('.main button.ts:text-is("加入簡報")')]); await fc.setFiles(pdf());
     const zt = await toast(page); const zseen = await page.evaluate(() => window.__seen);
-    check('in Chinese: the line under the notes, the wait and the result', zhLine === '這堂課還沒有簡報。 加入簡報' && zseen.includes('Sid 正在把筆記放到簡報下') && zt === '已加入簡報', { zhLine, zseen, zt });
+    check('in Chinese: the line under the notes, the wait and the result', zhLine === '這堂課還沒有簡報。 加入簡報' && zseen.includes('Hal 正在把筆記放到簡報下') && zt === '已加入簡報', { zhLine, zseen, zt });
     await ctx.close(); }
 
   console.log('\n=== real backend (fake API) ===');

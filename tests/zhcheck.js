@@ -26,8 +26,8 @@ const results = []; const check = (name, ok, detail) => { results.push(ok); cons
   await page.click('.tabs button:nth-child(5)'); await page.click('.qz .opt >> nth=0'); await page.waitForTimeout(200);
   check('quiz question, options and explanation are left alone', (await page.locator('.qz h3').innerText()) === 'Quiz' && JSON.stringify(await page.locator('.qz .opt').allInnerTexts()) === '["English","Notes"]' && (await page.locator('.qz .why span[data-notr]').innerText()) === 'Answer');
   const t = await page.evaluate(() => [
-    'Recording stopped for about 42 seconds while Sidenote was in the background. Keep this page open with the screen on.',
-    'Recording stopped for about 5 min while Sidenote was in the background. Keep this page open with the screen on.',
+    'Recording stopped for about 42 seconds while Halfnote was in the background. Keep this page open with the screen on.',
+    'Recording stopped for about 5 min while Halfnote was in the background. Keep this page open with the screen on.',
     'The recording of this lecture is kept until ' + dayMon('2026-11-16') + ', 5 more days. The notes stay after that.',
     'The recording of this lecture is kept until ' + dayMon('2026-11-11') + ', which is today. The notes stay after that.',
     'Recording kept until ' + dayMon('2026-12-11') + '.', 'Recordings are kept for 30 days on your plan.', 'Recording ECON 1001',
@@ -38,10 +38,10 @@ const results = []; const check = (name, ok, detail) => { results.push(ok); cons
   // every English string in the added code is either in the dictionary or matched by a pattern
   const added = ['Main', 'Return to the recording', 'Record', 'Upload', 'Online class', 'Recording of this lecture', 'Play recording', 'Pause recording', 'Position in the recording', 'Back 15 seconds', 'Forward 15 seconds', 'Playback speed',
     'The recording could not be played.', 'Sample build: playback is simulated, so there is no sound.', 'This lecture is being recorded', 'The notes are written when you end the recording.', 'This recording was not finished',
-    'The page was closed before the recording ended. Sid can still write notes from the part that was saved.', 'Your recording is safe. Sid can try again from it.', 'This usually takes a minute or two.',
+    'The page was closed before the recording ended. Hal can still write notes from the part that was saved.', 'Your recording is safe. Hal can try again from it.', 'This usually takes a minute or two.',
     'The notes could not be written. You can try again from the lecture.', 'The microphone stopped. End the recording to keep what you have so far.',
-    'Sidenote could not save the audio just now. Recording continues and it will keep trying. Keep this page open.', 'The end of your recording has not been sent yet. Keep this page open and try again in a moment.',
-    'Slides did not upload. The notes will be made without them.', 'The server sent a reply Sidenote could not read.', 'No code? Ask a classmate who uses Sidenote.',
+    'Halfnote could not save the audio just now. Recording continues and it will keep trying. Keep this page open.', 'The end of your recording has not been sent yet. Keep this page open and try again in a moment.',
+    'Slides did not upload. The notes will be made without them.', 'The server sent a reply Halfnote could not read.', 'No code? Ask a classmate who uses Halfnote.',
     'The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.', "Tap a timestamp to read the lecturer's exact words, or play the recording from that moment.",
     'Anyone with the link can read the notes, transcript, flashcards and quiz. The recording stays private. They cannot see your other lectures.', 'Courses', 'Try again', 'Recording', 'Settings'];
   const miss = await page.evaluate(a => a.filter(x => trs(x) === x), added);

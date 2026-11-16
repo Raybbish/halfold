@@ -30,7 +30,7 @@ const file = (name, size, mimeType) => ({ name, mimeType, buffer: Buffer.alloc(s
     await page.click('form button.btn.blue');
     await page.waitForSelector('#overlay [role=progressbar]');
     check('pressing Make notes opens the upload dialog with a progress bar and a Cancel button', (await page.locator('#overlay h3').innerText()) === 'Uploading' && (await page.locator('#overlay button:text-is("Cancel upload")').count()) === 1);
-    await page.waitForSelector('#overlay h3:text-is("Sid is writing your notes")', { timeout: 10000 });
+    await page.waitForSelector('#overlay h3:text-is("Hal is writing your notes")', { timeout: 10000 });
     const up = await page.evaluate(() => window.__up);
     check('progress runs to 100% over the recording and the slides together', up.max === 100 && up.texts.includes('2.5 MB of 2.5 MB uploaded'), { max: up.max, last: up.texts.slice(-1) });
     await page.waitForSelector('.tabs, .main .card h3', { timeout: 20000 });

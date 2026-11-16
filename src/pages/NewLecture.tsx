@@ -14,7 +14,7 @@ import { t } from "../i18n";
 import { live, beginRecording } from "../features/recording/recorder";
 import { finalize } from "../features/recording/finish";
 import { CAN_TAB } from "../features/recording/tabAudio";
-import { Sid } from "../ui/icons";
+import { Hal } from "../ui/icons";
 import { Shell, addCourseModal } from "../ui/Shell";
 import { openModal } from "../ui/Overlay";
 import { css } from "../ui/css";
@@ -114,6 +114,6 @@ async function sendFiles(id: string, file: File, slides: File | null) {
 }
 
 /* Shown once, before the first recording on this device. */
-function recTipModal() { openModal(() => <><div style={css("display:flex;gap:12px;align-items:center")}><Sid size={44} mood="smile" /><h3 style={css("margin:0")}>{t("Before you record")}</h3></div>
+function recTipModal() { openModal(() => <><div style={css("display:flex;gap:12px;align-items:center")}><Hal size={44} mood="smile" /><h3 style={css("margin:0")}>{t("Before you record")}</h3></div>
   <ul style={css("padding-left:20px;margin:14px 0")}><li>{t("Check that recording is allowed in this class. Ask the lecturer if you are not sure.")}</li><li>{t("Sit where you can hear the lecturer clearly.")}</li><li>{t("On a phone, keep this page open and the screen on.")}</li></ul>
   <div style={css("display:flex;gap:10px;justify-content:flex-end")}><button className="btn plain" onClick={closeModal}>{t("Not now")}</button><button className="btn primary" onClick={() => { store.set("recTip", "1"); closeModal(); submitNew(); }}>{t("Start recording")}</button></div></>); }

@@ -8,7 +8,7 @@ import { closeModal } from "../state/overlay";
 import { t } from "../i18n";
 import { live, togglePause } from "../features/recording/recorder";
 import { doDiscard, endLive, recap } from "../features/recording/finish";
-import { Sid } from "../ui/icons";
+import { Hal } from "../ui/icons";
 import { Shell } from "../ui/Shell";
 import { openModal } from "../ui/Overlay";
 import { css } from "../ui/css";
@@ -32,7 +32,7 @@ export function Live() {
       <div><h2 style={css("font-size:17px;margin-bottom:8px")}>{t("Live transcript")}</h2>
         <div className="card stream" id="stream"><Stream /></div>
         {CONFIG.USE_MOCK ? <p className="note-demo">{t("Sample build: this transcript is sample text. The microphone is " + (live.mic === "on" ? "really recording, and audio is handed to the upload function every " + CONFIG.CHUNK_SECONDS + " seconds" : "not recording") + ".")}</p> : null}</div>
-      <div className="catch"><div style={css("display:flex;gap:12px;align-items:center")}><Sid size={40} mood="wow" /><h2 style={css("font-size:19px")}>{t("Lost the thread?")}</h2></div><p className="small" style={css("margin:8px 0 16px")}>{t("Sid sums up the last five minutes so you can rejoin the class.")}</p>
+      <div className="catch"><div style={css("display:flex;gap:12px;align-items:center")}><Hal size={40} mood="wow" /><h2 style={css("font-size:19px")}>{t("Lost the thread?")}</h2></div><p className="small" style={css("margin:8px 0 16px")}>{t("Hal sums up the last five minutes so you can rejoin the class.")}</p>
         <button className="btn blue" onClick={recap} disabled={live.recapBusy}>{t(live.recapBusy ? "Reading back" : "Catch me up")}</button>
         {live.recap ? <div className="recap" style={css("margin-top:16px;padding-top:14px;border-top:2px solid var(--ink)")}><b style={css("color:var(--ink)")}>{t("The last five minutes")}</b><ul style={css("padding-left:18px;margin:8px 0 0")}>{live.recap.map((r, i) => <li key={i} style={css("margin-bottom:6px")} data-notr="">{r}</li>)}</ul></div> : null}</div>
     </div>

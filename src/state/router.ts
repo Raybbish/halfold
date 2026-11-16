@@ -22,7 +22,7 @@ export async function route() {
   if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [], found: null, goFound: false }); setPendingPos(0); }
   const hit = changed && a === "lecture" && pendingPoint && pendingPoint.lecture === b ? pendingPoint : null; setPendingPoint(null);
   const needHome = !PUBLIC.includes(a) && !S.homeLoaded, needLec = a === "lecture" && !(b in S.detail), needSh = a === "s" && !S.shared[b], needPack = a === "pack" && !S.pack[b], needPlans = a === "settings" && !S.plans;
-  /* While loading: the app's shell with a skeleton, or Sid in the middle of an empty page. */
+  /* While loading: the app's shell with a skeleton, or Hal in the middle of an empty page. */
   if (needHome || needLec || needSh || needPack || needPlans) { view.loader = S.homeLoaded && !PUBLIC.includes(a) ? "shell" : "center"; bump(); }
   try {
     if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault; }

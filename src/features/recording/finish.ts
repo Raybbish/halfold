@@ -28,12 +28,12 @@ export async function afterNotes(id: string, status: LectureStatus) {
   const h = "#/lecture/" + encodeURIComponent(id); if (location.hash === h) route(); else location.hash = h;
 }
 export async function finalize(id: string, duration: number) {
-  busy("Sid is writing your notes", "Transcribing, sticking points to slides, and writing flashcards and a quiz. This usually takes a minute or two.");
+  busy("Hal is writing your notes", "Transcribing, sticking points to slides, and writing flashcards and a quiz. This usually takes a minute or two.");
   await api.finishLecture(id, duration); if (!live.active) unmark();
   await afterNotes(id, await pollNotes(id));
 }
 /* The recording is kept, so notes can be written again after a failure, or from a recording whose page was closed before it ended. */
-export function retryNotes(unfinished: boolean) { const id = cur!.l.id; act(async () => { busy("Sid is writing your notes", "This usually takes a minute or two.");
+export function retryNotes(unfinished: boolean) { const id = cur!.l.id; act(async () => { busy("Hal is writing your notes", "This usually takes a minute or two.");
   if (unfinished) await api.finishLecture(id, 0); else await api.retryLecture(id);
   await afterNotes(id, await pollNotes(id)); }); }
 export async function recap() { live.recapBusy = true; bump(); try { const r = await api.catchUp(live.id!, live.segs.map(s => s.t)); live.recap = r.points; } catch (e) { toast((e as Error).message); } live.recapBusy = false; if (R.a === "live") bump(); }

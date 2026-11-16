@@ -11,7 +11,7 @@ import { act, closeModal, toast } from "../state/overlay";
 import { LANG, setLang, t } from "../i18n";
 import { live } from "../features/recording/recorder";
 import { recoverOrphan, dropOrphan } from "../features/recording/orphan";
-import { ICON, Logo, Sid } from "./icons";
+import { ICON, Logo, Hal } from "./icons";
 import { openModal } from "./Overlay";
 import { css } from "./css";
 import { val } from "./form";
@@ -30,7 +30,7 @@ export function Shell({ active, children }: { active: string; children: ReactNod
       <div className="lbl">{t("Courses")}</div>
       {S.courses.map(c => <a key={c.id} className={`n c ${active === c.id ? "on" : ""}`} href={"#/course/" + encodeURIComponent(c.id)}><i className="cdot" style={{ background: colorOf(c) }}></i>{c.code}<span className="ct num">{S.lectures.filter(l => l.course === c.id).length}</span></a>)}
       <button className="n c addc" onClick={addCourseModal}>{t("Add a course")}</button>
-      {w ? <div className="streak"><b className="num">{t(plural(w.lectures, "lecture") + " this week")}</b><div className="small">{t("One more and Sid gets a gold corner.")}</div>
+      {w ? <div className="streak"><b className="num">{t(plural(w.lectures, "lecture") + " this week")}</b><div className="small">{t("One more and Hal gets a gold corner.")}</div>
         <div className="days" data-notr="">{dn.map((x, i) => <span key={i} className={w.days && w.days[i] ? "d" : ""}>{x}</span>)}</div></div> : null}
     </aside>
     <header className="mtop"><Logo href="#/home" />{CONFIG.USE_MOCK ? <span className="mtag">{t("Sample data")}</span> : null}<span className="sp"></span><LangBtn /><a className={`ico ${active === "settings" ? "on" : ""}`} href="#/settings" aria-label={t("Settings")}>{ICON.settings}</a></header>
@@ -48,7 +48,7 @@ export function Shell({ active, children }: { active: string; children: ReactNod
 export const Skeleton = () => <><div className="sk" style={css("width:40%;height:30px")}></div><div className="sk" style={css("width:65%")}></div><div className="card" style={css("padding:22px;margin-top:20px")}><div className="sk"></div><div className="sk" style={css("width:80%")}></div><div className="sk" style={css("width:55%;margin:0")}></div></div></>;
 
 export function Problem({ title, text, btn }: { title: string; text: string; btn?: ReactNode }) {
-  return <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Sid size={52} mood="sad" /><div className="grow"><h3>{t(title)}</h3><p className="muted" style={css("margin:8px 0 16px")}>{t(text)}</p>{btn || <a className="btn primary" href="#/home">{t("Go to home")}</a>}</div></div>;
+  return <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Hal size={52} mood="sad" /><div className="grow"><h3>{t(title)}</h3><p className="muted" style={css("margin:8px 0 16px")}>{t(text)}</p>{btn || <a className="btn primary" href="#/home">{t("Go to home")}</a>}</div></div>;
 }
 
 /* A recording cut off by a closed tab (see features/recording/orphan.ts). */
