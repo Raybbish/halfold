@@ -46,7 +46,7 @@ test("GET /home matches the Home shape, empty and with a lecture", async t => {
   await s.pipeline.idle();
   const home = HomeSchema.parse((await s.call("GET", "/home", { token })).body);
   assert.equal(home.lectures.length, 1);
-  assert.deepEqual(home.lectures[0], { id, course: home.courses[0].id, title: "Week 9", date: "Today", duration: 600, status: "ready", shareUrl: null });
+  assert.deepEqual(home.lectures[0], { id, course: home.courses[0].id, title: "Week 9", date: "Today", duration: 600, status: "ready", shareUrl: null, source: "upload" });
   assert.deepEqual(home.upcoming, [{ date: "2099-11-26", kind: "Midterm", text: "Midterm on 26 November, chapters 1 to 5.", course: "ECON 1001", lecture: id, t: 18 }]);
 });
 
@@ -165,4 +165,26 @@ test("public and size rules: a link that is not shared is a 404 (not a 401); a h
   assert.equal(big.status, 413); isError(big);
   const token = await s.signIn();
   assert.equal((await s.call("POST", "/courses", { token, json: { code: "C", name: "y".repeat(100_000) } })).status, 413);
+});
+
+test("lecture.source: GET /lectures/:id and /home say how each lecture was made; the shared page does not", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn();
+  const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "" } })).body;
+  const made: Record<string, string> = {};
+  for (const source of ["record", "tab", "upload", "link"]) {
+    const r = await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: source, language: "en", source } });
+    assert.equal(r.status, 200, r.text); made[source] = r.body.id;
+  }
+  const home = HomeSchema.parse((await s.call("GET", "/home", { token })).body);
+  for (const [source, id] of Object.entries(made)) {
+    assert.equal(LectureReplySchema.parse((await s.call("GET", `/lectures/${id}`, { token })).body).lecture.source, source);
+    assert.equal(home.lectures.find(l => l.id === id)?.source, source);
+  }
+  const up = await uploadedLecture(s, token);
+  await s.call("POST", `/lectures/${up}/finish`, { token, json: { duration: 590 } }); await s.pipeline.idle();
+  const url = (await s.call("POST", `/lectures/${up}/share`, { token })).body.url as string;
+  const page = await s.call("GET", `/shared/${url.split("#/s/")[1]}`);
+  assert.equal(page.status, 200, page.text);
+  assert.equal("source" in page.body.lecture, false);
 });

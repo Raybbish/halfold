@@ -391,3 +391,15 @@
   - `submitNew` 里 `attachLink` 失败时（第 1257 行）：关掉“Saving the link”对话框，`api.deleteLecture(lec.id)`，从 `S.lectures` 里拿掉，错误显示在表单里，链接留着。
   - “Try again” 在 halfnote 里调用的是 `finishLecture`，不是 `retryLecture`。后端对失败的链接课两个都接受，都会重新下载，所以不用改。
 - 分享页（`GET /shared/:id`）不带 `lecture.link`。
+
+## 10. 课堂的来源（`lecture.source`）和新建课时的 `autoTitle`
+
+### 新字段
+
+- `lecture.source`：`"record" | "tab" | "upload" | "link"`，这堂课是怎么做出来的（现场录音、录网上课堂、上传、视频链接）。`GET /home` 的每堂课和 `GET /lectures/:id` 都带。前端可以用它决定卡住的课堂显示哪些按钮。
+- 分享页（`GET /shared/:id`）不带 `lecture.source`，和 `link`、`error` 一样。
+- 字段是可选的：旧的前端不认识它也不会出错，没有这个字段时按没有来源处理。
+
+### 前端发的新字段
+
+- `createLecture` 现在多发一个 `autoTitle: boolean`：学生没写标题、标题是前端用日期填的就是 `true`。后端目前忽略它（请求体里多出的字段本来就不校验），第 3 批会用到。
