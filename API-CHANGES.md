@@ -386,7 +386,8 @@
 
 - **本仓库（`src/pages/Lecture.tsx`）**：已改。失败的课堂页有 `lecture.error` 时显示它，代替 “Your recording is safe. Sid can try again from it.”。检查在 `tests/failed-reason.js`。
 - **本仓库（`src/pages/NewLecture.tsx`）**：已改。`attachLink` 被拒（400）时删掉刚建的课，表单保留链接让学生改。不删的话，这堂空课停在 `recording`，一直算进每月课堂数。
-- **`halfnote.html`**：
-  - 课堂页 `status === "failed"` 那段（约第 1111 行）的第二句写死了 “The recording is still saved.”，链接课失败时这句不对，也没说原因。有 `l.error` 时改为显示 `esc(l.error)`，并加 `data-notr`，免得被界面翻译替换。`l.link` 已经在用（“Open the original video”），不用改。
-  - `submitNew` 里 `attachLink` 失败时，同样要 `api.deleteLecture(lec.id)`（约第 1252 行），原因同上。
+- **`halfnote.html`**：已改，改好的文件是 `reference/halfnote.html`，和收到的版本只差下面两处。
+  - 课堂页 `status === "failed"` 那段（第 1113 行）：原来第二句写死了 “The recording is still saved.”，链接课失败时这句不对，也没说原因。现在有 `l.error` 时显示 `esc(l.error)`，外面包一层 `data-notr`，免得被界面翻译替换；没有时还是原来那句。`l.link` 原来就在用（“Open the original video”），没改。
+  - `submitNew` 里 `attachLink` 失败时（第 1257 行）：关掉“Saving the link”对话框，`api.deleteLecture(lec.id)`，从 `S.lectures` 里拿掉，错误显示在表单里，链接留着。
+  - “Try again” 在 halfnote 里调用的是 `finishLecture`，不是 `retryLecture`。后端对失败的链接课两个都接受，都会重新下载，所以不用改。
 - 分享页（`GET /shared/:id`）不带 `lecture.link`。
