@@ -1,6 +1,6 @@
 # Runs every check against the build on each pull request and on each push to main: type check and build,
-# the committed dist/ is current, the 102 checks, sideways scrolling, print view, screenshots compared with
-# sidenote.html, and the sample-data API and dictionary compared with sidenote.html. About 20 minutes.
+# the committed dist/ is current, every check script, sideways scrolling, print view, screenshots (no longer compared with
+# sidenote.html), and the sample-data API compared with sidenote.html. About 20 minutes.
 # The backend in server/ has its own job: type check and its tests (providers stubbed, nothing is paid for).
 name: CI
 
@@ -52,13 +52,12 @@ jobs:
             exit 1
           fi
 
-      - name: Checks, sideways scrolling, print view, screenshots against sidenote.html
+      - name: Checks, sideways scrolling, print view, screenshots
         run: npm test -- --no-build
 
-      - name: Sample-data API and dictionary match sidenote.html
+      - name: Sample-data API matches sidenote.html
         run: |
           node tests/api-parity.js
-          node tests/i18n-parity.js
 
       - name: Keep logs, screenshots and diff images
         if: failure()

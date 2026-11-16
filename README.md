@@ -4,6 +4,8 @@
 
 迁移中发现但没改的问题、实现上和原文件不同的地方、真机走查的结果，都在 [DIFFERENCES.md](DIFFERENCES.md)。
 
+**第一批（改名 Halfnote）之后**，前端不再以 `reference/sidenote.html` 为准，而是照设计师的新版 `reference/halfnote.html` 加上我们自己的功能，设计和计划见 `docs/superpowers/`。下面的“验收结果”是迁移当时对原文件的验收，留作记录。
+
 ## 验收结果
 
 对构建产物 `dist` 跑，2026-11-11，macOS，Playwright 1.65 自带的 Chromium：
@@ -91,7 +93,7 @@ npm run walkthrough -- --old=old.<你的域名> --new=new.<你的域名>
 npx playwright install chromium
 ```
 
-一条命令全跑（先构建，再对 `dist` 跑全部检查和截图对比）：
+一条命令全跑（先构建，再对 `dist` 跑全部检查，最后截图）：
 
 ```bash
 npm test
@@ -100,34 +102,42 @@ npm test
 它依次跑：
 
 1. `npm run build`：`tsc --noEmit` 零错误，构建零警告。
-2. `tests/real5.js`（65 项）、`tests/zhscript.js`（16 项）、`tests/real3.js`（11 项）、`tests/zhcheck.js`（10 项），共 102 项。示例模式和真后端模式（请求拦截出来的假接口）都覆盖。
-3. `tests/overflow5.js`：8 个宽度、两种语言没有横向滚动；`tests/printcheck.js`：打印时导航、播放器、按钮都隐藏。
-4. `tests/shots5.js` 的走查路径分别对原文件和构建结果各截一遍（关掉动画），逐张逐像素对比。
+2. 下面的检查脚本，都只跑在构建产物 `dist` 上，每个脚本的项数写在 `tests/run-all.js` 的 `EXPECT` 里，对不上就算失败。
+3. `tests/overflow5.js`：8 个宽度、英文、繁体、简体三种语言没有横向滚动；`tests/printcheck.js`：打印时导航、播放器、按钮都隐藏。
+4. `tests/shots5.js` 的走查路径在手机 390px 和 375px 各截一遍（关掉动画）。第一批（改名 Halfnote 之后）起**不再和 `reference/sidenote.html` 逐像素对比**：几乎每个页面的文字和图标都变了，比下去没有意义。截图留在 `tests/output/dist/shots5-390` 和 `shots5-375`，给人看；脚本只要求跑完没有控制台和页面报错。
 
-日志、截图和差异图在 `tests/output/`。同一套脚本也能对原文件跑，用来对照：
+日志和截图在 `tests/output/`。
 
-```bash
-npm run test:legacy
-```
+| 脚本 | 项数 | 内容 |
+|---|---|---|
+| `tests/real5.js` | 65 | 迁移时的主检查：示例模式和真后端模式（请求拦截出来的假接口），录音、播放、上传、断网、登录过期、分享、设置 |
+| `tests/zhscript.js` | 16 | 语言按钮和中文界面 |
+| `tests/real3.js` | 11 | 录音保存期限：到期提示、还剩几天、设置里的保留天数 |
+| `tests/zhcheck.js` | 10 | 繁体界面：新增的每句话都有翻译，后端给的内容不翻译 |
+| `tests/upload.js` | 27 | 上传在后台进行：课堂页的进度条和取消、其他页顶部的 "Uploading" 链接、关页面前提醒、上传失败后重发同一个文件、通知 |
+| `tests/backend-text.js` | 13 | 后端给的内容（课程编号和名称、章节名、课件页码标签、文件名）原样显示、不翻译 |
+| `tests/courses.js` | 18 | 改课程编号和名称、删课程、把课堂移到别的课程，中文，以及真后端模式的请求和出错 |
+| `tests/slides-later.js` | 15 | 课后补传课件（保持锁屏窗口和自己的轮询）：上传、等待、学生自己的笔记保留、取消不删课 |
+| `tests/search.js` | 20 | 首页搜索全部笔记 |
+| `tests/sharing.js` | 6 | 分享：停止分享后旧链接重新向后端要；"You" 只标在自己的课里 |
+| `tests/signin.js` | 13 | 邮件验证码登录和邀请码 |
+| `tests/course-picker.js` | 9 | 新建课堂时选课程 |
+| `tests/failed-reason.js` | 6 | 视频链接等失败时显示后端给的原因，重试，被拒的链接不留下空课堂 |
+| `tests/brand.js` | 18 | 改名 Halfnote 和 Hal：页面上没有 "Sidenote"/"Sid"，logo、favicon、标题 |
+| `tests/zh-hans.js` | 19 | 简体界面：没有繁体字，后端内容不转换，语言选择保存 |
+| `tests/background-notes.js` | 14 | 课堂结束后在后台写笔记，不弹锁屏窗口；通知；同一堂课同一时间只有一个轮询 |
+| `tests/stuck-lecture.js` | 18 | 卡住或失败的课堂只显示和它来源相符的按钮（`lecture.source`），可以删除 |
+| `tests/quick-record.js` | 17 | 首页一键录音：默认课程、没有课程时建 "My classes"、日期标题、录音中的卡片 |
+| `tests/lecture-page.js` | 19 | 课堂页：主题列表和折叠、标题和课程一个窗口、时间点开始播放、有内容才有标签、Send to an app |
+| `tests/live-meta.js` | 7 | 录音页：录音中改名字和课程，考试提醒时手机振动 |
+| `tests/help-privacy.js` | 9 | 公开的 Help 和 Privacy 页、落地页顶栏和页脚 |
+| `tests/kept.js` | 10 | 保留我们自己的东西里别处没人盯着的几条：手机顶栏、底部导航、`#/courses`、"See plans"、分享窗口说明录音不公开、分享页不带录音和链接和失败原因 |
 
-对构建产物还会多跑八个脚本，测的都是迁移之后的改动，原文件没有：
+加上 `overflow5.js`、`printcheck.js` 和 `shots5.js`（390 和 375 两遍）。
 
-- `tests/upload.js`（13 项）：上传录音时的进度条和取消按钮；
-- `tests/backend-text.js`（13 项）：后端给的内容（课程编号和名称、章节名、课件页码标签、选中的文件名）原样显示、不翻译，以及 6 个用不到的旧词典键已删掉；
-- `tests/courses.js`（18 项）：改课程编号和名称、删课程（有课堂和没有课堂、录音中不能删）、把课堂移到别的课程，中文界面，以及真后端模式下发出的请求和出错时的表现；
-- `tests/slides-later.js`（15 项）：课后补传课件（两个入口、上传和等待、学生自己的笔记保留、取消不删课、不是 PDF、中文），以及真后端模式下的上传、轮询、失败、服务器报错和等待超时。
-- `tests/search.js`（20 项）：在首页搜索全部笔记（没打开过的课也搜得到、停顿后才搜、多个词、点结果跳到那条要点、学生自己的笔记、中文、手机宽度），以及真后端模式下发出的请求、没有搜索接口、服务器报错和过时的回复。
-- `tests/sharing.js`（6 项）：真后端模式下的分享：停止分享后，旧链接会重新向后端要（不用这次访问存下的内容）；“You” 只标在学生在自己的课里加的要点上，分享页和别人分享后存下的副本里不标。
-- `tests/signin.js`（13 项）：用邮件验证码登录（`CONFIG.SIGN_IN` 为 `"email"`）：两步和发出的请求、验证码错误、第一次用的邮箱要填邀请码、重发验证码、换邮箱、发送失败、中文，以及示例模式；不设 `SIGN_IN` 时仍是原来的邀请码表单。
-- `tests/course-picker.js`（9 项）：新建课堂时选课程：下拉选单里只有课程，“Add a course” 是单独的按钮，加好的课程自动选中；还没有课程时不显示下拉选单，显示一句提示和按钮；没有课程时提交会提示先加课程；中文；手机宽度。
+设计和计划在 `docs/superpowers/` 下（第一批：`specs/2026-11-16-halfnote-batch1-design.md`，其中 "保留我们自己的" 一节逐条列出了不能碰掉的东西）。
 
-另外三个迁移时用的对比脚本，单独运行：
-
-| 脚本 | 内容 |
-|---|---|
-| `node tests/api-parity.js` | 示例模式下 `api` 各函数的返回值与原文件逐字节相同 |
-| `node tests/i18n-parity.js` | 词典每个键、每条 `ZHR` 规则的翻译结果与原文件相同（迁移后有意删掉的 6 个旧键除外，会单独列出） |
-| `node tests/pages-compare.js` | 每个页面和弹窗的整页截图，375/1280 宽、中英文，与原文件逐像素对比 |
+迁移时用的几个脚本和原文件对照，不在 `npm test` 里：`npm run test:legacy` 是把迁移时的检查对 `reference/sidenote.html` 再跑一遍；`tests/api-parity.js`（示例模式下 `api` 返回值，仍然通过，CI 里还在跑）、`tests/i18n-parity.js`（词典，改名之后和原文件对不上，已从 CI 拿掉）、`tests/pages-compare.js`（整页截图，同样对不上）是迁移验收用的。
 
 ### GitHub 上的自动检查（CI）
 
@@ -135,8 +145,7 @@ npm run test:legacy
 
 1. 类型检查和构建，有警告也算失败；
 2. 仓库里提交的 `dist/` 和这次构建结果一致（`dist/` 是直接部署的，改了源码要记得重新构建并提交）；
-3. `npm test`：102 项检查、迁移后加的 107 项（上传功能、后端内容不翻译、管理课程、课后补传课件、搜索全部笔记、分享、邮件验证码登录、新建课堂时选课程）、横向滚动、打印、截图对比；
-4. `tests/api-parity.js` 和 `tests/i18n-parity.js`。
+3. `npm test`：上面表里的全部检查、横向滚动、打印、截图（截图不再和原文件对比）。
 
 失败时，日志、截图和差异图会作为 `test-output` 附件保存 14 天，在那次运行的页面上下载。
 
