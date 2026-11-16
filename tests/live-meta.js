@@ -7,10 +7,10 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
 (async () => {
   const browser = await chromium.launch({ headless: true, args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--no-sandbox'] });
   const errs = [];
-  const open = async courseCount => {
+  const open = async (courseCount, width = 1280) => {
     const all = [{ id: 'c1', code: 'TEST 1001', name: '' }, { id: 'c2', code: 'TEST 2002', name: '' }];
     const be = { sent: 0, patches: [], courses: all.slice(0, courseCount) };
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, permissions: ['microphone'] });
+    const ctx = await browser.newContext({ viewport: { width, height: width < 900 ? 780 : 800 }, isMobile: width < 900, hasTouch: width < 900, permissions: ['microphone'] });
     await ctx.addInitScript(() => { try { localStorage.setItem('sidenote.recTip', '1'); localStorage.setItem('sidenote.lastCourse', 'c1'); window.__vib = 0; navigator.vibrate = () => { window.__vib++; return true; }; } catch (e) {} });
     await setConfig(ctx, { USE_MOCK: false, POLL_MS: 50, CHUNK_SECONDS: 1 });
     await ctx.route('**/*', async route => {
@@ -52,6 +52,11 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     await page.waitForFunction(() => window.__vib >= 1, null, { timeout: 8000 }).catch(() => {}); await page.waitForTimeout(1500);
     const v = await page.evaluate(() => window.__vib);
     check('an exam alert vibrates the phone', v === 1, v);
+    await ctx.close(); }
+  for (const w of [375, 390]) { const { ctx, page } = await open(2, w);
+    const r = await page.evaluate(() => { const i = document.querySelector('.live-meta input'), ph = getComputedStyle(i, '::placeholder'), cs = getComputedStyle(i), c = document.createElement('canvas').getContext('2d');
+      c.font = `${ph.fontStyle} ${ph.fontWeight} ${ph.fontSize} ${ph.fontFamily}`; const inner = i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); return { text: c.measureText(i.placeholder).width, inner, font: c.font }; });
+    check(`at ${w} px the placeholder of the title box fits inside the box (not clipped)`, r.text <= r.inner, r);
     await ctx.close(); }
   check('no page errors', errs.length === 0, errs);
   await browser.close();

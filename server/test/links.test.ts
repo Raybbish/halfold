@@ -151,6 +151,21 @@ test("a shared link lecture: the public page and a classmate's saved copy do not
   assert.equal(LectureSchema.parse(saved.body).link, undefined);
 });
 
+test("the shared page of a link lecture that also carries a failure reason has no link, no error and no source", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn(), id = await linkLecture(s, token);
+  await finish(s, token, id); await s.pipeline.idle();
+  const share = ((await s.call("POST", `/lectures/${id}/share`, { token })).body.url as string).split("#/s/")[1];
+  s.store.setFailed(id, "details for the log", STUDENT_MESSAGE.login);   /* notes still stored, as after a later failed run */
+  const own = await lectureOf(s, token, id);
+  assert.equal(own.link, URL1); assert.equal(own.error, STUDENT_MESSAGE.login); assert.equal(own.source, "link", "the owner sees all three");
+  const page = await s.call("GET", `/shared/${share}`);
+  assert.equal(page.status, 200, page.text);
+  const lecture = SharedReplySchema.parse(page.body).lecture;
+  assert.equal(lecture.link, undefined); assert.equal(lecture.error, undefined); assert.equal(lecture.source, undefined);
+  for (const secret of [URL1, STUDENT_MESSAGE.login, "details for the log"]) assert.ok(!JSON.stringify(page.body).includes(secret), secret);
+});
+
 const until = async (ok: () => boolean, ms = 3000) => { const end = Date.now() + ms; while (!ok() && Date.now() < end) await new Promise(r => setTimeout(r, 5)); return ok(); };
 
 test("a download in progress does not hold up the notes of other lectures", async t => {

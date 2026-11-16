@@ -129,9 +129,9 @@ npm test
 | `tests/stuck-lecture.js` | 18 | 卡住或失败的课堂只显示和它来源相符的按钮（`lecture.source`），可以删除 |
 | `tests/quick-record.js` | 17 | 首页一键录音：默认课程、没有课程时建 "My classes"、日期标题、录音中的卡片 |
 | `tests/lecture-page.js` | 19 | 课堂页：主题列表和折叠、标题和课程一个窗口、时间点开始播放、有内容才有标签、Send to an app |
-| `tests/live-meta.js` | 7 | 录音页：录音中改名字和课程，考试提醒时手机振动 |
+| `tests/live-meta.js` | 9 | 录音页：录音中改名字和课程，考试提醒时手机振动，手机上标题框的提示文字不被截断 |
 | `tests/help-privacy.js` | 9 | 公开的 Help 和 Privacy 页、落地页顶栏和页脚 |
-| `tests/kept.js` | 10 | 保留我们自己的东西里别处没人盯着的几条：手机顶栏、底部导航、`#/courses`、"See plans"、分享窗口说明录音不公开、分享页不带录音和链接和失败原因 |
+| `tests/kept.js` | 9 | 保留我们自己的东西里别处没人盯着的几条：手机顶栏、底部导航、`#/courses`、"See plans"、分享窗口说明录音不公开（分享页不带链接、失败原因和来源由服务器测试 `server/test/links.test.ts` 盯着） |
 
 加上 `overflow5.js`、`printcheck.js` 和 `shots5.js`（390 和 375 两遍）。
 
