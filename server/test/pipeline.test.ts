@@ -1,10 +1,12 @@
 /* Recording -> notes with the speech-to-text service and the notes model stubbed: ready and failed, retries that do not
-   pay twice, a reply the model is asked to correct, deletion part way, restarts, and the cost log. */
+   pay twice, a reply the model is asked to correct, deletion part way, restarts, the cost log, and the original file
+   deleted once the notes are written. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { DetailSchema } from "../src/shapes";
+import { sweepOriginals } from "../src/audio";
 import { goodNotes, setup, uploadedLecture } from "./helpers";
 
 const finish = (s: ReturnType<typeof setup>, token: string, id: string) => s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 600 } });
@@ -155,4 +157,50 @@ test("slides that cannot be read are left out: the notes are written without the
   assert.equal(s.store.lecture(id)!.status, "ready");
   assert.deepEqual(s.notes.calls[0].input.slides, []);
   assert.deepEqual(s.store.detail(id)!.slides, []);
+});
+
+/* The original file (an upload, a joined live recording, a downloaded link) is only read to make audio.m4a. Once the notes
+   are written it is deleted: audio.m4a (48 kbps speech) is what is played, downloaded and kept, at about half the size. */
+test("once the notes are written, the original file is deleted; audio.m4a stays and plays", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn(), id = await uploadedLecture(s, token);
+  assert.ok(s.files.exists(id, "recording"));
+  await finish(s, token, id); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.equal(s.files.exists(id, "recording"), false);
+  assert.ok(s.files.exists(id, "audio.m4a"));
+  const url = (await s.call("GET", `/lectures/${id}`, { token })).body.detail.audio.url;
+  assert.equal((await s.app.request(url)).status, 200);
+});
+
+test("a lecture that fails keeps its original until a retry writes the notes", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn(), id = await uploadedLecture(s, token);
+  s.stt.error = new Error("elevenlabs replied 500: busy");
+  await finish(s, token, id); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "failed");
+  assert.ok(s.files.exists(id, "recording"));
+  s.stt.error = null; await s.files.remove(id, "audio.m4a");   // a retry that has to convert again still can
+  await s.call("POST", `/lectures/${id}/retry`, { token }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.equal(s.files.exists(id, "recording"), false); assert.ok(s.files.exists(id, "audio.m4a"));
+});
+
+test("lectures written before this change lose their original at start; others keep it", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn();
+  const ready = await uploadedLecture(s, token), noAudio = await uploadedLecture(s, token), failed = await uploadedLecture(s, token), waiting = await uploadedLecture(s, token);
+  await finish(s, token, ready); await finish(s, token, noAudio); await s.pipeline.idle();
+  s.notes.replies = [JSON.stringify({ sections: [] }), JSON.stringify({ sections: [] })];
+  await finish(s, token, failed); await s.pipeline.idle();
+  assert.equal(s.store.lecture(failed)!.status, "failed");
+  /* As a server before this change left them: the original next to audio.m4a. One ready lecture has lost its audio.m4a. */
+  for (const id of [ready, noAudio]) fs.writeFileSync(s.files.path(id, "recording"), "FAKEAUDIO-old");
+  await s.files.remove(noAudio, "audio.m4a");
+  assert.equal(await sweepOriginals(s), 1);
+  assert.equal(s.files.exists(ready, "recording"), false); assert.ok(s.files.exists(ready, "audio.m4a"));
+  assert.ok(s.files.exists(noAudio, "recording"), "without audio.m4a the original is the only copy");
+  assert.ok(s.files.exists(failed, "recording"), "a failed lecture may be retried");
+  assert.ok(s.files.exists(waiting, "recording"), "a lecture not yet finished");
+  assert.equal(await sweepOriginals(s), 0);
 });
