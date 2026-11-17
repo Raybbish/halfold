@@ -57,6 +57,23 @@ test("in order: each reply carries the lines of its round; a word cut by the win
   assert.equal(s.notes.calls[0].input.lines[0].text, "Good afternoon.");
 });
 
+/* Joining used to add listeners to the output for every piece and never take them off, so a recording of more than ten
+   pieces printed MaxListenersExceededWarning ("possible memory leak") to the server log. */
+test("a recording of many pieces is joined in order, without a warning about too many listeners", async t => {
+  const s = live(setup()); t.after(() => s.close());
+  const warnings: string[] = [], onWarning = (w: Error) => { warnings.push(w.name); };
+  process.on("warning", onWarning); t.after(() => { process.off("warning", onWarning); });
+  const token = await s.signIn(), id = await liveLecture(s, token);
+  const pieces = Array.from({ length: 12 }, (_, i) => fakeChunk(5 + i));
+  for (const [seq, p] of pieces.entries()) assert.equal((await send(s, token, id, seq, p)).status, 200);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 126 } });
+  await s.pipeline.idle();
+  await new Promise(r => setImmediate(r));   // a warning is emitted on a later tick
+  assert.equal(s.store.lecture(id)!.status, "ready", s.store.lecture(id)!.error ?? "");
+  assert.equal(fs.readFileSync(s.files.path(id, "audio.m4a"), "utf8"), pieces.join(""));
+  assert.deepEqual(warnings.filter(n => n === "MaxListenersExceededWarning"), []);
+});
+
 test("a sentence that runs past the end of a round is held back and sent whole with the next round", async t => {
   const s = setup(); t.after(() => s.close());
   s.stt.words = [{ text: "The", start: 9, end: 9.3 }, { text: "law", start: 9.3, end: 9.6 }, { text: "of", start: 9.6, end: 9.8 }, { text: "supply", start: 9.8, end: 10.4 },

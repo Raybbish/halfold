@@ -245,17 +245,18 @@ export class Pipeline implements Jobs {
     if (seqs[0] !== 0) throw new Error(seqs.length ? "the first piece of the live recording never arrived" : "no audio was received");
     const missing = seqs[seqs.length - 1] + 1 - seqs.length;
     if (missing) console.warn(`[pipeline] ${id}: ${missing} piece(s) of the live recording never arrived; they become silence`);
-    const tmp = files.tempPath(), out = fs.createWriteStream(tmp);
+    /* One pipeline for all the pieces: a pipeline per piece into the same file left its listeners on the file, more than
+       ten of each for a recording of more than ten pieces (MaxListenersExceededWarning in the log). */
+    const tmp = files.tempPath(), dir = files.chunkDir(id), check = () => this.check(id, signal);
+    async function* pieces() {
+      for (const seq of seqs) { check(); yield* fs.createReadStream(path.join(dir, files.chunkName(seq))); }
+    }
     try {
-      for (const seq of seqs) {
-        this.check(id, signal);
-        await pump(fs.createReadStream(path.join(files.chunkDir(id), files.chunkName(seq))), out, { end: false });
-      }
-      await new Promise<void>((ok, bad) => { out.once("error", bad); out.end(() => ok()); });
+      await pump(pieces(), fs.createWriteStream(tmp));
       this.check(id, signal);
       await files.commit(tmp, id, "recording");
       store.setRecording(id, "recording");
-    } finally { out.destroy(); await files.discard(tmp); }
+    } finally { await files.discard(tmp); }
     await files.removeChunks(id);
   }
 
