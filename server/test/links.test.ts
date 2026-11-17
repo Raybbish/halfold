@@ -33,7 +33,8 @@ test("a link lecture: the link is kept and shown, downloaded after finish, and t
   assert.deepEqual(s.links.calls, [{ url: URL1, maxBytes: s.config.maxUploadBytes }]);
   const l = s.store.lecture(id)!;
   assert.equal(l.status, "ready", l.error ?? ""); assert.equal(l.recording_file, "recording");
-  assert.ok(fs.existsSync(path.join(s.dir, "lectures", id, "recording")));
+  assert.equal(fs.existsSync(path.join(s.dir, "lectures", id, "recording")), false, "the download is deleted once the notes are written");
+  assert.ok(fs.existsSync(path.join(s.dir, "lectures", id, "audio.m4a")));
   assert.ok(s.store.detail(id));
   const home = HomeSchema.parse((await s.call("GET", "/home", { token })).body);
   assert.equal(home.lectures[0].link, URL1);

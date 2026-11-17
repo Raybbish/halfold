@@ -124,7 +124,7 @@ export class Pipeline implements Jobs {
     const { store, files, media, stt, config } = this.d, id = l.id;
     /* 0. A live recording: the pieces the browser sent, joined in order into one file. */
     if (!l.recording_file && isLive(l)) { await this.assemble(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
-    /* 0. A video link: the file behind it. Kept once downloaded, so a retry after a later step failed does not download again. */
+    /* 0. A video link: the file behind it. Kept until the notes are written (step 6), so a retry after a later step failed does not download again. */
     if (!l.recording_file && l.source === "link") { await this.fetchLink(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
     if (!l.recording_file) throw new Error("no recording");
 
