@@ -46,7 +46,9 @@ test("in order: each reply carries the lines of its round; a word cut by the win
   await s.pipeline.idle();
   const done = s.store.lecture(id)!;
   assert.equal(done.status, "ready"); assert.equal(done.duration, 55); assert.equal(done.client_duration, 56);
-  assert.equal(fs.readFileSync(s.files.path(id, "recording"), "utf8"), fakeChunk() + fakeChunk() + fakeChunk() + fakeChunk(10));
+  /* The stub media copies what it converts, so audio.m4a holds the joined recording; the original went with the notes. */
+  assert.equal(fs.readFileSync(s.files.path(id, "audio.m4a"), "utf8"), fakeChunk() + fakeChunk() + fakeChunk() + fakeChunk(10));
+  assert.equal(s.files.exists(id, "recording"), false);
   assert.equal(fs.existsSync(s.files.chunkDir(id)), false);
   assert.equal((s.media as StubMedia).speech.at(-1)!.o!.fillGaps, true);
   assert.deepEqual(s.store.costs().filter(c => c.stage === "stt").map(c => c.audio_seconds), [600]);   // the stub's whole-file reply says 600

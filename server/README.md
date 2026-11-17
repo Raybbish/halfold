@@ -212,7 +212,7 @@ test/              契约、上传、流程、整理、服务商请求、ffmpeg 
 test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的 README
 ```
 
-数据在 `data/`（gitignore）：`sidenote.db`，以及 `lectures/<课堂 id>/` 下的原始录音、`audio.m4a`（转码后，用于转写和回放）、`slides.pdf`、转写服务的原始返回；现场录音结束前，分段在 `chunks/` 里。
+数据在 `data/`（gitignore）：`sidenote.db`，以及 `lectures/<课堂 id>/` 下的 `audio.m4a`（转码后，用于转写、回放和下载）、`slides.pdf`、转写服务的原始返回。原始录音（上传的文件、拼好的现场录音）存成 `recording`，只用来转出 `audio.m4a`：笔记写好后就删掉（大约是 `audio.m4a` 的两倍大，视频更大）；失败的课留着，好让重试再转一次。这一改动之前的课，启动时（之后每六小时）检查一次并删掉。现场录音结束前，分段在 `chunks/` 里。
 
 ## 还没做的
 
