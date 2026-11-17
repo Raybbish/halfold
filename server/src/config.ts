@@ -51,6 +51,7 @@ export interface Config {
   plans: PlanBook;                    // plans.json: what each plan allows and costs; the daily live limit and how long recordings are kept
   retired: string[];                  // settings in the environment that plans.json replaced (a warning at start)
   pipelineConcurrency: number;
+  links: { ytdlp: string; downloadMs: number; concurrency: number };   // video links: the yt-dlp program, how long one download may take, downloads at once
   zhExplanations: boolean;
   stt: {
     provider: SttProviderName;
@@ -129,6 +130,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     plans: loadPlans(env.PLANS_FILE ? path.resolve(SERVER_DIR, env.PLANS_FILE) : path.join(SERVER_DIR, "plans.json")),
     retired: ["DAILY_LIVE_MINUTES", "AUDIO_KEEP_DAYS"].filter(k => (env[k] || "").trim() !== ""),
     pipelineConcurrency: Math.max(1, num(env.PIPELINE_CONCURRENCY, 2)),
+    links: {
+      ytdlp: (env.YTDLP || "").trim() || "yt-dlp", downloadMs: Math.max(1, num(env.LINK_DOWNLOAD_MINUTES, 30)) * 60_000,
+      concurrency: Math.max(1, num(env.LINK_CONCURRENCY, 2))
+    },
     zhExplanations: onOff(env.ZH_EXPLANATIONS, true),
     stt: {
       provider,

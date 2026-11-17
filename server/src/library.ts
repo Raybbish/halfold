@@ -26,10 +26,11 @@ export function sharedRoutes(deps: Deps) {
     const id = c.req.param("id"), l = store.lectureByShare(id), detail = l && store.detail(l.id);
     if (!l || !detail) fail(404, NOT_SHARED);
     const course = store.courseById(l!.course_id), owner = store.user(l!.user_id);
-    /* No recording (INTEGRATION.md 4.3: the shared page plays none) and not the owner's progress: detail is the notes as
-       stored. The lecture goes by the share id, so readers never learn its own id. */
+    /* No recording (INTEGRATION.md 4.3: the shared page plays none), nor the video link it came from, and not the owner's
+       progress: detail is the notes as stored. The lecture goes by the share id, so readers never learn its own id. */
+    const { link: _link, error: _error, ...shown } = lectureView(l!, config.timezone);
     return c.json<SharedReply>({
-      lecture: { ...lectureView(l!, config.timezone), id, status: "ready", shareUrl: null },
+      lecture: { ...shown, id, status: "ready", shareUrl: null },
       ...(course ? { course: courseView(course) } : {}), detail: detail!, sharedBy: owner?.name.trim() || "A classmate"
     });
   });

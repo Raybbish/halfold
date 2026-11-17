@@ -21,6 +21,7 @@ import { ReviewPacks } from "../src/packs";
 import { Billing } from "../src/billing";
 import type { Mail, Mailer } from "../src/mail";
 import { verifySignature, type CheckoutInfo, type CheckoutRequest, type PaymentEvent, type Payments, type SubscriptionInfo } from "../src/pay/stripe";
+import { LinkError, type LinkDownloader, type LinkFailure } from "../src/links/ytdlp";
 import { createHmac } from "node:crypto";
 
 export const FAKE_AUDIO = "FAKEAUDIO";   // files starting with this are "audio" to the stub media
@@ -169,6 +170,24 @@ export class StubNotes implements NotesWriter {
   usd(u: TokenUsage) { return { usd: (u.inputTokens * 1.32 + u.outputTokens * 3.96) / 1e6, meta: { peak: true } }; }
 }
 
+/* Video links: yt-dlp replaced. Each download writes stub audio into the folder, unless `next` says to fail with a
+   reason, to write something else, or to hold until released (or aborted, when the lecture is deleted). */
+export class StubLinks implements LinkDownloader {
+  calls: { url: string; maxBytes: number }[] = [];
+  next: { fail?: LinkFailure; content?: string; hold?: boolean } = {};
+  private releaseHeld: (() => void) | null = null;
+  async download(url: string, dir: string, o: { maxBytes: number; signal?: AbortSignal }) {
+    this.calls.push({ url, maxBytes: o.maxBytes });
+    const n = this.next;
+    if (n.hold) await new Promise<void>((ok, bad) => { this.releaseHeld = ok; o.signal?.addEventListener("abort", () => bad(o.signal!.reason), { once: true }); });
+    if (n.fail) throw new LinkError(n.fail, "stub download failed");
+    const file = path.join(dir, "media.mp4");
+    fs.writeFileSync(file, n.content ?? FAKE_AUDIO + "-from-a-link");
+    return file;
+  }
+  release() { this.releaseHeld?.(); }
+}
+
 /* The emails the server sent (the sign-in codes). */
 export class StubMailer implements Mailer {
   readonly provider = "stub-mail";
@@ -238,6 +257,7 @@ export class StubPayments implements Payments {
 export interface TestServer {
   dir: string; config: Config; store: Store; files: LocalFileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
   live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks; billing: Billing; mailer: StubMailer; payments: StubPayments;
+  links: StubLinks;
   app: ReturnType<typeof createApp>;
   call(method: string, p: string, o?: { token?: string; json?: unknown; body?: FormData | string | Uint8Array; headers?: Record<string, string> }): Promise<{ status: number; body: any; text: string }>;
   /* A sign-in token for an invite code's account, made directly (the sign-in endpoints have their own tests: login.test.ts). */
@@ -249,9 +269,9 @@ export interface TestServer {
    those phases run on it; the tests of plans (billing.test.ts) use plans.json as committed (realPlans). */
 export function openPlans(p: Config["plans"]) { Object.assign(p.plans[0], { dailyLiveMinutes: 240, lecturesPerMonth: null, packsPerMonth: null, audioDays: null }); }
 
-/* plans: changes to the plans for this test. payments: false = no Stripe key. */
+/* plans: changes to the plans for this test. payments: false = no Stripe key. links: false = no yt-dlp on the machine. */
 export function setup(o: { env?: Record<string, string>; media?: Media; slides?: (f: string) => Promise<{ n: number; text: string }[]>;
-  realPlans?: boolean; plans?: (p: Config["plans"]) => void; payments?: boolean } = {}): TestServer {
+  realPlans?: boolean; plans?: (p: Config["plans"]) => void; payments?: boolean; links?: boolean } = {}): TestServer {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-test-"));
   const config = loadConfig({ DATA_DIR: dir, WEB_DIR: "", ...o.env });
   if (!o.realPlans) openPlans(config.plans);
@@ -260,11 +280,12 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
   store.addInviteCode("CODE-A", "Ann"); store.addInviteCode("CODE-B", "Ben");
   const files = new LocalFileStore(dir), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
   const slides = o.slides || (async () => [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }]);
-  const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides });
+  const links = new StubLinks(), linksOn = o.links !== false;
+  const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides, links: linksOn ? links : null });
   const live = new LiveTranscriber({ config, store, files, media, stt }), catchUp = new StubCatchUp(), packs = new ReviewPacks({ config, store, notes });
   const payments = new StubPayments(), mailer = new StubMailer();
   const billing = new Billing({ config, store, payments: o.payments === false ? null : payments });
-  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, packs, billing, mailer });
+  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, packs, billing, mailer, links: linksOn ? links : null });
   const call: TestServer["call"] = async (method, p, c = {}) => {
     const headers: Record<string, string> = { ...(c.headers || {}) };
     if (c.token) headers.Authorization = "Bearer " + c.token;
@@ -276,7 +297,7 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
     return { status: r.status, body: parsed, text };
   };
   return {
-    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, packs, billing, mailer, payments, app, call,
+    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, packs, billing, mailer, payments, links, app, call,
     async signIn(code = "CODE-A", name = "") {
       const u = store.userByCode(code); if (!u) throw new Error("no invite code " + code);
       if (name) store.setUserName(u.id, name);
@@ -313,6 +334,16 @@ export async function liveLecture(s: TestServer, token: string, o: { source?: "r
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body;
   const r = await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Week 10", language: o.language || "en", source: o.source || "record" } });
   if (r.status !== 200) throw new Error("create failed: " + r.text);
+  return r.body.id as string;
+}
+
+/* Creates a course and a link lecture, sends the link, and returns the lecture id. */
+export async function linkLecture(s: TestServer, token: string, url = "https://www.youtube.com/watch?v=lecture9") {
+  const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body;
+  const r = await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Week 9 replay", language: "en", source: "link" } });
+  if (r.status !== 200) throw new Error("create failed: " + r.text);
+  const sent = await s.call("POST", `/lectures/${r.body.id}/link`, { token, json: { url } });
+  if (sent.status !== 204) throw new Error("link failed: " + sent.text);
   return r.body.id as string;
 }
 

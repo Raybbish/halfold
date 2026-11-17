@@ -83,7 +83,14 @@ function submitNew() {
       const lec = await api.createLecture({ courseId: nf.courseId!, title: nf.title.trim(), language: nf.lang!, source: nf.mode });
       if (recMode) { const code = course(nf.courseId)!.code; if (nf.slides) api.uploadSlides(lec.id, nf.slides).catch(() => toast("Slides did not upload. The notes will be made without them.")); await beginRecording(lec, code, nf.mode); done(); location.hash = "#/live"; return; }
       if (nf.mode === "upload") { if (!(await sendFiles(lec.id, nf.file!, nf.slides))) return; }
-      else { busy("Uploading", "Keep this page open until the upload finishes."); await api.attachLink(lec.id, nf.link.trim()); if (nf.slides) await api.uploadSlides(lec.id, nf.slides); }
+      else {
+        busy("Uploading", "Keep this page open until the upload finishes.");
+        /* A link the backend refuses (not public, mistyped): the lecture just made for it is deleted, so no empty lecture
+           is left counting toward the month's lectures; the form keeps the link to correct. */
+        try { await api.attachLink(lec.id, nf.link.trim()); }
+        catch (e) { api.deleteLecture(lec.id).catch(() => {}); throw e; }
+        if (nf.slides) await api.uploadSlides(lec.id, nf.slides);
+      }
       done(); await finalize(lec.id, 0);
     } finally { nf.busy = false; if (R.a === "new") bump(); }   // enable the button again if the page is still showing (after an error)
   });

@@ -34,5 +34,5 @@ if (fixtures) app.get("/__fixtures/:name", c => {
 const live = new LiveTranscriber({ config, store, files, media, stt });
 const packs = new ReviewPacks({ config, store, notes });
 app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp(), packs,
-  billing: new Billing({ config, store, payments: null }), mailer: new StubMailer() }));
+  billing: new Billing({ config, store, payments: null }), mailer: new StubMailer(), links: null }));
 serve({ fetch: app.fetch, port }, () => console.log(`stub server on http://localhost:${port} (data in ${dir}); invite code STUB`));

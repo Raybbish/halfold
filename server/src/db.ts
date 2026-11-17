@@ -35,6 +35,9 @@ export interface LectureRow {
      copied it. refile: 1 while slides sent after the notes are being matched to the points. copied_from: the lecture a
      shared copy was saved from (POST /shared/:id/save). */
   share_id: string | null; share_url: string | null; refile: number; copied_from: string | null;
+  /* Video links. link: what the student pasted (source "link"). public_error: why the lecture failed, in a sentence for
+     the student, when that is known (a download that failed); error keeps the details for the log. */
+  link: string | null; public_error: string | null;
 }
 export interface UpcomingRow { lecture_id: string; date: string; kind: string; text: string; t: number; course_code: string }
 export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
@@ -124,6 +127,7 @@ const ADDED: [string, string, string][] = [
   ["lectures", "live_limit", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "chunk_bytes", "INTEGER NOT NULL DEFAULT 0"],
   ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"],
   ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
+  ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"],
   ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"]
 ];
 
@@ -323,7 +327,10 @@ export class Store {
   }
   renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ? WHERE id = ?").run(title, id); }
   moveLecture(id: string, courseId: string) { this.db.prepare("UPDATE lectures SET course_id = ? WHERE id = ?").run(courseId, id); }
-  setFailed(id: string, error: string) { this.db.prepare("UPDATE lectures SET status = 'failed', error = ? WHERE id = ?").run(error.slice(0, 2000), id); }
+  setLink(id: string, url: string) { this.db.prepare("UPDATE lectures SET link = ? WHERE id = ?").run(url, id); }
+  setFailed(id: string, error: string, publicError: string | null = null) {
+    this.db.prepare("UPDATE lectures SET status = 'failed', error = ?, public_error = ? WHERE id = ?").run(error.slice(0, 2000), publicError, id);
+  }
   deleteLecture(id: string) { this.db.prepare("DELETE FROM lectures WHERE id = ?").run(id); }
   /* Live recordings (record, tab) started since a time, for the daily limit. */
   liveLecturesSince(userId: string, sinceIso: string) {

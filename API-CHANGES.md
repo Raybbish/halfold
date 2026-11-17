@@ -349,3 +349,45 @@
 - `name` 必填，最长 60 字；`classLanguage` 是 `en`、`en-yue`、`en-zh`、`auto` 之一；`zhDefault` 是布尔值；`zhScript` 是 `hant` 或 `hans`，不给就保留原来的。不对回 400 加说明，成功回 204。
 - 存好之后 `GET /home` 的 `user.name` 和 `settings` 就是新的。
 
+
+## 9. 视频链接（`source: "link"`）
+
+后端装了 yt-dlp 时，贴链接的课堂和上传录音一样会写出笔记。设计见 `server/DESIGN.md` 的“视频链接（公开链接）”一节。
+
+### 流程（前端不用改）
+
+1. `createLecture({ source: "link", ... })`：正常建课。和上传一样算每月课堂数，不算每天现场录音分钟。服务器上没有 yt-dlp 时仍回 501，文案不变。
+2. `attachLink(id, url)`：`POST /lectures/:id/link`，body `{ url }`，成功回 204。
+   - 只收来源是 `link`、状态是 `recording` 的课；上传课、已经开始写笔记的课回 409。
+   - 链接不对回 400，`message` 可以直接显示：`Paste the full link, starting with https://`、`Only public links can be opened. This one points to a private network.` 等。
+   - 再发一次就覆盖原来的链接。
+3. `finishLecture`：照常调用。还没发链接就 finish 回 409（`Paste the link to the lecture video first.`）。之后状态是 `processing`，下载、转写、写笔记都在后台，前端照常轮询 `getStatus`。下载一般几十秒到几分钟。
+
+### 新字段
+
+- `lecture.link`（`GET /home`、`GET /lectures/:id`）：学生贴的链接，可以用来显示“打开原视频”。
+- `lecture.error`：课堂是 `failed` 并且后端知道原因时，给一句可以直接显示的英文，目前只有链接下载失败时才有。可能的原因：
+  - 要登录或要权限才能看；
+  - 网站（多半是 YouTube）暂时拒绝下载；
+  - 超过 5 小时，或者是直播；
+  - 超过上传上限；
+  - 链接里找不到视频；
+  - 网站连不上；
+  - 下载超时。
+
+  这句话原样显示，不要翻译（和其他后端文字一样）。没有这个字段时照旧显示通用的文字。
+- `retryNotes` 对链接课：下载失败的会重新下载；下载成功、后面的步骤失败的，从已下载的文件重来，不再下载。
+
+### 能下载的链接
+
+公开链接：YouTube、Google Drive 公开文件、Vimeo、Dropbox、不设密码的 Zoom 分享录像、公开的 Panopto，以及直接指向 .mp4、.mp3、.m3u8 的地址。要学校账号登录的回放（Panopto、Canvas、Moodle、学校的 Zoom）下载不了，失败原因里会请学生改用“录网上课堂”或下载后上传。
+
+### 前端要改的
+
+- **本仓库（`src/pages/Lecture.tsx`）**：已改。失败的课堂页有 `lecture.error` 时显示它，代替 “Your recording is safe. Sid can try again from it.”。检查在 `tests/failed-reason.js`。
+- **本仓库（`src/pages/NewLecture.tsx`）**：已改。`attachLink` 被拒（400）时删掉刚建的课，表单保留链接让学生改。不删的话，这堂空课停在 `recording`，一直算进每月课堂数。
+- **`halfnote.html`**：已改，改好的文件是 `reference/halfnote.html`，和收到的版本只差下面两处。
+  - 课堂页 `status === "failed"` 那段（第 1113 行）：原来第二句写死了 “The recording is still saved.”，链接课失败时这句不对，也没说原因。现在有 `l.error` 时显示 `esc(l.error)`，外面包一层 `data-notr`，免得被界面翻译替换；没有时还是原来那句。`l.link` 原来就在用（“Open the original video”），没改。
+  - `submitNew` 里 `attachLink` 失败时（第 1257 行）：关掉“Saving the link”对话框，`api.deleteLecture(lec.id)`，从 `S.lectures` 里拿掉，错误显示在表单里，链接留着。
+  - “Try again” 在 halfnote 里调用的是 `finishLecture`，不是 `retryLecture`。后端对失败的链接课两个都接受，都会重新下载，所以不用改。
+- 分享页（`GET /shared/:id`）不带 `lecture.link`。

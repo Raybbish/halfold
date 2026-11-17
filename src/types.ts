@@ -16,6 +16,8 @@ export interface Lecture {
   duration?: number;         // seconds
   status?: LectureStatus;
   shareUrl?: string | null;
+  link?: string | null;      // the video link a "link" lecture was made from ("Open the original video")
+  error?: string;            // why a failed lecture failed, in a sentence for the student, when the backend knows (API-CHANGES.md 9)
 }
 export interface Upcoming { date: string; kind: string; text: string; course: string; lecture: string; t: number }
 export interface Week { lectures: number; known: number; quiz: number; days?: number[] }

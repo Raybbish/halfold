@@ -75,11 +75,13 @@ test("POST /lectures: an upload lecture, a live one; LIVE_RECORDING=off and link
 
   const live = await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Live", language: "en", source: "record" } });
   assert.equal(live.status, 200); assert.equal(LectureSchema.parse(live.body).status, "recording");
-  const off = setup({ env: { LIVE_RECORDING: "off" } }); t.after(() => off.close());
+  const off = setup({ env: { LIVE_RECORDING: "off" }, links: false }); t.after(() => off.close());
   const offToken = await off.signIn(), offCourse = (await off.call("POST", "/courses", { token: offToken, json: { code: "X 1" } })).body;
   const refused = await off.call("POST", "/lectures", { token: offToken, json: { courseId: offCourse.id, title: "Live", language: "en", source: "tab" } });
   assert.equal(refused.status, 501); isError(refused);
-  assert.equal((await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "en", source: "link" } })).status, 501);
+  /* A link lecture: 501 only on a machine without yt-dlp (links.test.ts). */
+  assert.equal(LectureSchema.parse((await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "en", source: "link" } })).body).status, "recording");
+  assert.equal((await off.call("POST", "/lectures", { token: offToken, json: { courseId: offCourse.id, title: "L", language: "en", source: "link" } })).status, 501);
   assert.equal((await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "fr", source: "upload" } })).status, 400);
   assert.equal((await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "L", language: "en", source: "radio" } })).status, 400);
   /* Someone else's course does not exist for this student. */
