@@ -23,6 +23,7 @@ export interface DeepSeekSettings { apiKey: string; baseUrl: string; model: stri
 
 export interface Config {
   port: number;
+  host: string | undefined;           // the address to listen on, e.g. 127.0.0.1 behind a reverse proxy; undefined = every address
   publicUrl: string;                  // where students reach the server, e.g. https://sidenote.example.com; empty = links relative to the page
   webUrl: string;                     // where the front end is, for shared links (#/s/:id); empty = the page that asked
   exampleShareId: string | null;      // the shared lecture behind "Example notes" on the public pages; null hides those links
@@ -99,6 +100,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (provider !== "elevenlabs" && provider !== "deepgram") throw new Error(`STT_PROVIDER must be elevenlabs or deepgram, not "${provider}"`);
   return {
     port: num(env.PORT, 8787),
+    host: (env.HOST || "").trim() || undefined,
     publicUrl: (env.PUBLIC_URL || "").trim().replace(/\/+$/, ""),
     webUrl: (env.WEB_URL || "").trim().replace(/\/+$/, ""),
     exampleShareId: /^[A-Za-z0-9_-]+$/.test((env.EXAMPLE_SHARE_ID || "").trim()) ? env.EXAMPLE_SHARE_ID!.trim() : null,

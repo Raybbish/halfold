@@ -53,7 +53,7 @@ else if (!payments) console.warn("[sidenote] STRIPE_SECRET_KEY is not set: plans
 else if (!config.stripe.webhookSecret) console.warn("[sidenote] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but renewals and cancellations need the webhook.");
 
 /* Node ends a request after 5 minutes by default, which cuts off a 500 MB upload on a slow connection. */
-const server = serve({ fetch: app.fetch, port: config.port, serverOptions: { requestTimeout: 3 * 3600_000 } }, info => {
+const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host, serverOptions: { requestTimeout: 3 * 3600_000 } }, info => {
   console.log(`[sidenote] http://localhost:${info.port}  sign-in: ${config.signIn === "email" ? "email code (" + mailer.provider + ")" : "invite code"}  payments: ${payments ? "Stripe " + (config.stripe.secretKey.includes("_test_") ? "test mode" : "LIVE") : "off"}` +
     `  speech-to-text: ${stt.provider} ${stt.model}  notes: ${notes.provider} ${notes.model}` +
     `  links: ${ytdlp ? "yt-dlp " + ytdlp : "off"}` +

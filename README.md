@@ -44,6 +44,8 @@ npm run build
 
 `npm run build` 先跑 `tsc --noEmit`，再用 Vite 构建，结果在 `dist/`：一个 `index.html` 加 `assets/` 下的一个 JS 和一个 CSS。资源用相对路径，路由用 hash（`#/home` 等），服务器只要把 `dist/` 当静态目录发出去，不需要配置路由回退。
 
+前端和后端一起部署到一台 VPS（HTTPS、开机自启、每天备份）见 [deploy/server/README.md](deploy/server/README.md)。下面是只放前端、后端另在别处时的写法。
+
 Caddy，同域部署，`API_BASE` 保持默认的 `/api`：
 
 ```

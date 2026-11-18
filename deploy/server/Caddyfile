@@ -1,0 +1,10 @@
+# Caddy in front of Halfold: HTTPS certificates from Let's Encrypt, renewed by Caddy, and every request passed to the
+# server on 127.0.0.1:8787 (the API and the front end are on the same address).
+# setup.sh writes this to /etc/caddy/Caddyfile with your domain in place of halfold.example.com.
+#
+# No request size limit here: the server refuses uploads over MAX_UPLOAD_MB itself (413).
+
+halfold.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8787
+}

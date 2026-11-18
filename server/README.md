@@ -15,7 +15,7 @@ npm start                 # http://localhost:8787
 
 `npm start` 用同一个地址提供 `/api` 和构建好的前端（`../dist`），并替前端把 `USE_MOCK` 关掉、`API_BASE` 设成 `/api`、登录页换成邮箱模式。改了前端要先在仓库根目录 `npm run build`。用邮箱登录（第一次填 `.env` 里的一个邀请码），新建课程，上传一段录音或点 Record now 现场录，等笔记出现。没设 `RESEND_API_KEY` 时，登录码打印在 `npm start` 的终端里。
 
-现场录音要用麦克风，浏览器只在 `localhost` 或 HTTPS 下给麦克风。用手机试要先配 HTTPS（比如反向代理），并设 `PUBLIC_URL`。
+现场录音要用麦克风，浏览器只在 `localhost` 或 HTTPS 下给麦克风。用手机试要先配 HTTPS（比如反向代理），并设 `PUBLIC_URL`。部署到一台服务器见 [../deploy/server/README.md](../deploy/server/README.md)。
 
 不想把 key 写进文件，也可以在启动时用环境变量给。
 
