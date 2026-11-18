@@ -117,7 +117,7 @@ async function plFail(a: Media) {
 export function plRetry() { const at = state.pos; plStop(); pl.err = false; state.pos = at; bump(); }
 function plMedia() {   // lock screen and headphone controls on phones
   try { const ms = navigator.mediaSession; if (!ms || !pl.url) return;
-    ms.metadata = new MediaMetadata({ title: cur!.l.title, artist: (cur!.c && cur!.c.code) || "Halfnote", album: "Halfnote" });
+    ms.metadata = new MediaMetadata({ title: cur!.l.title, artist: (cur!.c && cur!.c.code) || "Halfold", album: "Halfold" });
     ms.setActionHandler("play", () => { if (pl.a && pl.a.paused) plToggle(); });
     ms.setActionHandler("pause", () => { if (pl.a && !pl.a.paused) plToggle(); });
     ms.setActionHandler("seekbackward", () => plSkip(-15)); ms.setActionHandler("seekforward", () => plSkip(15)); } catch (e) {}

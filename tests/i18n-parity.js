@@ -4,8 +4,8 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 
 const SAMPLES = [
-  'Recording stopped for about 42 seconds while Halfnote was in the background. Keep this page open with the screen on.',
-  'Recording stopped for about 5 min while Halfnote was in the background. Keep this page open with the screen on.',
+  'Recording stopped for about 42 seconds while Halfold was in the background. Keep this page open with the screen on.',
+  'Recording stopped for about 5 min while Halfold was in the background. Keep this page open with the screen on.',
   'The recording of this lecture is kept until 16 Nov, which is today. The notes stay after that.',
   'The recording of this lecture is kept until 16 Nov, 5 more days. The notes stay after that.',
   'The recording of this lecture is kept until 16 Nov, 1 more day. The notes stay after that.',

@@ -1,5 +1,6 @@
-// The product is called Halfnote and the mascot Hal. Real-backend mode (fake API by request interception): the page title and
-// the home-screen name, the logo (the split sticky note), the tag on a point that is not on the slides and the filter for it, no
+// The product is called Halfold and the mascot Hal. Real-backend mode (fake API by request interception): the page title and
+// the home-screen name, the logo (Hal drawn as the original sticky note with a folded corner, its mood shown by its mouth),
+// the tag on a point that is not on the slides and the filter for it, no
 // leftover "Sidenote" or "Sid" on the main pages in English and Chinese, and the internal storage name still sidenote.session.
 const { chromium, ORIGIN, serve, setConfig } = require('./harness');
 const results = [];
@@ -26,14 +27,21 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   await page.goto(ORIGIN + '/#/signin'); await page.fill('input[name=code]', 'abc'); await page.click('form.auth button'); await page.waitForSelector('.shell');
 
   const logoText = (await page.locator('.logo').first().innerText()).trim();
-  check('title and home-screen name say Halfnote', /^Halfnote: /.test(await page.title()) && await page.getAttribute('meta[name=apple-mobile-web-app-title]', 'content') === 'Halfnote', await page.title());
+  check('title and home-screen name say Halfold', /^Halfold: /.test(await page.title()) && await page.getAttribute('meta[name=apple-mobile-web-app-title]', 'content') === 'Halfold', await page.title());
   const logoSvg = page.locator('.logo').first().locator('svg');
-  const shape = await logoSvg.evaluate(svg => ({ left: [...svg.querySelectorAll('path')].some(p => p.getAttribute('d') === 'M3 3h13v26H3z' && p.getAttribute('fill') === '#FFD93B'), right: [...svg.querySelectorAll('path')].some(p => p.getAttribute('d') === 'M16 3h13v17l-9 9h-4z' && p.getAttribute('fill') === '#16233B'), eyes: svg.querySelectorAll('circle.eye').length, ellipses: svg.querySelectorAll('ellipse').length }));
-  check('logo text is "halfnote" and the logo is the yellow half, the navy half, two eyes and no ellipse', logoText === 'halfnote' && shape.left && shape.right && shape.eyes === 2 && shape.ellipses === 0, { logoText, shape });
+  const shape = await logoSvg.evaluate(svg => { const ps = [...svg.querySelectorAll('path')], d = x => ps.find(p => p.getAttribute('d') === x);
+    const note = d('M3 3h26v17l-9 9H3z'), fold = d('M29 20h-9v9');
+    return { note: !!note && note.getAttribute('fill') === '#FFD93B' && note.getAttribute('stroke') === '#16233B', fold: !!fold, eyes: [...svg.querySelectorAll('circle.eye')].map(c => c.getAttribute('cx') + ',' + c.getAttribute('cy')).join(' '), halves: ps.some(p => p.getAttribute('d') === 'M3 3h13v26H3z' || p.getAttribute('d') === 'M16 3h13v17l-9 9h-4z') }; });
+  check('logo text is "halfold" and the logo is the yellow sticky note with a folded corner and two eyes (not the split note)', logoText === 'halfold' && shape.note && shape.fold && shape.eyes === '11.5,13 20.5,13' && !shape.halves, { logoText, shape });
   const icon = decodeURIComponent(await page.getAttribute('link[rel=icon]', 'href'));
-  check('the favicon is the new logo (has the yellow left half)', icon.includes("d='M3 3h13v26H3z'") && !icon.includes('ellipse'), icon);
+  check('the favicon is the same sticky note with two eyes', icon.includes("d='M3 3h26v17l-9 9H3z'") && icon.includes("cx='11.5'") && icon.includes("cx='20.5'") && !icon.includes("M3 3h13v26H3z"), icon);
   const weight = await page.locator('.logo').first().evaluate(e => getComputedStyle(e).fontWeight);
   check('the wordmark is font-weight 800', weight === '800', weight);
+  /* Hal's mood is its mouth: smiling beside the greeting on home, sad on a page that does not exist. */
+  const smile = await page.locator('.page-h svg.sid path').evaluateAll(ps => ps.some(p => p.getAttribute('d') === 'M12.5 18.5q3.5 3 7 0'));
+  await page.goto(ORIGIN + '/#/nowhere'); await page.waitForSelector('.card h3');
+  const sad = await page.locator('.card svg.sid path').evaluateAll(ps => ps.some(p => p.getAttribute('d') === 'M12.5 20.5q3.5 -3 7 0'));
+  check('Hal shows its mood: a smile beside the greeting on home, a sad mouth on a missing page', smile && sad, { smile, sad });
 
   await page.goto(ORIGIN + '/#/lecture/l1'); await page.waitForSelector('.pt.off');
   const offTag = (await page.locator('.pt.off .tag').first().innerText()).trim(), toolsText = await page.locator('.tools').innerText();
@@ -46,7 +54,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     for (const [name, hash] of pages) {
       await page.goto(ORIGIN + '/' + hash); await page.waitForSelector('.shell, .landing, h1', { timeout: 10000 }); await page.waitForTimeout(250);
       const body = await page.innerText('body');
-      check(`no "Sidenote" or "Sid " on ${name} (${lang === 'en' ? 'English' : 'Chinese'})`, !/Sidenote|\bSid\b|旁註/.test(body), body.match(/.{0,30}(Sidenote|\bSid\b|旁註).{0,30}/));
+      check(`no "Halfnote", "Sidenote" or "Sid " on ${name} (${lang === 'en' ? 'English' : 'Chinese'})`, !/Halfnote|Sidenote|\bSid\b|旁註/.test(body), body.match(/.{0,30}(Halfnote|Sidenote|\bSid\b|旁註).{0,30}/));
     }
   }
   check('the session is still stored under sidenote.session', await page.evaluate(() => !!localStorage.getItem('sidenote.session')));

@@ -45,7 +45,7 @@ test("Plus every month: Stripe Checkout; the plan starts when Stripe says it is 
   const r = await choose(s, token, "plus");
   assert.equal(r.status, 200); assert.deepEqual(UrlReplySchema.parse(r.body), { url: "https://checkout.stripe.test/cs_test_1" });
   assert.deepEqual(s.payments.requests[0], {
-    mode: "subscription", productName: "Halfnote Plus, monthly", currency: "hkd", amount: 9800,
+    mode: "subscription", productName: "Halfold Plus, monthly", currency: "hkd", amount: 9800,
     successUrl: ORIGIN + "/#/settings", cancelUrl: ORIGIN + "/#/settings", userId: me, customer: null, email: null,
     metadata: { user: me, plan: "plus", card: "plus" }
   });
@@ -92,7 +92,7 @@ test("Plus for a semester: paid once (the webhook may come twice); 120 days, the
   s.store.bindEmail(me, "ann@example.edu");
   assert.equal((await choose(s, token, "plus-semester")).body.url, "https://checkout.stripe.test/cs_test_1");
   const q = s.payments.requests[0];
-  assert.deepEqual([q.mode, q.amount, q.productName, q.email, q.metadata], ["payment", 34800, "Halfnote Plus for a semester, 120 days", "ann@example.edu", { user: me, plan: "plus", card: "plus-semester" }]);
+  assert.deepEqual([q.mode, q.amount, q.productName, q.email, q.metadata], ["payment", 34800, "Halfold Plus for a semester, 120 days", "ann@example.edu", { user: me, plan: "plus", card: "plus-semester" }]);
   s.payments.pay("cs_test_1");
   for (let i = 0; i < 2; i++) assert.equal((await webhook(s, "checkout.session.completed", session(s, "cs_test_1"))).status, 200);
   const until = s.store.pass(me)!.until;
@@ -142,7 +142,7 @@ test("POST /checkout: what goes to Stripe, what to the billing page, what is ref
   assert.equal(already.status, 409); assert.equal(isError(already).message, "Free is already your plan.");
   s.payments.error = new Error("Stripe 500");
   const down = await choose(s, token, "plus");
-  assert.equal(down.status, 502); assert.equal(isError(down).message, "Halfnote could not start the payment just now. Try again in a moment.");
+  assert.equal(down.status, 502); assert.equal(isError(down).message, "Halfold could not start the payment just now. Try again in a moment.");
   s.payments.error = null;
 
   await choose(s, token, "plus"); s.payments.pay("cs_test_1"); await plansOf(s, token);
@@ -156,7 +156,7 @@ test("POST /checkout: what goes to Stripe, what to the billing page, what is ref
   assert.equal((await plansOf(s, token)).current, "free");
   assert.equal((await choose(s, token, "plus")).body.url, `https://billing.stripe.test/${sub.customer}`);
   s.payments.error = new Error("Stripe 500");
-  assert.equal(isError(await choose(s, token, "plus")).message, "Halfnote could not open the billing page just now. Try again in a moment.");
+  assert.equal(isError(await choose(s, token, "plus")).message, "Halfold could not open the billing page just now. Try again in a moment.");
   assert.equal(s.store.subscription(me)!.status, "past_due");
 
   const off = setup({ realPlans: true, payments: false }); t.after(() => off.close());

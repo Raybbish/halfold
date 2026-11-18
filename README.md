@@ -123,7 +123,7 @@ npm test
 | `tests/signin.js` | 13 | 邮件验证码登录和邀请码 |
 | `tests/course-picker.js` | 9 | 新建课堂时选课程 |
 | `tests/failed-reason.js` | 6 | 视频链接等失败时显示后端给的原因，重试，被拒的链接不留下空课堂 |
-| `tests/brand.js` | 18 | 改名 Halfnote 和 Hal：页面上没有 "Sidenote"/"Sid"，logo、favicon、标题 |
+| `tests/brand.js` | 19 | 改名 Halfold 和 Hal：页面上没有 "Halfnote"/"Sidenote"/"Sid"，logo（便利贴 Hal，表情跟着变）、favicon、标题 |
 | `tests/zh-hans.js` | 20 | 简体界面：没有繁体字，后端内容不转换（规则句里带的名字、课程编号也不转换），语言选择保存 |
 | `tests/background-notes.js` | 16 | 课堂结束后在后台写笔记，不弹锁屏窗口；通知；同一堂课同一时间只有一个轮询；出错时放慢再问、不停；停了之后 "Check again" 重新开始 |
 | `tests/stuck-lecture.js` | 19 | 卡住或失败的课堂只显示和它来源相符的按钮（`lecture.source`），可以删除；删掉本机中断的录音后提示不再出现 |

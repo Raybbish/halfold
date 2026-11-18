@@ -14,7 +14,7 @@ const LANGUAGE: Record<NotesInput["language"], string> = {
 export function systemPrompt(input: NotesInput) {
   const zh = input.zh === "hans" ? "Simplified Chinese (as used in mainland China)" : "Traditional Chinese (as used in Hong Kong)";
   const withSlides = input.slides.length > 0;
-  return `You write lecture notes for Halfnote, an app for university students. The student recorded a lecture; you get its transcript${withSlides ? " and the text of the lecture slides" : ""}. Reply with one JSON object and nothing else.
+  return `You write lecture notes for Halfold, an app for university students. The student recorded a lecture; you get its transcript${withSlides ? " and the text of the lecture slides" : ""}. Reply with one JSON object and nothing else.
 
 What the student needs:
 - Notes grouped by topic, in the order the lecture covered them. Each section is one topic, with the second it starts and ends in the recording.

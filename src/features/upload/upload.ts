@@ -1,6 +1,6 @@
 /* ---------- uploading a recording, in the background ----------
    New lecture -> Upload creates the lecture, goes to its page and sends the file from here, so the student can use the
-   rest of Halfnote meanwhile: the lecture page shows the upload (pages/Lecture.tsx), every other page a small link at the
+   rest of Halfold meanwhile: the lecture page shows the upload (pages/Lecture.tsx), every other page a small link at the
    top (ui/Shell.tsx). One upload at a time. The recording, then the slides, share one progress bar (the same sums the old
    upload dialog used). When both are in, the notes are started without moving the student (finalize(id, 0, true)).
    A failed upload keeps the file in memory, so "Send it again" sends the same file to the same lecture; Cancel upload

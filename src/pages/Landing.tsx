@@ -21,7 +21,7 @@ export function Landing() {
         <a className="btn primary sm" href="#/new">{t("Record a lecture")}</a></nav>
       <div className="wrap"><section className="hero">
         <div>
-          <h1>{t("The slides are half the lecture. Halfnote catches the other half.")}</h1>
+          <h1>{t("The slides are half the lecture. Halfold catches the other half.")}</h1>
           <p className="lead">{t("Record your class and get notes that sit next to each slide: what the lecturer explained, the examples that were never written down, and every exam date they mentioned.")}</p>
           <div className="cta"><a className="btn primary" href="#/new">{t("Record a lecture")}</a>{exHref() ? <a className="btn" href={exHref()}>{t("Open example notes")}</a> : null}</div>
           <div className="niche"><Hal size={22} mood="smile" /><span>{t("Works in the browser on a laptop or a phone. Nothing to install.")}</span></div>
@@ -36,7 +36,7 @@ export function Landing() {
       </section></div></div>
     <section className="said"><div className="wrap">
       <h2>{t("Lecturers say the important things out loud.")}</h2>
-      <p>{t("None of this is written on the slides. Halfnote listens for it and pins it to your notes.")}</p>
+      <p>{t("None of this is written on the slides. Halfold listens for it and pins it to your notes.")}</p>
       <div className="cloud">
         <span className="bub flag">{t("“This will be on the midterm.”")}</span><span className="bub">{t("“You can read this slide yourselves.”")}</span>
         <span className="bub flag">{t("“The deadline has moved to Monday.”")}</span><span className="bub">{t("“As I said last week…”")}</span>
@@ -54,13 +54,13 @@ export function Landing() {
         <div className="bx b4"><h3>{t("Catch me up")}</h3><p>{t("Zoned out? One tap summarises the last five minutes while class is still going.")}</p><div className="art"><Hal size={44} mood="wow" color="#A6EBD1" /></div></div>
         <div className="bx b5"><h3>{t("Flashcards and a quiz")}</h3><p>{t("Written from your lecture, not a generic textbook. Wrong answers link back to the moment it was taught.")}</p><div className="art"><span className="mini">{t("Card 3 of 6")}</span></div></div>
         <div className="bx b6"><div className="grow"><h3>{t("One link for the whole class")}</h3><p style={css("margin-top:8px")}>{t("Drop the notes in the course group chat. Classmates read them without an account, and the next person records the next lecture.")}</p></div>
-          <div className="chat"><div className="m">{t("did anyone get what she said about the midterm")}</div><div className="m me">{t("halfnote link to ECON 1001 week 9")}</div><div className="m">{t("you are a legend")}</div></div></div>
+          <div className="chat"><div className="m">{t("did anyone get what she said about the midterm")}</div><div className="m me">{t("halfold link to ECON 1001 week 9")}</div><div className="m">{t("you are a legend")}</div></div></div>
       </div>
     </div></section>
     <section className="sect" style={css("padding-top:0")}><div className="wrap">
       <h2>{t("Three ways to get a lecture in")}</h2>
       <div className="ways">
-        <div className="card"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="7" y="8" width="26" height="18" rx="3" fill="#E9EEFF" stroke="#16233B" strokeWidth="2" /><path d="M3 31h34" stroke="#16233B" strokeWidth="2.5" strokeLinecap="round" /></svg><h3 style={css("font-size:19px")}>{t("Record on your laptop")}</h3><p className="muted" style={css("margin-top:6px")}>{t("Open Halfnote in a tab and keep working. Recording continues in the background.")}</p></div>
+        <div className="card"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="7" y="8" width="26" height="18" rx="3" fill="#E9EEFF" stroke="#16233B" strokeWidth="2" /><path d="M3 31h34" stroke="#16233B" strokeWidth="2.5" strokeLinecap="round" /></svg><h3 style={css("font-size:19px")}>{t("Record on your laptop")}</h3><p className="muted" style={css("margin-top:6px")}>{t("Open Halfold in a tab and keep working. Recording continues in the background.")}</p></div>
         <div className="card"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="12" y="4" width="16" height="32" rx="4" fill="#FFE6E1" stroke="#16233B" strokeWidth="2" /><circle cx="20" cy="30" r="1.6" fill="#16233B" /></svg><h3 style={css("font-size:19px")}>{t("Record on your phone")}</h3><p className="muted" style={css("margin-top:6px")}>{t("Face up on the desk, with this page open and the screen on.")}</p></div>
         <div className="card"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 26v6h24v-6" fill="none" stroke="#16233B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M20 26V8m-7 7 7-7 7 7" fill="none" stroke="#16233B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg><h3 style={css("font-size:19px")}>{t("Upload a recording")}</h3><p className="muted" style={css("margin-top:6px")}>{t("Already have the audio or the lecture video? Upload it and get the same notes.")}</p></div>
       </div>

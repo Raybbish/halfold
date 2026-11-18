@@ -10,10 +10,11 @@ export const ICON = {
 };
 
 export type Mood = "plain" | "smile" | "wow" | "sad";
-/* Hal, the logo: a sticky note split in two. Yellow is what is on the slides, dark is what the lecturer said. The mood prop is kept so callers
-   do not change, but this drawing has no mouth. */
-export function Hal({ size = 28, color = "#FFD93B" }: { size?: number; mood?: Mood; color?: string }) {
+/* Hal, the logo: the original sticky note with eyes and a folded corner (the drawing Sidenote's mascot had; the user chose it over
+   the half note and the split note). The mouth shows the mood. */
+export function Hal({ size = 28, mood = "plain", color = "#FFD93B" }: { size?: number; mood?: Mood; color?: string }) {
   const ink = "#16233B";
-  return <svg className="sid" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h13v26H3z" fill={color} /><path d="M16 3h13v17l-9 9h-4z" fill={ink} /><path d="M29 20h-9v9z" fill="#fff" /><path d="M3 3h26v17l-9 9H3z" fill="none" stroke={ink} strokeWidth="2" strokeLinejoin="round" /><path d="M29 20h-9v9" fill="none" stroke={ink} strokeWidth="2" strokeLinejoin="round" /><circle className="eye" cx="10" cy="13" r="2.2" fill={ink} /><circle className="eye" cx="22" cy="13" r="2.2" fill="#FFD93B" /></svg>;
+  const mouth = mood === "smile" ? <path d="M12.5 18.5q3.5 3 7 0" fill="none" stroke={ink} strokeWidth="1.8" strokeLinecap="round" /> : mood === "wow" ? <ellipse cx="16" cy="20" rx="2" ry="2.4" fill={ink} /> : mood === "sad" ? <path d="M12.5 20.5q3.5 -3 7 0" fill="none" stroke={ink} strokeWidth="1.8" strokeLinecap="round" /> : null;
+  return <svg className="sid" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h26v17l-9 9H3z" fill={color} stroke={ink} strokeWidth="2" strokeLinejoin="round" /><path d="M29 20h-9v9" fill="#fff" fillOpacity=".55" stroke={ink} strokeWidth="2" strokeLinejoin="round" /><circle className="eye" cx="11.5" cy="13" r="2.1" fill={ink} /><circle className="eye" cx="20.5" cy="13" r="2.1" fill={ink} />{mouth}</svg>;
 }
-export const Logo = ({ href }: { href: string }) => <a className="logo" href={href} data-notr=""><Hal size={30} />halfnote</a>;
+export const Logo = ({ href }: { href: string }) => <a className="logo" href={href} data-notr=""><Hal size={30} />halfold</a>;

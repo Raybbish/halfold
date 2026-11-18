@@ -23,7 +23,7 @@ export const api = {
     if (!CONFIG.USE_MOCK) return http("POST", "/session/code", { email }, true);
     await wait(400); if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Enter your email address."); return null;
   },
-  /* POST /session {email, code, name, inviteCode} -> {token, user:{name}}   403 = an email new to Halfnote: ask for the invite code */
+  /* POST /session {email, code, name, inviteCode} -> {token, user:{name}}   403 = an email new to Halfold: ask for the invite code */
   async signInWithCode(email: string, code: string, name: string, inviteCode: string): Promise<SessionReply> {
     if (!CONFIG.USE_MOCK) return http("POST", "/session", { email, code, name, inviteCode }, true);
     await wait(400); if (!/^\d{6}$/.test(code.replace(/\s+/g, ""))) throw new Error("Enter the 6-digit code from the email.");

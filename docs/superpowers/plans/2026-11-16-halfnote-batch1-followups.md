@@ -47,7 +47,6 @@
   - `zhcheck.js` 没扫到卡住课堂卡片的新句子；
   - `help-privacy.js` 的落地页翻译检查只扫了这次新写的部分；
   - 录音页标题提示文字是否放得下，只检查了英文；
-  - `brand.js` 没检查右眼的黄色和白色折角；
   - `background-notes.js` 的"不会重复查询"检查拆掉去重保护也能通过；
   - `quick-record.js` 双击检查的第二下用了 `.catch(()=>{})`；
   - `stuck-lecture.js` 里多了一个用不到的 `lup2` 测试数据；

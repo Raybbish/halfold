@@ -42,7 +42,7 @@ const Writing = ({ id }: { id: string }) =>
 function Uploading() { const pct = upPct();
   return <div className="card wait"><Hal size={52} mood="wow" /><div className="grow"><h3>{t("Uploading the recording")}</h3><p className="muted" data-notr="">{up.name}</p>
     <div className="bar" role="progressbar" aria-label={t("Upload progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><b id="upBar" style={{ width: pct + "%" }}></b></div>
-    <p className="small muted"><b className="num upPct" data-notr="">{pct + "%"}</b>{" "}<span>{t("Keep this tab open until the upload finishes. You can use the rest of Halfnote while you wait.")}</span></p>
+    <p className="small muted"><b className="num upPct" data-notr="">{pct + "%"}</b>{" "}<span>{t("Keep this tab open until the upload finishes. You can use the rest of Halfold while you wait.")}</span></p>
     <div className="brow"><button className="btn plain sm" onClick={cancelUpload}>{t("Cancel upload")}</button></div></div></div>;
 }
 /* The upload failed. The file is still in memory: Send it again sends it to this same lecture. The reason is the server's

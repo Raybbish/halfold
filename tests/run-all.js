@@ -17,7 +17,7 @@ const opt = n => { const a = process.argv.find(x => x.startsWith('--' + n + '=')
 const TARGET = 'dist';
 const ONLY = opt('only') ? opt('only').split(',') : null;
 const want = n => !ONLY || ONLY.includes(n);
-const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6, signin: 13, 'course-picker': 9, 'failed-reason': 6, brand: 18, 'zh-hans': 20, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 20, 'live-meta': 10, 'help-privacy': 11, kept: 9 };
+const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6, signin: 13, 'course-picker': 9, 'failed-reason': 6, brand: 19, 'zh-hans': 20, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 20, 'live-meta': 10, 'help-privacy': 11, kept: 9 };
 const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy', 'kept'];
 
 function run(script, target, extraEnv = {}) {

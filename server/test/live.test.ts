@@ -146,7 +146,7 @@ test("finish: refused without audio; idempotent; later chunks are 410 but a rese
   const s = live(setup()); t.after(() => s.close());
   const token = await s.signIn(), id = await liveLecture(s, token);
   const none = await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 30 } });
-  assert.equal(none.status, 409); assert.equal(none.body.message, "Halfnote did not receive any audio for this lecture. Delete it and record again.");
+  assert.equal(none.status, 409); assert.equal(none.body.message, "Halfold did not receive any audio for this lecture. Delete it and record again.");
   /* Only a later piece, never the first: nothing can be read. */
   await send(s, token, id, 1);
   assert.equal((await s.call("POST", `/lectures/${id}/finish`, { token })).status, 409);
@@ -184,7 +184,7 @@ test("the daily limit: a warning near the end, an alert when it is reached, then
   const token = await s.signIn(), id = await liveLecture(s, token);
   assert.deepEqual((await send(s, token, id, 0, fakeChunk(240))).body.alerts, []);
   const warned = await send(s, token, id, 1, fakeChunk(120));
-  assert.deepEqual(warned.body.alerts, [{ t: 360, kind: "Recording", text: "About 4 recording minutes are left today. Halfnote stops saving this recording when they run out; end it then to get notes for what was saved." }]);
+  assert.deepEqual(warned.body.alerts, [{ t: 360, kind: "Recording", text: "About 4 recording minutes are left today. Halfold stops saving this recording when they run out; end it then to get notes for what was saved." }]);
   assert.deepEqual((await send(s, token, id, 2, fakeChunk(60))).body.alerts, []);   // warned once
   const reached = await send(s, token, id, 3, fakeChunk(180));
   assert.deepEqual(reached.body.alerts.map((a: { kind: string; t: number }) => [a.kind, a.t]), [["Recording", 600]]);

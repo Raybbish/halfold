@@ -53,7 +53,7 @@ export async function beginRecording(lec: Lecture, courseCode: string, source: S
   if (CONFIG.USE_MOCK) rec.feed = setInterval(() => { if (live.paused) return; const s = DATA.detail.transcript[DATA.feed]; if (!s) return; DATA.feed++; applyChunk({ segments: [s], alerts: DATA.detail.alerts.filter(a => a.t === s.t) }, lec.id); }, 3000);
 }
 /* Phones. The screen lock is released whenever the page is hidden, so it is asked for again on return. iOS also stops
-   the microphone while Halfnote is in the background: the clock waits, and the student is told how much was missed.
+   the microphone while Halfold is in the background: the clock waits, and the student is told how much was missed.
    Registered once, in main.tsx. */
 export function onVisibilityChange() {
   if (!live.active) return;
@@ -63,7 +63,7 @@ export function onVisibilityChange() {
   live.held = false; rec.last = performance.now();
   if (rec.stream && rec.stream.getAudioTracks().some(t => t.readyState === "ended")) return micLost();
   const gap = Math.round((Date.now() - rec.hiddenAt) / 1000);
-  if (gap >= 3 && live.mic === "on") { live.micNote = "Recording stopped for about " + (gap < 90 ? gap + " seconds" : mins(gap)) + " while Halfnote was in the background. Keep this page open with the screen on."; if (R.a === "live") bump(); else toast(live.micNote); }
+  if (gap >= 3 && live.mic === "on") { live.micNote = "Recording stopped for about " + (gap < 90 ? gap + " seconds" : mins(gap)) + " while Halfold was in the background. Keep this page open with the screen on."; if (R.a === "live") bump(); else toast(live.micNote); }
 }
 /* The title box and the course list on the recording page. Only what changed is sent; an empty title box sends nothing, so the dated default title stays. */
 export function saveLiveMeta() {

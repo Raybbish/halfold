@@ -10,7 +10,7 @@ export const Footer = () => <footer className="f"><div className="wrap" style={c
   <span style={css("flex:1;min-width:260px")}>{t("Notes are written by AI from your recording and can contain mistakes. Check dates and requirements against your lecturer's announcements. Ask your lecturer before recording if your course requires it.")}</span>
   <a href="#/help">{t("Help")}</a><a href="#/privacy">{t("Privacy")}</a></div></footer>;
 
-/* A line still to be decided before real students use Halfnote: shown in a yellow mark so it cannot be missed. */
+/* A line still to be decided before real students use Halfold: shown in a yellow mark so it cannot be missed. */
 export const Todo = ({ s }: { s: string }) => <mark style={css("background:var(--yellow);padding:1px 6px;border-radius:6px;font-weight:600")}>{t(s)}</mark>;
 
 /* A section is a heading and either one paragraph or a list. Every sentence goes to t() whole. */
