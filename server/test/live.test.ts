@@ -41,7 +41,8 @@ test("in order: each reply carries the lines of its round; a word cut by the win
   /* Home counts the recording in progress toward today's minutes. */
   assert.equal(HomeSchema.parse((await s.call("GET", "/home", { token })).body).usage!.minutesToday, 1);
 
-  /* End: the chunks become one recording, transcribed again as a whole for the notes. */
+  /* End: the chunks become one recording. The notes are written from the live transcript; only the end that no round
+     reached (53 to 55 s) is transcribed now, so the recording is paid for once, not twice. */
   assert.deepEqual((await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 56 } })).body, { status: "processing" });
   await s.pipeline.idle();
   const done = s.store.lecture(id)!;
@@ -49,10 +50,43 @@ test("in order: each reply carries the lines of its round; a word cut by the win
   assert.equal(fs.readFileSync(s.files.path(id, "recording"), "utf8"), fakeChunk() + fakeChunk() + fakeChunk() + fakeChunk(10));
   assert.equal(fs.existsSync(s.files.chunkDir(id)), false);
   assert.equal((s.media as StubMedia).speech.at(-1)!.o!.fillGaps, true);
-  assert.deepEqual(s.store.costs().filter(c => c.stage === "stt").map(c => c.audio_seconds), [600]);   // the stub's whole-file reply says 600
+  assert.deepEqual(s.stt.windows.at(-1), [53, 55]);
+  assert.equal(s.stt.calls, s.stt.windows.length);   // nothing is transcribed as a whole
+  assert.deepEqual(s.store.costs().filter(c => c.stage === "stt").map(c => c.audio_seconds), [2]);
   const d = DetailSchema.parse((await s.call("GET", `/lectures/${id}`, { token })).body.detail);
   assert.ok(d.audio?.url);
-  assert.equal(s.notes.calls[0].input.lines[0].text, "Good afternoon.");
+  assert.deepEqual(s.notes.calls[0].input.lines, lines(s, id));
+  assert.deepEqual(s.store.transcript(id), lines(s, id));
+});
+
+test("finish: the sentence held back at the end and the audio after the last round are transcribed once and joined", async t => {
+  const s = setup(); t.after(() => s.close());
+  s.stt.words = [{ text: "The", start: 9, end: 9.3 }, { text: "law", start: 9.3, end: 9.6 }, { text: "of", start: 9.6, end: 9.8 }, { text: "supply", start: 9.8, end: 10.4 },
+    { text: "says", start: 10.4, end: 10.8 }, { text: "that", start: 10.8, end: 11.2 }, { text: "prices", start: 11.4, end: 12 }, { text: "rise.", start: 12.5, end: 14 }];
+  const token = await s.signIn(), id = await liveLecture(s, token);
+  assert.deepEqual((await send(s, token, id, 0)).body.segments, []);
+  const from = s.store.lecture(id)!.live_from;
+  assert.ok(s.store.lecture(id)!.live_held); assert.ok(from > 12 && from < 12.5);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 15 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.stt.windows, [[0, 15], [from, 15]]);
+  assert.deepEqual(s.notes.calls[0].input.lines, [{ t: 9, text: "The law of supply says that prices rise." }]);
+});
+
+test("after a long outage the live transcript skips ahead; what it skipped is transcribed after the recording ends", async t => {
+  const s = live(setup()); t.after(() => s.close());
+  const token = await s.signIn(), id = await liveLecture(s, token);
+  s.stt.error = new Error("stub-stt replied 503");
+  for (let seq = 0; seq < 10; seq++) await send(s, token, id, seq);   // 150 s that could not be transcribed
+  s.stt.error = null;
+  await send(s, token, id, 10);   // 165 s: the live round takes only the last 30
+  assert.deepEqual(s.stt.windows, [[135, 165]]);
+  assert.deepEqual(lines(s, id), []);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 165 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.stt.windows.slice(1), [[0, 135], [163, 165]]);
+  assert.deepEqual(s.notes.calls[0].input.lines.map((x: { t: number }) => x.t), [1, 6, 13, 22, 33, 50]);
+  assert.deepEqual(s.store.costs().filter(c => c.stage === "stt").map(c => c.audio_seconds), [135, 2]);
 });
 
 test("a sentence that runs past the end of a round is held back and sent whole with the next round", async t => {
@@ -162,7 +196,9 @@ test("finish: refused without audio; idempotent; later chunks are 410 but a rese
   release(); await s.pipeline.idle();
   assert.equal(s.store.lecture(id)!.status, "ready"); assert.equal(s.store.lecture(id)!.duration, 30);
   assert.equal(s.store.lecture(id)!.client_duration, null);   // 0 is not a length
-  assert.equal(s.stt.calls - s.stt.windows.length, 1);   // one whole-file transcription
+  /* Nothing is transcribed as a whole: only the end the live round did not reach. */
+  assert.equal(s.stt.calls, s.stt.windows.length);
+  assert.deepEqual(s.stt.windows.at(-1), [28, 30]);
 });
 
 test("a chunk that never arrived: the recording is joined without it, and a failure is retried without joining again", async t => {
@@ -233,6 +269,11 @@ test("LIVE_TRANSCRIPT=off: chunks are kept and counted, nothing is transcribed l
   /* Each measurement reads only what is new. */
   assert.deepEqual((s.media as StubMedia).cuts.map(c => c.from), [0, 15, 30]);
   assert.equal((await s.call("POST", `/lectures/${id}/catch-up`, { token })).status, 501);
+  /* No live transcript to write the notes from: the whole recording is transcribed once, after it ends. */
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 45 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.stt.windows, [[0, 45]]);
+  assert.equal(s.notes.calls[0].input.lines[0].text, "Good afternoon.");
 });
 
 test("Catch me up: nothing yet; the last five minutes; the model failing; not for an upload", async t => {

@@ -263,7 +263,7 @@ export function privateRoutes(deps: Deps) {
     if (l.status === "processing" || l.status === "ready") return c.json<StatusReply>({ status: l.status });
     if (isLive(l)) {
       if (!l.recording_file && !store.hasChunk(id, 0)) fail(409, "Halfold did not receive any audio for this lecture. Delete it and record again.");
-      /* The notes come from the whole recording, transcribed again in one go: the live rounds can stop. */
+      /* The live rounds stop here; the pipeline transcribes whatever they had not reached (pipeline.ts transcribeLive). */
       live.stop(id);
     } else if (l.source === "link") {
       if (!l.recording_file && !l.link) fail(409, "Paste the link to the lecture video first.");

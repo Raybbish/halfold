@@ -15,7 +15,7 @@ const rows = store.costs();
 store.close();
 
 interface Lecture {
-  id: string; when: string; audioSeconds: number; stt: string; sttUsd: number; notesModel: string; attempts: number; inTok: number; cachedTok: number; outTok: number;
+  id: string; when: string; audioSeconds: number; stt: string; sttUsd: number; sttSeconds: number; notesModel: string; attempts: number; inTok: number; cachedTok: number; outTok: number;
   reasoningTok: number; notesUsd: number; slidePages: number; zh: string | null; audioBytesPerHour: number | null;
   liveSent: number; liveUsd: number; liveRounds: number; catchUps: number; catchUpUsd: number;   // live recording (phase 2)
   slidesUsd: number;   // slides sent after the notes (phase 3)
@@ -26,13 +26,18 @@ const lectures = new Map<string, Lecture>();
 const packRows = rows.filter(r => r.stage === "pack");
 for (const r of rows) {
   if (r.stage === "pack") continue;
-  const l = lectures.get(r.lecture_id) ?? { id: r.lecture_id, when: r.created_at.slice(0, 16).replace("T", " "), audioSeconds: 0, stt: "", sttUsd: 0, notesModel: "", attempts: 0, inTok: 0, cachedTok: 0, outTok: 0, reasoningTok: 0, notesUsd: 0, slidePages: 0, zh: null, audioBytesPerHour: null,
+  const l = lectures.get(r.lecture_id) ?? { id: r.lecture_id, when: r.created_at.slice(0, 16).replace("T", " "), audioSeconds: 0, stt: "", sttUsd: 0, sttSeconds: 0, notesModel: "", attempts: 0, inTok: 0, cachedTok: 0, outTok: 0, reasoningTok: 0, notesUsd: 0, slidePages: 0, zh: null, audioBytesPerHour: null,
     liveSent: 0, liveUsd: 0, liveRounds: 0, catchUps: 0, catchUpUsd: 0, slidesUsd: 0 };
   const m = meta(r);
   if (r.stage === "slides") l.slidesUsd += r.usd ?? 0;
   else if (r.stage === "live") { l.liveSent += r.audio_seconds ?? 0; l.liveUsd += r.usd ?? 0; l.liveRounds++; }
   else if (r.stage === "catchup") { l.catchUps++; l.catchUpUsd += r.usd ?? 0; }
-  else if (r.stage === "stt") { l.audioSeconds = r.audio_seconds ?? l.audioSeconds; l.stt = `${r.provider} ${r.model}`; l.sttUsd += r.usd ?? 0; l.audioBytesPerHour = m.audioBytesPerHour ?? null; }
+  /* An upload has one stt row for the whole recording. A live recording has one for each stretch the live rounds did
+     not reach (pipeline.ts transcribeLive), each carrying the length of the whole recording in recordingSeconds. */
+  else if (r.stage === "stt") {
+    l.sttSeconds += r.audio_seconds ?? 0; l.audioSeconds = m.recordingSeconds ?? r.audio_seconds ?? l.audioSeconds;
+    l.stt = `${r.provider} ${r.model}`; l.sttUsd += r.usd ?? 0; l.audioBytesPerHour = m.audioBytesPerHour ?? l.audioBytesPerHour;
+  }
   else {
     l.notesModel = `${r.provider} ${r.model}`; l.attempts++; l.inTok += r.input_tokens ?? 0; l.cachedTok += r.cached_input_tokens ?? 0; l.outTok += r.output_tokens ?? 0;
     l.reasoningTok += r.reasoning_tokens ?? 0; l.notesUsd += r.usd ?? 0; l.slidePages = m.slidePages ?? 0; l.zh = m.zh ?? null;
@@ -67,18 +72,19 @@ const zhOn = written.filter(l => l.zh), zhOff = written.filter(l => !l.zh);
 const sizes = list.map(l => l.audioBytesPerHour).filter((x): x is number => x != null);
 const show = (n: number) => Number.isFinite(n) ? usd(n) : "(还没有 20 分钟以上的课)";
 console.log("\n第 10 节需要的数字\n");
-for (const [name, ls] of byStt) console.log(`转写成本（${name}）：每小时录音 ${usd(sum(ls.map(l => l.sttUsd)) / (sum(ls.map(l => l.audioSeconds)) / 3600))}，共 ${(sum(ls.map(l => l.audioSeconds)) / 3600).toFixed(2)} 小时`);
+for (const [name, ls] of byStt) console.log(`转写成本（${name}）：每小时音频 ${usd(sum(ls.map(l => l.sttUsd)) / (sum(ls.map(l => l.sttSeconds)) / 3600))}，课后共转写 ${(sum(ls.map(l => l.sttSeconds)) / 3600).toFixed(2)} 小时`);
 console.log(`生成笔记、闪卡、测验：每堂 90 分钟的课 ${show(per90(written))}（${written.length} 堂 20 分钟以上的课）`);
 if (short.length) console.log(`  不到 20 分钟的课不算在内（${short.length} 堂，平均每堂笔记 ${usd(sum(short.map(l => l.notesUsd)) / short.length)}）`);
 console.log(`有课件 vs 没课件：${show(per90(slides))}（${slides.length} 堂） vs ${show(per90(noSlides))}（${noSlides.length} 堂）`);
 console.log(`有中文解释 vs 没有：${show(per90(zhOn))}（${zhOn.length} 堂） vs ${show(per90(zhOff))}（${zhOff.length} 堂）`);
 console.log(`转码后的回放文件：每小时 ${sizes.length ? (sum(sizes) / sizes.length / 1048576).toFixed(1) + " MB" : "(还没有数据)"}`);
-/* Live recordings pay for speech-to-text twice: the live rounds (with the held tail sent again) and the whole recording after. */
-const lives = list.filter(l => l.liveRounds > 0 && l.audioSeconds > 0 && l.sttUsd > 0);
+/* Live recordings: the live rounds (with the held tail sent again), then after the lecture only what they did not reach.
+   Lectures recorded before 2026-11-19 were transcribed again as a whole after, about 1 time more. */
+const lives = list.filter(l => l.liveRounds > 0 && l.audioSeconds > 0);
 if (lives.length) {
-  const liveUsd = sum(lives.map(l => l.liveUsd)), finalUsd = sum(lives.map(l => l.sttUsd)), hours = sum(lives.map(l => l.audioSeconds)) / 3600;
-  console.log(`实时转写：每小时录音 ${usd(liveUsd / hours)}，送出的音频是录音长度的 ${(sum(lives.map(l => l.liveSent)) / (hours * 3600)).toFixed(2)} 倍；` +
-    `现场录音的转写共 ${usd((liveUsd + finalUsd) / hours)}/小时，是上传录音（只转写一次）的 ${((liveUsd + finalUsd) / finalUsd).toFixed(2)} 倍（${lives.length} 堂）`);
+  const secs = sum(lives.map(l => l.audioSeconds)), hours = secs / 3600, liveX = sum(lives.map(l => l.liveSent)) / secs, afterX = sum(lives.map(l => l.sttSeconds)) / secs;
+  console.log(`现场录音：上课时送出的音频是录音长度的 ${liveX.toFixed(2)} 倍，下课后补转 ${afterX.toFixed(2)} 倍，一共 ${(liveX + afterX).toFixed(2)} 倍（上传录音是 1 倍）；` +
+    `转写共 ${usd(sum(lives.map(l => l.liveUsd + l.sttUsd)) / hours)}/小时（${lives.length} 堂）`);
 }
 const catchUps = list.filter(l => l.catchUps > 0);
 if (catchUps.length) console.log(`Catch me up：每点一次 ${usd(sum(catchUps.map(l => l.catchUpUsd)) / sum(catchUps.map(l => l.catchUps)))}（${sum(catchUps.map(l => l.catchUps))} 次）`);

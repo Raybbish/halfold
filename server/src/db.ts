@@ -31,6 +31,7 @@ export interface LectureRow {
      chunk_bytes: bytes of audio received. audio_expired: the recording was deleted after AUDIO_KEEP_DAYS. */
   live_from: number; live_audio: number; live_limit: number; chunk_bytes: number; audio_expired: number;
   live_held: string | null;   // JSON words of a sentence not finished at the end of the last round (live/windows.ts holdUnfinished)
+  live_gaps: string | null;   // JSON [from, to] stretches a live round skipped after an outage, transcribed when the recording ends
   /* Phase 3. share_id: the id in the shared link (#/s/:id), null when not shared; share_url: that link as the student
      copied it. refile: 1 while slides sent after the notes are being matched to the points. copied_from: the lecture a
      shared copy was saved from (POST /shared/:id/save). */
@@ -125,13 +126,23 @@ const normCode = (code: string) => code.trim().toLowerCase();
 const ADDED: [string, string, string][] = [
   ["lectures", "live_from", "REAL NOT NULL DEFAULT 0"], ["lectures", "live_audio", "REAL NOT NULL DEFAULT 0"],
   ["lectures", "live_limit", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "chunk_bytes", "INTEGER NOT NULL DEFAULT 0"],
-  ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"],
+  ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"], ["lectures", "live_gaps", "TEXT"],
   ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
   ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"],
   ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"]
 ];
 
-export interface LiveRound { from: number; next: number; audioEnd: number; lines: Line[]; alerts: Alert[]; held: unknown[] }
+/* gap: the stretch [from, to] this round skipped to catch up after an outage (live/transcriber.ts CATCH_UP_WINDOW). */
+export interface LiveRound { from: number; next: number; audioEnd: number; lines: Line[]; alerts: Alert[]; held: unknown[]; gap?: [number, number] }
+
+/* The stretches live rounds skipped (lectures.live_gaps). */
+export function liveGaps(json: string | null): [number, number][] {
+  if (!json) return [];
+  try {
+    const g = JSON.parse(json);
+    return Array.isArray(g) ? g.filter((x): x is [number, number] => Array.isArray(x) && x.length === 2 && x.every(Number.isFinite)) : [];
+  } catch { return []; }
+}
 
 export class Store {
   readonly db: DatabaseSync;
@@ -398,8 +409,9 @@ export class Store {
       for (const x of r.lines) line.run(lectureId, x.t, x.text);
       const alert = this.db.prepare("INSERT INTO live_alerts (lecture_id, t, kind, text) VALUES (?, ?, ?, ?)");
       for (const a of r.alerts) alert.run(lectureId, a.t, a.kind, a.text);
-      this.db.prepare("UPDATE lectures SET live_from = ?, live_audio = MAX(live_audio, ?), live_held = ? WHERE id = ?")
-        .run(r.next, r.audioEnd, r.held.length ? JSON.stringify(r.held) : null, lectureId);
+      const gaps = r.gap ? JSON.stringify([...liveGaps(l.live_gaps), r.gap]) : l.live_gaps;
+      this.db.prepare("UPDATE lectures SET live_from = ?, live_audio = MAX(live_audio, ?), live_held = ?, live_gaps = ? WHERE id = ?")
+        .run(r.next, r.audioEnd, r.held.length ? JSON.stringify(r.held) : null, gaps, lectureId);
       return true;
     });
   }
