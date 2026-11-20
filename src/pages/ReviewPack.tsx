@@ -11,6 +11,8 @@ import { t } from "../i18n";
 import { Hal } from "../ui/icons";
 import { Shell, Problem } from "../ui/Shell";
 import { css } from "../ui/css";
+import { isLimit, limitModal } from "../ui/limit";
+import { fx } from "../ui/Fx";
 
 /* Where a hint or point came from: the lecture, and the second it was said. */
 const Source = ({ x }: { x: { lectureId?: string; lecture?: string; t?: number | null } }) => x.lectureId ? <a className="small noprint" data-notr="" href={"#/lecture/" + encodeURIComponent(x.lectureId)} onClick={() => setPendingPos(+(x.t as number) || 0)}>{(x.lecture || "") + (x.t != null ? ", " + fmt(x.t) : "")}</a> : null;
@@ -26,11 +28,13 @@ export function ReviewPack({ id }: { id: string }) {
   return <Shell active={id}>{head}<div className="pk">
     {p.hints.length ? <><h2>{t("What the lecturer flagged")}</h2>{p.hints.map((a, i) => <div key={i} className="alert"><span className="tag amber">{t(a.kind)}</span><span data-notr="">{a.text}</span><span style={css("margin-left:auto;white-space:nowrap")}><Source x={a} /></span></div>)}</> : null}
     <h2>{t("Revision sheet")}</h2>
-    {p.sheet.map((s, i) => <section key={i} className="card nsec" style={css(`border-left:6px solid ${PALETTE[(i + 3) % 5]}`)}><h3 data-notr="">{s.topic}</h3>{s.points.map((x, k) => <div key={k} className={`pt ${x.off ? "off" : ""}`} style={css("grid-template-columns:1fr")}><div className="body">{x.off ? <><span className="tag sn">{t("Not on slides")}</span>{" "}</> : null}<span data-notr="">{x.text}</span>{" "}<Source x={x} /></div></div>)}</section>)}
-    {p.exam.length ? <><h2>{t("Mock exam")}</h2><p className="muted noprint" style={css("margin:-6px 0 12px")}>{t("Open a question to see the options and the answer.")}</p><div className="card" style={css("padding:6px 22px")}>{p.exam.map((q, i) => <details key={i}><summary data-notr="">{(i + 1) + ". " + q.q}</summary><ol type="A" data-notr="">{q.opts.map((o, k) => <li key={k}>{o}</li>)}</ol><p style={css("margin-top:8px")}><b>{t("Answer")}</b>{" "}<b data-notr="">{String.fromCharCode(65 + q.a) + "."}</b>{" "}<span data-notr="">{q.why || ""}</span></p></details>)}</div></> : null}
+    {p.sheet.map((s, i) => <section key={i} className="card nsec" style={css(`border-left:6px solid ${PALETTE[(i + 3) % 5]}`)}><h3 data-notr="">{s.topic}</h3>{s.points.map((x, k) => <div key={k} className={`pt ${x.off ? "off" : ""}`} style={css("grid-template-columns:1fr")}><div className="body">{x.off ? <><span className="tag sn">{t("Not on slides")}</span>{" "}</> : null}<span data-notr="">{fx(x.text)}</span>{" "}<Source x={x} /></div></div>)}</section>)}
+    {p.exam.length ? <><h2>{t("Mock exam")}</h2><p className="muted noprint" style={css("margin:-6px 0 12px")}>{t("Open a question to see the options and the answer.")}</p><div className="card" style={css("padding:6px 22px")}>{p.exam.map((q, i) => <details key={i}><summary data-notr="">{(i + 1) + ". "}{fx(q.q)}</summary><ol type="A" data-notr="">{q.opts.map((o, k) => <li key={k}>{fx(o)}</li>)}</ol><p style={css("margin-top:8px")}><b>{t("Answer")}</b>{" "}<b data-notr="">{String.fromCharCode(65 + q.a) + "."}</b>{" "}<span data-notr="">{fx(q.why)}</span></p></details>)}</div></> : null}
   </div></Shell>;
 }
-function makePack() { const id = R.b; act(async () => { busy("Hal is building your review pack", "Reading every lecture in this course."); await api.makeReviewPack(id); let p: Pack = { status: "processing" };
+function makePack() { const id = R.b; act(async () => { busy("Hal is building your review pack", "Reading every lecture in this course.");
+  try { await api.makeReviewPack(id); } catch (e) { if (isLimit(e)) return limitModal((e as Error).message); throw e; }
+  let p: Pack = { status: "processing" };
   for (let i = 0; i < 40 && p.status === "processing"; i++) { p = await api.getReviewPack(id); if (p.status === "processing") await wait(CONFIG.POLL_MS); }
   S.pack[id] = p; closeModal(); bump(); }); }
 function refreshPack() { delete S.pack[R.b]; route(); }

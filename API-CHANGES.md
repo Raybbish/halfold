@@ -337,10 +337,10 @@
 | 每月复习包 | 1 | 不限 |
 | 录音保留 | 30 天 | 一直保留 |
 
-- `GET /home` 的 `usage.minutesLimit` 和 `usage.audioDays` 跟着方案变（Plus 不给 `audioDays`）。
+- `GET /home` 的 `usage.minutesLimit` 和 `usage.audioDays` 跟着方案变（Plus 不给 `audioDays`）。`usage.lecturesThisMonth` 和 `usage.lecturesLimit` 是本月已算的课堂数和方案的上限，方案不限课堂数时两个都不给（第 11 节）。
 - `createLecture` 超出每月课堂数：429，`You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until 1 Dec.`。还在录或在上传的课也算；笔记写好以后删掉的课仍然算；笔记写好之前删掉的不算；`saveShared` 存的副本不算。
 - `makeReviewPack` 超出每月复习包数：429，说明类似。正在做时再点不算；课程里还没有笔记（空复习包）不算。
-- 这两句都由前端的 `act()` 用提示条显示（2.6 秒后消失）。**建议（前端）**：这类说明比较长，可以显示久一点，或者在新建课堂页和复习包页用 `.err` 显示。
+- 前端遇到这两个 429（或 402）时弹一个窗口：标题 “You have reached the limit of your plan”，下面是这句话、本月已用几堂课，按钮 “See the plans” 去设置页（`src/ui/limit.tsx`，第 11 节）。新建课堂页、首页一键录音、复习包页都一样。
 - 每天现场录音的分钟数照第 6 节的规则，只是上限按方案。
 - 付费到期、取消或续费失败：马上回到 Free，笔记、闪卡、测验、分享都在。录音按 Free 的 30 天算，但从付费结束那天算起，所以前端会照 INTEGRATION.md 4.4 显示 “Recording kept until …”。开启方案之前录的课，从开启那天算起，不会一上线就被删。
 
@@ -403,3 +403,24 @@
 ### 前端发的新字段
 
 - `createLecture` 现在多发一个 `autoTitle: boolean`：学生没写标题、标题是前端用日期填的就是 `true`。后端目前忽略它（请求体里多出的字段本来就不校验），第 3 批会用到。
+
+## 11. 设计师 11 月 19 日的改动，第一批（2026-11-20）
+
+设计师 11 月 18 日测试 halfold.app 后发来的 `halfold.html` 没有直接部署（它没有本仓库后来的修复，课堂语言的取值也和后端对不上），其中第一批改动按本工程的写法搬了进来。
+
+### 后端
+
+- `GET /home` 的 `usage` 多了 `lecturesThisMonth`、`lecturesLimit`：本月已算的课堂数（和 `createLecture` 判断 429 用的是同一个数）和方案的每月上限。方案不限课堂数时两个都不给。
+- 测验选项打乱：模型常把正确答案放在第一个（测试时 13 题有 12 题）。`detail.quiz` 和复习包的 `exam` 在读出时按“题目加选项”的哈希排列（`server/src/notes/mix.ts`）：同一道题每次顺序相同（分享页也一样），打乱两次结果不变，所以以前存的笔记也一起打乱，数据库不用改。`a` 跟着改，仍然指向正确的选项。
+- 写笔记和复习包的提示词多了一句：选项会被打乱，所以不能写 “all of the above”、“both A and B” 这类指向别的选项的选项。
+
+### 前端（请求不变）
+
+- 额度上限弹窗，见第 8 节“方案的限制”。新建课堂页和设置页显示 “4 of 4 lectures used this month”（有 `lecturesThisMonth` 时）。
+- 公式：笔记、中文解释、闪卡、测验、复习包里的 `x^{2}`、`a_{k}`、`x^2` 显示成上下标（`src/ui/Fx.tsx`）。模型照旧用这种写法即可。
+- 中文解释的繁简：学生没选过时，界面是简体就显示简体，界面是繁体就显示繁体；界面是英文时才看浏览器语言。
+- 自动标题带上时间（“Lecture, Fri 20 Nov, 14:05”），同一天两堂课不再同名。
+- 分享：第一次点 “Share with class” 先说明链接是什么，点 “Make the link” 才调 `createShareLink`。已经有链接时直接显示链接。
+- 邮箱登录：邀请码一栏从第一步就在表单上（以前用这个邮箱登录过的人留空）。`POST /session` 的请求体不变。服务器对新邮箱回 403 时，这一栏被标出来，服务器那句话显示成说明而不是红字，并说明刚才的登录码仍然有效（后端本来就不会作废它）。
+- 简体字表补了 15 个字和“电邮”几个词。`tests/zh-hans.js` 改用 OpenCC 判断繁体字，不再拿字表检查字表自己，所以以后漏字会直接报出来。
+

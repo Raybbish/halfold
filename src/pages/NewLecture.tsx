@@ -2,7 +2,7 @@
    Record with the microphone, record a browser tab (online class), upload a file, or paste a video link.
    What has been typed or chosen is kept in nf, as before, so it is still there after a redraw or an error. */
 import type { ReactNode } from "react";
-import type { Source } from "../types";
+import type { Lecture, Source } from "../types";
 import { CONFIG } from "../config";
 import { api } from "../api/api";
 import { mb } from "../lib/helpers";
@@ -19,6 +19,7 @@ import { Hal } from "../ui/icons";
 import { Shell, addCourseModal } from "../ui/Shell";
 import { openModal } from "../ui/Overlay";
 import { css } from "../ui/css";
+import { isLimit, lecturesLine, limitModal } from "../ui/limit";
 
 type FileKey = "file" | "slides";
 function FileBox({ k, id, accept, empty }: { k: FileKey; id: string; accept: string; empty: ReactNode }) { const f = nf[k];
@@ -44,10 +45,12 @@ function CourseField() {
 /* The course used last (kept on this device), else the first one. */
 const firstCourse = () => { const lc = store.get("lastCourse"); return lc && course(lc) ? lc : S.courses[0] ? S.courses[0].id : null; };
 
-/* The title when none was typed: the date, in the interface language ("Lecture, Mon 16 Nov", "Mon 16 Nov 課堂"). */
+/* The title when none was typed: the date and the time, in the interface language ("Lecture, Mon 16 Nov, 14:05",
+   "11月16日週一 14:05 課堂"). The time keeps two lectures of one day apart. */
 export function defaultTitle(): string {
-  const d = new Date().toLocaleDateString(LANG === "en" ? "en-GB" : LANG === "zh-Hans" ? "zh-CN" : "zh-HK", { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
-  return LANG === "en" ? "Lecture, " + d : d + (LANG === "zh-Hans" ? " 课堂" : " 課堂");
+  const now = new Date(), d = now.toLocaleDateString(LANG === "en" ? "en-GB" : LANG === "zh-Hans" ? "zh-CN" : "zh-HK", { weekday: "short", day: "numeric", month: "short" }).replace(",", "");
+  const hm = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return LANG === "en" ? "Lecture, " + d + ", " + hm : d + " " + hm + (LANG === "zh-Hans" ? " 课堂" : " 課堂");
 }
 
 /* One tap from the home page: record with the last course used and a dated title. With no course yet, a course called
@@ -67,7 +70,7 @@ export function NewLecture() {
   const u = S.usage;
   return <Shell active="new">
     <div className="crumb"><a href="#/home">{t("Home")}</a>{t(" / New lecture")}</div>
-    <div className="page-h"><h1>{t("New lecture")}</h1>{u ? <span className="small muted num">{t(u.minutesToday + " of " + u.minutesLimit + " recording minutes used today")}</span> : null}</div>
+    <div className="page-h"><h1>{t("New lecture")}</h1>{u ? <span className="small muted num">{t(u.minutesToday + " of " + u.minutesLimit + " recording minutes used today")}{lecturesLine(u) ? <><br />{t(lecturesLine(u)!)}</> : null}</span> : null}</div>
     {live.active ? <div className="alert"><span className="tag amber">{t("Recording")}</span><span>{t("A recording is already running. End it before starting another.")}</span><a className="ts" href="#/live">{t("Return")}</a></div> : null}
     <div className="choice" role="radiogroup" aria-label={t("How to add the lecture")}>
       <button role="radio" aria-checked={m === "record"} className={m === "record" ? "on" : ""} onClick={mode("record")}><b><span className="w">{t("Record now")}</span><span className="n">{t("Record")}</span></b><span className="small muted d">{t("Use this device's microphone during class.")}</span></button>
@@ -106,7 +109,10 @@ function submitNew() {
   const done = () => { Object.assign(nf, { title: "", file: null, slides: null, link: "", busy: false }); };
   act(async () => {
     try {
-      const typed = nf.title.trim(), lec = await api.createLecture({ courseId: nf.courseId!, title: typed || defaultTitle(), autoTitle: !typed, language: nf.lang!, source: nf.mode });
+      const typed = nf.title.trim(); let lec: Lecture;
+      /* Over a limit of the plan: a window that explains it and offers the plans (ui/limit.tsx), on Home as on New lecture. */
+      try { lec = await api.createLecture({ courseId: nf.courseId!, title: typed || defaultTitle(), autoTitle: !typed, language: nf.lang!, source: nf.mode }); }
+      catch (e) { if (isLimit(e)) { nf.err = ""; limitModal((e as Error).message); return; } throw e; }
       if (recMode) { const code = course(nf.courseId)!.code; store.set("lastCourse", nf.courseId!);
         if (!S.lectures.some(x => x.id === lec.id)) S.lectures.unshift(lec);
         /* The microphone (or the tab) was refused: the lecture just made is deleted again, and the reason shown. */

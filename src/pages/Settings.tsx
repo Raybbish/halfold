@@ -14,6 +14,7 @@ import { unwatchAll } from "../features/notes/watch";
 import { forgetUpload, uploading } from "../features/upload/upload";
 import { Shell } from "../ui/Shell";
 import { css } from "../ui/css";
+import { lecturesLine } from "../ui/limit";
 import { checked, val } from "../ui/form";
 
 export function Settings() {
@@ -31,7 +32,7 @@ export function Settings() {
       <button className="btn primary">{t("Save settings")}</button></form>
     <div className="card" style={css("padding:22px;max-width:640px;margin-bottom:18px")}>
       <h2 style={css("font-size:18px;margin-bottom:10px")}>{t("Plan and usage")}</h2>
-      {u ? <><p className="num" style={css("margin-bottom:8px")}>{t(u.minutesToday + " of " + u.minutesLimit + " recording minutes used today")}</p><div className="ubar"><b style={css(`width:${Math.min(100, u.minutesToday / u.minutesLimit * 100)}%`)}></b></div></> : null}
+      {u ? <><p className="num" style={css("margin-bottom:8px")}>{t(u.minutesToday + " of " + u.minutesLimit + " recording minutes used today")}</p>{lecturesLine(u) ? <p className="num" style={css("margin-bottom:8px")}>{t(lecturesLine(u)!)}</p> : null}<div className="ubar"><b style={css(`width:${Math.min(100, u.minutesToday / u.minutesLimit * 100)}%`)}></b></div></> : null}
       {u && u.audioDays ? <p className="small muted" style={css("margin-top:10px")}>{t("Recordings are kept for " + plural(+u.audioDays, "day") + " on your plan.")}</p> : null}
       <Plans /></div>
     <div className="card" style={css("padding:22px;max-width:640px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap")}>

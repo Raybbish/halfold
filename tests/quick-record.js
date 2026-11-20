@@ -48,7 +48,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     check('the course list starts at the last course used', hr && hr.selected === 'c2', hr);
     await page.click('.rec-btn'); await page.waitForFunction(() => location.hash === '#/live', null, { timeout: 8000 }).catch(() => {}); await page.waitForTimeout(300);
     const body = be.posts[0] || {};
-    check('Record creates a recording lecture in that course with a dated title and autoTitle', body.courseId === 'c2' && body.source === 'record' && body.autoTitle === true && /^Lecture, \w{3} \d{1,2} \w{3}$/.test(body.title), body);
+    check('Record creates a recording lecture in that course with a dated title (day and time, so two lectures of one day differ) and autoTitle', body.courseId === 'c2' && body.source === 'record' && body.autoTitle === true && /^Lecture, \w{3} \d{1,2} \w{3}, \d{2}:\d{2}$/.test(body.title), body);
     check('and goes to the recording page', page.url().endsWith('#/live'), page.url());
     await page.evaluate(() => { location.hash = '#/home'; }); await page.waitForSelector('.rec-hero'); await page.waitForTimeout(200);
     const on = await hero(page);
@@ -109,7 +109,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   { const a = await open({ store: { lang: 'zh-Hant' } }), b = await open({ store: { lang: 'zh-Hans' } });
     for (const o of [a, b]) { await o.page.click('.rec-btn'); await o.page.waitForFunction(() => location.hash === '#/live', null, { timeout: 8000 }).catch(() => {}); }
     const zhTitle = (a.be.posts[0] || {}).title || '', hansTitle = (b.be.posts[0] || {}).title || '';
-    check('in Chinese the dated title ends with 課堂 (and 课堂 in Simplified)', /課堂$/.test(zhTitle) && /课堂$/.test(hansTitle), { zhTitle, hansTitle });
+    check('in Chinese the dated title ends with the time and 課堂 (课堂 in Simplified)', / \d{2}:\d{2} 課堂$/.test(zhTitle) && / \d{2}:\d{2} 课堂$/.test(hansTitle), { zhTitle, hansTitle });
     await a.ctx.close(); await b.ctx.close(); }
 
   console.log('\n=== Pick up where you left off ===');

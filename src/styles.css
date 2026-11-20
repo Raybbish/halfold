@@ -485,3 +485,10 @@ a.toast{text-decoration:underline;text-underline-offset:3px}
 .live-meta input::placeholder{font-size:13px;font-weight:500}
 @media(max-width:600px){.live-meta input{flex-basis:100%}}
 .live-meta select{font:inherit;padding:9px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--ink)}
+
+/* Formulas in notes, cards and quizzes (ui/Fx.tsx): superscripts and subscripts that do not push the lines apart. */
+sup,sub{font-size:.72em;line-height:0}
+
+/* Sign-in: the invite code field once the server asks for it, and the note that says why (not an error). */
+.field.need input{border-color:var(--ink);box-shadow:3px 3px 0 var(--yellow)}
+.need-note{margin:-6px 0 14px;color:var(--ink)}

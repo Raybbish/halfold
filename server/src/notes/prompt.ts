@@ -23,7 +23,7 @@ What the student needs:
 - There are no slides: set "slide" to null and "off" to false on every point.`}${input.zh ? `
 - "zh" on each point: one short explanation of the point in ${zh}, written for a student whose first language is Chinese. Use standard written Chinese (書面語), not spoken Cantonese, even when the lecturer spoke Cantonese. Explain the idea; do not just translate word for word. Keep key English terms in brackets where they help.` : ""}
 - Alerts: everything said about exams, quizzes, assignments and deadlines. "kind" is exactly one of "Midterm", "Deadline", "Exam hint", "Quiz", "Final". "date" is the day it happens as YYYY-MM-DD when the lecturer gave or implied one (work out "next Tuesday" from the lecture date), otherwise null.
-- 8 to 15 flashcards on the key ideas, and 5 to 10 multiple-choice questions with 4 options each. "a" is the index (0 to 3) of the right option, "why" explains it in one sentence, "t" is the second it was taught.${withSlides ? `
+- 8 to 15 flashcards on the key ideas, and 5 to 10 multiple-choice questions with 4 options each. "a" is the index (0 to 3) of the right option, "why" explains it in one sentence, "t" is the second it was taught. The options are shown in a mixed order, so no option may refer to another ("all of the above", "both A and B").${withSlides ? `
 - "slides": one entry per slide page you were given, with a short title (at most 8 words).` : `
 - "slides": an empty array.`}
 

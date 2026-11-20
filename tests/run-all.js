@@ -2,7 +2,8 @@
 //   1. builds the app (npm run build: tsc --noEmit and vite build) unless --no-build
 //   2. the check scripts, all on the build: real5.js, zhscript.js, real3.js, zhcheck.js, upload.js, backend-text.js, courses.js,
 //      slides-later.js, search.js, sharing.js, signin.js, course-picker.js, failed-reason.js, brand.js, zh-hans.js and
-//      background-notes.js, stuck-lecture.js, quick-record.js, lecture-page.js, live-meta.js, help-privacy.js and kept.js (counts in EXPECT below)
+//      background-notes.js, stuck-lecture.js, quick-record.js, lecture-page.js, live-meta.js, help-privacy.js, kept.js, limits.js and formulas.js
+//      (counts in EXPECT below)
 //   3. overflow5.js (no sideways scrolling at 8 widths, English and Chinese) and printcheck.js (print view)
 //   4. shots5.js on the build (animations off): it only has to finish without console or page errors; the screenshots are kept
 //      for looking at and are no longer compared with reference/sidenote.html (the product was renamed Halfnote)
@@ -17,8 +18,8 @@ const opt = n => { const a = process.argv.find(x => x.startsWith('--' + n + '=')
 const TARGET = 'dist';
 const ONLY = opt('only') ? opt('only').split(',') : null;
 const want = n => !ONLY || ONLY.includes(n);
-const EXPECT = { real5: 65, zhscript: 16, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 6, signin: 13, 'course-picker': 9, 'failed-reason': 6, brand: 19, 'zh-hans': 20, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 20, 'live-meta': 10, 'help-privacy': 11, kept: 9 };
-const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy', 'kept'];
+const EXPECT = { real5: 65, zhscript: 17, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 15, search: 20, sharing: 7, signin: 14, 'course-picker': 9, 'failed-reason': 6, brand: 19, 'zh-hans': 21, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 20, 'live-meta': 10, 'help-privacy': 11, kept: 9, limits: 12, formulas: 7 };
+const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy', 'kept', 'limits', 'formulas'];
 
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });

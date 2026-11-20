@@ -1,17 +1,26 @@
 // Interface language: English / 简体 / 繁體. A genuinely first visit follows the browser language, earlier users stay in English,
 // an old saved "zh" is Traditional, the language button and Settings offer three choices, and the Simplified screens carry no
-// character of the Traditional-to-Simplified table (src/i18n/t2s.ts) while backend text is left exactly as sent.
+// Traditional character while backend text is left exactly as sent. "Traditional" is judged by OpenCC, not by our own table
+// (src/i18n/t2s.ts): judged by the table, a character the table lacks (費, 郵, 聯 in November 2026) could never be found.
 const fs = require('fs'), path = require('path');
 const { chromium, ORIGIN } = require('./harness');
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail)}`); };
 
-// The Traditional characters the converter knows about, read from the table itself.
+// A Traditional character is one OpenCC changes when it converts Hong Kong Traditional to mainland Simplified.
+const toCn = require('opencc-js').Converter({ from: 'hk', to: 'cn' });
+const trad = s => [...new Set([...s].filter(c => /[\u3400-\u9fff\uf900-\ufaff]/.test(c) && toCn(c) !== c))];
+// The app's own conversion (src/i18n/t2s.ts: phrases, then one character at a time), for the check without a browser.
 const src = fs.readFileSync(path.join(__dirname, '..', 'src/i18n/t2s.ts'), 'utf8');
-const BAD = [...new Set([...(/T2S_CH[^=]*= (\{.*\});/.exec(src) || [, '{}'])[1].matchAll(/"(.)": "(.)"/gu)].filter(m => m[1] !== m[2]).map(m => m[1]))];
-const trad = s => [...s].filter(c => BAD.includes(c));
+const PH = JSON.parse(/T2S_PH[^=]*= (\[.*\]);/.exec(src)[1]), CH = JSON.parse(/T2S_CH[^=]*= (\{.*\});/.exec(src)[1]);
+const t2s = s => { for (const [a, b] of PH) s = s.split(a).join(b); return [...s].map(c => CH[c] || c).join(''); };
 
 (async () => {
+  // Every Chinese sentence of the interface (src/i18n/zh.ts, ZH and ZHR) comes out of the app's conversion with no Traditional character.
+  const zh = fs.readFileSync(path.join(__dirname, '..', 'src/i18n/zh.ts'), 'utf8');
+  const left = {}; for (const run of zh.match(/[\u3400-\u9fff\uf900-\ufaff]+/g) || []) for (const c of trad(t2s(run))) left[c] = toCn(c);
+  check('the Traditional-to-Simplified table covers every character of the interface text (judged by OpenCC)', !Object.keys(left).length, left);
+
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   const errs = [];
   const open = async (locale, pre) => {

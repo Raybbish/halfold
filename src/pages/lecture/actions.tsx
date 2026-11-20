@@ -6,7 +6,7 @@ import { bump } from "../../lib/bus";
 import { R, S, course, cur, dayMon, state, type Tab } from "../../state/app";
 import { act, busy, closeModal, toast, uploadDialog, uploadProgress } from "../../state/overlay";
 import { route } from "../../state/router";
-import { t } from "../../i18n";
+import { isZh, t } from "../../i18n";
 import { pl, plPlay, plSeek, segAt } from "../../features/player/player";
 import { doExport } from "../../features/export";
 import { pollNotes } from "../../features/recording/finish";
@@ -103,10 +103,17 @@ function doDelete() { act(async () => { const id = C().l.id, c = C().c; await ap
   closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
 
 /* ---------- sharing ---------- */
-export function share() { act(async () => { const l = C().l; if (!l.shareUrl) { const r = await api.createShareLink(l.id); l.shareUrl = r.url; }
-  openModal(() => <><h3>{t("Share with your class")}</h3><p className="muted">{t("Anyone with the link can read the notes, transcript, flashcards and quiz" + (CONFIG.SHARE_AUDIO ? ", and play the recording" : ". The recording stays private") + ". They cannot see your other lectures.")}</p>
+/* Share with class: the first time, the window says what a link does and makes it only on "Make the link" (opening the
+   window used to make a public link at once). With a link already made it shows the link. */
+const shareWhat = () => t("Anyone with the link can read the notes, transcript, flashcards and quiz" + (CONFIG.SHARE_AUDIO ? ", and play the recording" : ". The recording stays private") + ". They cannot see your other lectures.");
+export function share() { const l = C().l; if (l.shareUrl) return shareModal();
+  openModal(() => <><h3>{t("Share with your class")}</h3><p className="muted">{t("This makes a link. Nothing is public until you make it.")}{isZh() ? "" : " "}{shareWhat()}</p>
+    <div style={css("display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={closeModal}>{t("Cancel")}</button><button className="btn primary" data-act="mklink" onClick={makeShareLink}>{t("Make the link")}</button></div></>); }
+function makeShareLink() { act(async () => { const l = C().l; if (!l.shareUrl) { const r = await api.createShareLink(l.id); l.shareUrl = r.url; } shareModal(); }); }
+function shareModal() { const l = C().l;
+  openModal(() => <><h3>{t("Share with your class")}</h3><p className="muted">{shareWhat()}</p>
     <div className="copy"><input id="shareUrl" readOnly defaultValue={l.shareUrl || ""} aria-label={t("Share link")} /><button className="btn primary sm" onClick={copyLink}>{t("Copy link")}</button></div>
-    <div style={css("display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap")}><span style={css("display:flex;gap:10px;flex-wrap:wrap")}><a className="btn plain" href={l.shareUrl || ""}>{t("Preview shared page")}</a>{typeof navigator.share === "function" ? <button className="btn plain" onClick={nativeShare}>{t("Send to an app")}</button> : null}</span><button className="btn plain" style={css("color:var(--red)")} onClick={stopSharing}>{t("Stop sharing")}</button></div></>); }); }
+    <div style={css("display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap")}><span style={css("display:flex;gap:10px;flex-wrap:wrap")}><a className="btn plain" href={l.shareUrl || ""}>{t("Preview shared page")}</a>{typeof navigator.share === "function" ? <button className="btn plain" onClick={nativeShare}>{t("Send to an app")}</button> : null}</span><button className="btn plain" style={css("color:var(--red)")} onClick={stopSharing}>{t("Stop sharing")}</button></div></>); }
 function nativeShare() { const l = C().l; try { Promise.resolve(navigator.share({ title: l.title, text: (C().c ? C().c!.code + ": " : "") + l.title, url: l.shareUrl || "" })).catch(() => {}); } catch (e) {} }
 function copyLink() { const i = document.getElementById("shareUrl") as HTMLInputElement; i.select(); const fb = () => { try { document.execCommand("copy"); } catch (_) {} }; try { navigator.clipboard.writeText(i.value).catch(fb); } catch (e) { fb(); } toast("Link copied"); }
 /* The shared page this visit loaded is kept under the id in the link (#/s/:id). A backend gives the link an id of its

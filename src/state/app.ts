@@ -61,9 +61,10 @@ export const view = { loader: "blank" as "blank" | "shell" | "center" | null };
 
 /* Sign-in form. A redraw used to clear the inputs, so what was typed is kept here (React keeps it now as well). */
 export const auth = { err: "", busy: false, code: "", name: "",
-  /* SIGN_IN "email": the address and the code typed, which step is shown, and whether the server asked for an invite code
-     (an address new to Halfold). Kept as they are typed: every redraw draws the form anew. */
-  email: "", otp: "", step: "email" as "email" | "code", invite: false };
+  /* SIGN_IN "email": the address and the code typed, which step is shown, whether the server asked for an invite code
+     (invite: it answered 403) and what it said when the address is new to Halfold (need, shown as a note, not as an error).
+     Kept as they are typed: every redraw draws the form anew. */
+  email: "", otp: "", step: "email" as "email" | "code", invite: false, need: "" };
 
 /* New lecture form. */
 export const nf = { mode: "record" as Source, courseId: null as string | null, title: "", lang: null as string | null, file: null as File | null, slides: null as File | null, link: "", err: "", busy: false };

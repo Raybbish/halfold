@@ -129,7 +129,7 @@ const DETAIL2 = () => ({ alerts: [], slides: [], flashcards: [], transcript: [],
     const tabs2 = await page.$$eval('.tabs button', bs => bs.map(b => b.innerText));
     check('no Transcript tab when there is no transcript; no Quiz tab when there is no quiz', tabs1.includes('Transcript') && !tabs1.some(x => /^Quiz/.test(x)) && !tabs2.includes('Transcript') && tabs2.some(x => /^Quiz/.test(x)), { tabs1, tabs2 });
 
-    await lecture(page, 'l1'); await page.click('.page-h button.btn.primary'); await page.waitForSelector('#overlay .copy');
+    await lecture(page, 'l1'); await page.click('.page-h button.btn.primary'); await page.click('#overlay button:text-is("Make the link")'); await page.waitForSelector('#overlay .copy');
     const sendWithout = await page.locator('#overlay button:text-is("Send to an app")').count();
     check('no "Send to an app" when the browser cannot share', sendWithout === 0);
 
@@ -140,7 +140,7 @@ const DETAIL2 = () => ({ alerts: [], slides: [], flashcards: [], transcript: [],
     await ctx.close(); }
 
   { const { ctx, page } = await open(browser, true);
-    await lecture(page, 'l1'); await page.click('.page-h button.btn.primary'); await page.waitForSelector('#overlay .copy');
+    await lecture(page, 'l1'); await page.click('.page-h button.btn.primary'); await page.click('#overlay button:text-is("Make the link")'); await page.waitForSelector('#overlay .copy');
     const btn = await page.locator('#overlay button:text-is("Send to an app")').count();
     if (btn) await page.click('#overlay button:text-is("Send to an app")');
     const sent = await page.evaluate(() => window.__shared);

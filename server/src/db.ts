@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
 import type { Alert, Detail, Line, LectureStatus, Source } from "../../src/types";
 import type { ClassLanguage } from "./config";
+import { mixQuiz } from "./notes/mix";
 
 /* email: the address the student signs in with (phase 4), bound the first time with the invite code; null for an
    invite code nobody has used with an email yet. stripe_customer: the student in Stripe, once they have paid. */
@@ -463,7 +464,9 @@ export class Store {
   }
   detail(lectureId: string) {
     const r = this.db.prepare("SELECT detail_json FROM details WHERE lecture_id = ?").get(lectureId) as { detail_json: string } | undefined;
-    return r ? JSON.parse(r.detail_json) as Detail : null;
+    if (!r) return null;
+    const d = JSON.parse(r.detail_json) as Detail;
+    return Array.isArray(d.quiz) ? { ...d, quiz: mixQuiz(d.quiz) } : d;   // the right answer is not always first (notes/mix.ts)
   }
   /* Changes the notes in one transaction: `change` gets the stored notes and edits them in place. An error thrown by
      `change` (a point that is not there) leaves them as they were. */

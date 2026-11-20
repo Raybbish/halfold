@@ -36,6 +36,12 @@ const HANT = '機會成本是你放棄的「最好的那一個」選項的價值
     check('the Settings label has a Chinese version', (await page.locator('label.field', { has: page.locator('select[name=zs]') }).locator('span').innerText()) === '中文解釋顯示為');
     if (errs.length) check('no page errors', false, errs); await ctx.close(); }
 
+  /* Nothing chosen yet: the interface language decides, so a 简体 interface does not show 繁體 explanations (test of 2026-11-18). */
+  { const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'en-GB' }); const page = await ctx.newPage();
+    await signIn(page, FILE); await page.evaluate(() => window.__sidenote.setLang('zh-Hans')); await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
+    check('with no choice made, an English browser with the interface in 简体 shows the explanations in Simplified', (await first(page)) === HANS && (await page.locator('.seg2 button.on').innerText()) === '简', await first(page));
+    await ctx.close(); }
+
   { const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'zh-CN' }); const page = await ctx.newPage();
     await page.goto(FILE + '#/s/econ-w9'); await page.waitForSelector('.shared-bar'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
     check('a browser set to Simplified Chinese starts with Simplified, on a shared page without signing in', (await first(page)) === HANS && (await page.locator('.seg2 button.on').innerText()) === '简');

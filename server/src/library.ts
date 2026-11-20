@@ -10,6 +10,7 @@ import { courseFields, newCourse, str, type AppEnv, type Deps } from "./routes";
 import { courseView, lectureView } from "./views";
 import { lectureKey, notedLectures } from "./packs";
 import type { StoredPack } from "./notes/pack";
+import { mixQuiz } from "./notes/mix";
 import { webBase } from "./account";
 
 const NOT_SHARED = "This link is no longer shared.";
@@ -179,7 +180,7 @@ export function libraryRoutes(deps: Deps) {
       status: "ready",
       hints: pack.hints.map(h => ({ ...h, lecture: title.get(h.lectureId) || "" })),
       sheet: pack.sheet.map(s => ({ topic: s.topic, points: s.points.map(x => ({ ...x, lecture: title.get(x.lectureId) || "" })) })),
-      exam: pack.exam
+      exam: mixQuiz(pack.exam)
     });
   });
   /* Starts making the pack (again), unless it is being made. -> {status} */

@@ -36,7 +36,7 @@ test("GET /plans: Free, Plus every month and Plus for a semester, as plans.json 
     { id: "plus-semester", name: "Plus for a semester", priceText: "HK$348 for 120 days", features: ["240 minutes of live recording a day", "40 lectures a month", "Unlimited review packs",
       "Recordings kept for good", "Pay once by card, Alipay or WeChat Pay. Does not renew."] }
   ] });
-  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 90, audioDays: 30 });
+  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 90, audioDays: 30, lecturesThisMonth: 0, lecturesLimit: 4 });
 });
 
 test("Plus every month: Stripe Checkout; the plan starts when Stripe says it is paid; cancelling on the billing page; back to Free", async t => {
@@ -54,7 +54,7 @@ test("Plus every month: Stripe Checkout; the plan starts when Stripe says it is 
 
   /* Paid. No webhook yet: coming back to the settings page, the server asks Stripe about the open Checkout. */
   s.payments.pay("cs_test_1");
-  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 240 });
+  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 240, lecturesThisMonth: 0, lecturesLimit: 40 });
   const sub = [...s.payments.subs.values()][0];
   const paid = await plansOf(s, token);
   assert.equal(paid.current, "plus");
@@ -238,6 +238,8 @@ test("the free plan's limits: lectures a month (copies of shared notes are free)
   /* The fourth is being uploaded: it counts already. */
   const fourth = await add();
   assert.equal(fourth.status, 200);
+  const usage = (await home(s, token)).usage!;
+  assert.deepEqual([usage.lecturesThisMonth, usage.lecturesLimit], [4, 4], "home shows 4 of 4 lectures used");
   const over = await add();
   assert.equal(over.status, 429);
   assert.equal(isError(over).message, `You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until ${next}.`);

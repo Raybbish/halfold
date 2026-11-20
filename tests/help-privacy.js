@@ -26,7 +26,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   check('the landing page has Help in the top bar and Help and Privacy in the footer', navHelp && footHelp && footPrivacy, { navHelp, footHelp, footPrivacy });
 
   check('the privacy page names who handles the data', ['ElevenLabs', 'Deepgram', 'DeepSeek', 'Stripe', 'Resend'].every(n => privacy.includes(n)), privacy.slice(0, 200));
-  check('the privacy page marks the two things still to be decided', privacy.includes('[Contact email: to be decided]') && privacy.includes('[Where the server is: to be decided]'));
+  check('the privacy page says where the server is and marks the contact email still to be decided', privacy.includes('[Contact email: to be decided]') && !privacy.includes('[Where the server is') && privacy.includes('The Halfold server is in Singapore, at Tencent Cloud.'));
 
   await page.goto(ORIGIN + '/#/help'); await page.waitForTimeout(400);
   const shortcuts = await page.evaluate(() => { const h = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Keyboard shortcuts'); const out = []; for (let e = h && h.nextElementSibling; e && e.tagName !== 'H2'; e = e.nextElementSibling) out.push(e.innerText); return out.join(' '); });

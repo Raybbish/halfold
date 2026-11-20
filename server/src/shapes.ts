@@ -24,7 +24,8 @@ export const LectureSchema: z.ZodType<Lecture> = z.strictObject({
 export const UpcomingSchema: z.ZodType<Upcoming> = z.strictObject({ date: ymd, kind: z.string(), text: z.string(), course: z.string(), lecture: id, t: seconds });
 export const WeekSchema: z.ZodType<Week> = z.strictObject({ lectures: z.number(), known: z.number(), quiz: z.number(), days: z.array(z.number()).optional() });
 export const SettingsSchema: z.ZodType<Settings> = z.strictObject({ classLanguage: z.string(), zhDefault: z.boolean(), zhScript: z.enum(["hant", "hans"]).optional() });
-export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.number().nonnegative(), minutesLimit: z.number().nonnegative(), audioDays: z.number().optional() });
+export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.number().nonnegative(), minutesLimit: z.number().nonnegative(), audioDays: z.number().optional(),
+  lecturesThisMonth: z.number().int().nonnegative().optional(), lecturesLimit: z.number().int().positive().optional() });
 export const HomeSchema: z.ZodType<Home> = z.strictObject({
   user: UserSchema, courses: z.array(CourseSchema), lectures: z.array(LectureSchema), upcoming: z.array(UpcomingSchema),
   week: WeekSchema.optional(), settings: SettingsSchema.optional(), usage: UsageSchema.optional(), today: ymd.optional()

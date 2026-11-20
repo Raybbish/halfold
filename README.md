@@ -113,7 +113,7 @@ npm test
 | 脚本 | 项数 | 内容 |
 |---|---|---|
 | `tests/real5.js` | 65 | 迁移时的主检查：示例模式和真后端模式（请求拦截出来的假接口），录音、播放、上传、断网、登录过期、分享、设置 |
-| `tests/zhscript.js` | 16 | 语言按钮和中文界面 |
+| `tests/zhscript.js` | 17 | 语言按钮和中文界面；没选过繁简时中文解释跟界面语言 |
 | `tests/real3.js` | 11 | 录音保存期限：到期提示、还剩几天、设置里的保留天数 |
 | `tests/zhcheck.js` | 10 | 繁体界面：新增的每句话都有翻译，后端给的内容不翻译 |
 | `tests/upload.js` | 27 | 上传在后台进行：课堂页的进度条和取消、其他页顶部的 "Uploading" 链接、关页面前提醒、上传失败后重发同一个文件、通知 |
@@ -121,12 +121,12 @@ npm test
 | `tests/courses.js` | 18 | 改课程编号和名称、删课程、把课堂移到别的课程，中文，以及真后端模式的请求和出错 |
 | `tests/slides-later.js` | 15 | 课后补传课件（保持锁屏窗口和自己的轮询）：上传、等待、学生自己的笔记保留、取消不删课 |
 | `tests/search.js` | 20 | 首页搜索全部笔记 |
-| `tests/sharing.js` | 6 | 分享：停止分享后旧链接重新向后端要；"You" 只标在自己的课里 |
-| `tests/signin.js` | 13 | 邮件验证码登录和邀请码 |
+| `tests/sharing.js` | 7 | 分享：先说明、点 "Make the link" 才建链接；停止分享后旧链接重新向后端要；"You" 只标在自己的课里 |
+| `tests/signin.js` | 14 | 邮件验证码登录和邀请码（邀请码一栏从第一步就在，新邮箱时标出这一栏、不显示红字） |
 | `tests/course-picker.js` | 9 | 新建课堂时选课程 |
 | `tests/failed-reason.js` | 6 | 视频链接等失败时显示后端给的原因，重试，被拒的链接不留下空课堂 |
 | `tests/brand.js` | 19 | 改名 Halfold 和 Hal：页面上没有 "Halfnote"/"Sidenote"/"Sid"，logo（便利贴 Hal，表情跟着变）、favicon、标题 |
-| `tests/zh-hans.js` | 20 | 简体界面：没有繁体字，后端内容不转换（规则句里带的名字、课程编号也不转换），语言选择保存 |
+| `tests/zh-hans.js` | 21 | 简体界面：没有繁体字（用 OpenCC 判断，并把 `src/i18n/zh.ts` 的全部文案静态查一遍），后端内容不转换（规则句里带的名字、课程编号也不转换），语言选择保存 |
 | `tests/background-notes.js` | 16 | 课堂结束后在后台写笔记，不弹锁屏窗口；通知；同一堂课同一时间只有一个轮询；出错时放慢再问、不停；停了之后 "Check again" 重新开始 |
 | `tests/stuck-lecture.js` | 19 | 卡住或失败的课堂只显示和它来源相符的按钮（`lecture.source`），可以删除；删掉本机中断的录音后提示不再出现 |
 | `tests/quick-record.js` | 17 | 首页一键录音：默认课程、没有课程时建 "My classes"、日期标题、录音中的卡片 |
@@ -134,6 +134,8 @@ npm test
 | `tests/live-meta.js` | 10 | 录音页：录音中改名字和课程（没离开标题框就按 End 也会先存名字），考试提醒时手机振动，手机上标题框的提示文字不被截断 |
 | `tests/help-privacy.js` | 11 | 公开的 Help 和 Privacy 页、落地页顶栏和页脚；Help 只说这个应用有的功能 |
 | `tests/kept.js` | 9 | 保留我们自己的东西里别处没人盯着的几条：手机顶栏、底部导航、`#/courses`、"See plans"、分享窗口说明录音不公开（分享页不带链接、失败原因和来源由服务器测试 `server/test/links.test.ts` 盯着） |
+| `tests/limits.js` | 12 | 方案上限：新建课堂、首页一键录音、复习包遇到 429 时弹窗说明并提供 "See the plans"；本月已用几堂课；中文 |
+| `tests/formulas.js` | 7 | 笔记、中文解释、闪卡、测验里的公式显示成上下标，其他文字不当作标记 |
 
 加上 `overflow5.js`、`printcheck.js` 和 `shots5.js`（390 和 375 两遍）。
 

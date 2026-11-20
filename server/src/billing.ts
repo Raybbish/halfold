@@ -61,13 +61,17 @@ export class Billing {
     const up = nextTier(this.book, t);
     return up ? `Choose ${up.name} in Settings for ${what}, or wait until ${shortDate(next)}.` : `More are available from ${shortDate(next)}.`;
   }
+  /* The lectures counted this month and the plan's limit (GET /home usage); null when the plan has no limit. */
+  lectureUsage(userId: string, at = new Date()): { used: number; limit: number } | null {
+    const n = this.entitlement(userId, at).tier.lecturesPerMonth;
+    return n === null ? null : { used: this.d.store.lecturesUsed(userId, this.month(at).start.toISOString()), limit: n };
+  }
   /* POST /lectures: a lecture over the month's limit is refused (429) before anything is recorded or uploaded. */
   checkLecture(userId: string, at = new Date()) {
-    const { tier } = this.entitlement(userId, at), n = tier.lecturesPerMonth;
-    if (n === null) return;
-    const m = this.month(at);
-    if (this.d.store.lecturesUsed(userId, m.start.toISOString()) >= n)
-      fail(429, `You have used the ${n === 1 ? "1 lecture" : n + " lectures"} that ${tier.name} includes this month. ${this.more(tier, "more lectures", m.next)}`);
+    const u = this.lectureUsage(userId, at);
+    if (!u || u.used < u.limit) return;
+    const { tier } = this.entitlement(userId, at), n = u.limit;
+    fail(429, `You have used the ${n === 1 ? "1 lecture" : n + " lectures"} that ${tier.name} includes this month. ${this.more(tier, "more lectures", this.month(at).next)}`);
   }
   /* POST /courses/:id/review-pack, when it would make a new pack from notes. */
   checkPack(userId: string, at = new Date()) {

@@ -23,7 +23,8 @@ export interface Lecture {
 export interface Upcoming { date: string; kind: string; text: string; course: string; lecture: string; t: number }
 export interface Week { lectures: number; known: number; quiz: number; days?: number[] }
 export interface Settings { classLanguage: string; zhDefault: boolean; zhScript?: ZhScript }
-export interface Usage { minutesToday: number; minutesLimit: number; audioDays?: number }
+/* lecturesThisMonth / lecturesLimit: lectures counted this month and the plan's limit; missing when the plan has none. */
+export interface Usage { minutesToday: number; minutesLimit: number; audioDays?: number; lecturesThisMonth?: number; lecturesLimit?: number }
 export interface Home {
   user: User;
   courses: Course[];
