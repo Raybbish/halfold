@@ -1,7 +1,8 @@
 /* ---------- privacy (public) ----------
    Written from what the server really does (server/): sign-in by emailed code, the services it sends data to, how long
-   recordings are kept, what a shared link shows and how things are deleted. The contact email is not decided yet: it
-   shows as a marked placeholder (design, "before going live"). */
+   recordings are kept, what a shared link shows and how things are deleted. The contact email comes from the backend
+   (CONFIG.CONTACT_EMAIL, its CONTACT_EMAIL); without one it shows as a marked placeholder (design, "before going live"). */
+import { CONFIG } from "../config";
 import { t } from "../i18n";
 import { DocPage, Todo } from "./Doc";
 
@@ -15,6 +16,6 @@ export const Privacy = () => <DocPage title="Privacy" lead="What Halfold does wi
   ["How long it is kept", L(["A recording is kept for the number of days your plan allows. Settings shows the number, and some plans keep recordings for good.", "Notes stay until you delete them."])],
   ["Sharing", "A share link shows the notes, transcript, flashcards and quiz, not the recording. You can turn the link off at any time with Stop sharing."],
   ["Deleting your data", L(["Deleting a lecture deletes its recording and files.", "Deleting your whole account is not something you can do yourself yet. To have it done, write to the contact email below."])],
-  ["Contact", [<Todo key="c" s="[Contact email: to be decided]" />]],
+  ["Contact", [CONFIG.CONTACT_EMAIL ? <a key="c" href={"mailto:" + CONFIG.CONTACT_EMAIL} data-notr="">{CONFIG.CONTACT_EMAIL}</a> : <Todo key="c" s="[Contact email: to be decided]" />]],
   ["Recording other people", "A lecture recording contains other people's voices. Check your course's rules, ask the lecturer if you are not sure, and keep recordings to yourself unless you have permission to share them."]
 ]} />;

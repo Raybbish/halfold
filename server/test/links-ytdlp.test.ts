@@ -9,7 +9,7 @@ import path from "node:path";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { GuardProxy } from "../src/links/guard";
-import { classify, LinkError, STUDENT_MESSAGE, YtDlp, ytDlpVersion, type LinkFailure } from "../src/links/ytdlp";
+import { classify, identifyTo, LinkError, STUDENT_MESSAGE, YtDlp, ytDlpVersion, type LinkFailure } from "../src/links/ytdlp";
 
 test("failure reasons from what yt-dlp printed", () => {
   const cases: [string, LinkFailure][] = [
@@ -124,6 +124,23 @@ const env = {}; for (const k of ["no_proxy", "NO_PROXY", "http_proxy", "HTTP_PRO
 fs.writeFileSync(path.join(out, "seen.json"), JSON.stringify({ args: a, env }));
 fs.writeFileSync(path.join(out, "media.mp3"), "audio");
 `;
+
+test("the server names itself to Wikimedia (it refuses clients that do not), and to no other site", async t => {
+  const fake = fakeYtDlp(RECORDER); t.after(() => fs.rmSync(fake.dir, { recursive: true, force: true }));
+  const ua = "Halfold/1.0 (https://halfold.app; support@halfold.app)";
+  const argsFor = async (url: string, identify: string | null) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-ytdlp-out-")); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    await new YtDlp({ bin: fake.bin, proxy: "http://127.0.0.1:9", timeoutMs: 10_000, identify }).download(url, dir, { maxBytes: 1 << 20 });
+    return (JSON.parse(fs.readFileSync(path.join(dir, "seen.json"), "utf8")) as { args: string[] }).args;
+  };
+  const wiki = await argsFor("https://upload.wikimedia.org/wikipedia/commons/9/9a/Velocity_of_money.ogg", ua);
+  assert.equal(wiki[wiki.indexOf("--user-agent") + 1], ua);
+  assert.ok((await argsFor("https://en.wikipedia.org/wiki/File:Example.ogg", ua)).includes("--user-agent"));
+  assert.ok(!(await argsFor("https://www.youtube.com/watch?v=abc", ua)).includes("--user-agent"), "YouTube keeps yt-dlp's own headers");
+  assert.ok(!(await argsFor("https://notwikimedia.org.example.com/a.ogg", ua)).includes("--user-agent"));
+  assert.ok(!(await argsFor("https://upload.wikimedia.org/a.ogg", null)).includes("--user-agent"), "without a contact address, nothing is sent");
+  assert.deepEqual([identifyTo("https://commons.wikimedia.org/wiki/File:A.ogg"), identifyTo("https://wikimedia.org.evil.example/a"), identifyTo("not a url")], [true, false, false]);
+});
 
 test("yt-dlp is run without ffmpeg, outside the server's proxy settings, for the first video only, at most 480p", async t => {
   const fake = fakeYtDlp(RECORDER), dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-ytdlp-out-"));

@@ -456,6 +456,12 @@
 
 ### 查过、没有改的
 
-- **维基共享资源的音频直链**（`https://upload.wikimedia.org/.../Velocity_of_money.ogg`）：服务器日志里，维基媒体对第一个请求就回了 HTTP 429（“Too many requests. Please contact the Wikimedia SRE team”）。我们只请求了一次，所以多半是维基媒体对程序化请求的拦截（它要求请求带上能识别身份、有联系方式的 User-Agent），而不是请求太多。这一点还没验证：要从服务器换一个 User-Agent 再请求一次才能确定。可能的改法是只对 `wikimedia.org` 的链接给 yt-dlp 加 `--user-agent "Halfold/1.0 (https://halfold.app; 联系邮箱)"`，需要先定联系邮箱。
+- **维基共享资源的音频直链**（`https://upload.wikimedia.org/.../Velocity_of_money.ogg`）：服务器日志里，维基媒体对第一个请求就回了 HTTP 429（“Too many requests. Please contact the Wikimedia SRE team”）。我们只请求了一次，所以多半是维基媒体对没有说明身份的程序化请求的拦截（它要求带上能识别身份、有联系方式的 User-Agent）。已改：设了 `CONTACT_EMAIL` 时，下载 `wikimedia.org`、`wikipedia.org` 的链接会给 yt-dlp 加 `--user-agent "Halfold/1.0 (<PUBLIC_URL>; <CONTACT_EMAIL>)"`，其他网站不变（YouTube 等靠 yt-dlp 自己的请求头）。这个原因还没在线上确认：部署后贴一次这条链接，能写出笔记就说明是这个原因。
 - **从分享页注册时自动填邀请码**：做不了。邀请码是一个码对应一个账户、只能用一次（`server/scripts/invite.ts`），分享者自己的码已经绑定了邮箱。要做的话需要另外一套可以给多人用的推荐码。
+
+### 联系邮箱（`CONTACT_EMAIL`）
+
+- 后端的新设置 `CONTACT_EMAIL`（见 `server/.env.example`）：隐私页的联系邮箱，也用来向维基媒体说明身份（见上）。不设时隐私页仍显示“待定”。
+- 后端把它放进页面的 `window.SIDENOTE_CONFIG.CONTACT_EMAIL`（只在设了时）；前端的 `CONFIG.CONTACT_EMAIL` 默认是 `null`。
+- 线上定为 `support@halfold.app`，用 Cloudflare Email Routing 转发。转发设好、能收到信之后，再在服务器上设这个值（`halfold env`）。
 

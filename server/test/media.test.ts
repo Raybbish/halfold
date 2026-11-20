@@ -71,6 +71,9 @@ test("the built front end is served at / with USE_MOCK off, assets by path, noth
   /* EXAMPLE_SHARE_ID: "Example notes" on the public pages opens that shared lecture. */
   const example = createApp({ config: { ...s.config, webDir: web, exampleShareId: "Ab12Cd34" }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline, live: s.live, catchUp: s.catchUp, packs: s.packs, billing: s.billing, mailer: s.mailer, links: s.links });
   assert.ok((await (await example.request("/")).text()).includes('"EXAMPLE_SHARE_ID":"Ab12Cd34"'));
+  /* CONTACT_EMAIL: the address on the Privacy page, sent only when it is set (above it is not). */
+  const contact = createApp({ config: { ...s.config, webDir: web, contactEmail: "support@halfold.app" }, store: s.store, files: s.files, media: s.media, jobs: s.pipeline, live: s.live, catchUp: s.catchUp, packs: s.packs, billing: s.billing, mailer: s.mailer, links: s.links });
+  assert.ok((await (await contact.request("/")).text()).includes('"CONTACT_EMAIL":"support@halfold.app"'));
   const js = await app.request("/assets/index-1.js");
   assert.equal(js.status, 200); assert.match(js.headers.get("content-type")!, /javascript/); assert.equal(await js.text(), "console.log(1)");
   assert.equal((await app.request("/assets/..%2F..%2Fsecret.txt")).status, 404);

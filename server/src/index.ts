@@ -29,7 +29,9 @@ const stt = createTranscriber(config), notes = createNotesWriter(config);
 /* Video links need yt-dlp; every download goes through the proxy that only reaches public addresses (links/guard.ts). */
 const ytdlp = await ytDlpVersion(config.links.ytdlp);
 const guard = ytdlp ? new GuardProxy() : null;
-const links = guard ? new YtDlp({ bin: config.links.ytdlp, proxy: await guard.listen(), timeoutMs: config.links.downloadMs }) : null;
+/* How the server names itself to sites that ask for it (ytdlp.ts, Wikimedia): only with a contact address to give. */
+const identify = config.contactEmail ? `Halfold/1.0 (${[config.publicUrl, config.contactEmail].filter(Boolean).join("; ")})` : null;
+const links = guard ? new YtDlp({ bin: config.links.ytdlp, proxy: await guard.listen(), timeoutMs: config.links.downloadMs, identify }) : null;
 const pipeline = new Pipeline({ config, store, files, media, stt, notes, links });
 const live = new LiveTranscriber({ config, store, files, media, stt });
 const packs = new ReviewPacks({ config, store, notes });

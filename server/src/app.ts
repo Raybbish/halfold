@@ -12,9 +12,9 @@ import type { Config } from "./config";
 
 /* The front end reads window.SIDENOTE_CONFIG at start (src/config.ts). "Example notes" on the public pages opens the
    shared lecture EXAMPLE_SHARE_ID, and is hidden when it is not set. SIGN_IN picks the sign-in page: email and code
-   (phase 4) or the invite code alone. */
-export const webConfig = (config: Pick<Config, "exampleShareId" | "signIn">) =>
-  ({ USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: config.exampleShareId, SIGN_IN: config.signIn });
+   (phase 4) or the invite code alone. CONTACT_EMAIL is the address on the Privacy page, only when it is set. */
+export const webConfig = (config: Pick<Config, "exampleShareId" | "signIn" | "contactEmail">) =>
+  ({ USE_MOCK: false, API_BASE: "/api", EXAMPLE_SHARE_ID: config.exampleShareId, SIGN_IN: config.signIn, ...(config.contactEmail ? { CONTACT_EMAIL: config.contactEmail } : {}) });
 
 export function createApp(deps: Deps) {
   const app = new Hono();

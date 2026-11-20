@@ -60,6 +60,13 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   }
   check('both pages are fully translated in 繁體 and 简体', untranslated.length === 0, untranslated);
 
+  /* With the backend's CONTACT_EMAIL set: the address, as a mail link, instead of the placeholder. */
+  { const c2 = await browser.newContext({ viewport: { width: 1280, height: 800 } }); await setConfig(c2, { USE_MOCK: true, CONTACT_EMAIL: 'support@halfold.app' });
+    const p2 = await c2.newPage(); p2.on('pageerror', e => errs.push(e.message)); await p2.goto(ORIGIN + '/#/privacy'); await p2.waitForSelector('h1');
+    const mail = { href: await p2.locator('a[href^="mailto:"]').getAttribute('href').catch(() => null), body: await p2.locator('body').innerText() };
+    check('with CONTACT_EMAIL set, the privacy page gives the address as a mail link and no placeholder', mail.href === 'mailto:support@halfold.app' && mail.body.includes('support@halfold.app') && !mail.body.includes('[Contact email'), mail.href);
+    await c2.close(); }
+
   check('no page errors', errs.length === 0, errs);
   await browser.close();
   console.log(`\n${results.filter(Boolean).length} of ${results.length} checks passed`);
