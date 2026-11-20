@@ -49,7 +49,10 @@ async function record(s: TestServer, token: string, f: typeof FORMATS[number], o
 
 for (const f of FORMATS) {
   test(`${f.name}: chunks out of order and twice become one seekable recording of the right length, played by range`, { skip }, async t => {
-    const s = setup({ media: new Ffmpeg() }); t.after(() => s.close());
+    /* What is converted is kept here: the joined recording itself is deleted once the notes are written. */
+    const media = new Ffmpeg(), toSpeech = media.toSpeechAudio.bind(media); let joined: Buffer | null = null;
+    media.toSpeechAudio = (input, output, o) => { joined = fs.readFileSync(input); return toSpeech(input, output, o); };
+    const s = setup({ media }); t.after(() => s.close());
     const token = await s.signIn(), id = await record(s, token, f, [2, 0, 3, 1, 1, 0]);
     near(s.store.lecture(id)!.live_audio, LENGTH);
     await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 11 } }); await s.pipeline.idle();
@@ -59,7 +62,8 @@ for (const f of FORMATS) {
     const audio = s.files.path(id, "audio.m4a");
     near(length(audio), LENGTH);
     /* The joined recording is the pieces in order, byte for byte. */
-    assert.deepEqual(new Uint8Array(fs.readFileSync(s.files.path(id, "recording"))), new Uint8Array(Buffer.concat([0, 1, 2, 3].map(i => piece(f.dir, i)))));
+    assert.deepEqual(new Uint8Array(joined!), new Uint8Array(Buffer.concat([0, 1, 2, 3].map(i => piece(f.dir, i)))));
+    assert.equal(s.files.exists(id, "recording"), false);
     /* faststart: the index is at the front, so the player can seek before the whole file has come. */
     const bytes = fs.readFileSync(audio).toString("latin1");
     assert.ok(bytes.indexOf("moov") > 0 && bytes.indexOf("moov") < 64 && bytes.indexOf("moov") < bytes.indexOf("mdat"), "moov comes first");

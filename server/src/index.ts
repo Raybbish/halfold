@@ -11,7 +11,7 @@ import { createApp } from "./app";
 import { createNotesWriter, createTranscriber, missingKeys } from "./providers";
 import { LiveTranscriber } from "./live/transcriber";
 import { DeepSeekCatchUp } from "./notes/catchup";
-import { sweepAudio } from "./audio";
+import { sweepAudio, sweepOriginals } from "./audio";
 import { ReviewPacks } from "./packs";
 import { Billing } from "./billing";
 import { createMailer } from "./mail";
@@ -43,6 +43,9 @@ const app = createApp({ config, store, files, media, jobs: pipeline, live, catch
 /* Recordings past their plan's keep date (plans.json audioDays) are deleted at start and every six hours. */
 const sweep = () => sweepAudio({ config, store, files, billing }).then(n => { if (n) console.log(`[sidenote] deleted ${n} recording(s) past their plan's keep date`); }, e => console.error("[sidenote] sweep:", e));
 if (config.plans.plans.some(p => p.audioDays !== null)) { void sweep(); setInterval(sweep, 6 * 3600_000).unref(); }
+/* Original files of lectures with notes (only audio.m4a is kept), likewise at start and every six hours. */
+const dropOriginals = () => sweepOriginals({ store, files }).then(n => { if (n) console.log(`[sidenote] deleted the original file of ${n} lecture(s) with notes`); }, e => console.error("[sidenote] originals:", e));
+void dropOriginals(); setInterval(dropOriginals, 6 * 3600_000).unref();
 
 const missing = missingKeys(config);
 if (missing.length) console.warn(`[sidenote] not set in server/.env: ${missing.join(", ")}. Notes cannot be written until they are.`);

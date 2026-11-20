@@ -129,7 +129,7 @@ export class Pipeline implements Jobs {
     const { store, files, media, stt, config } = this.d, id = l.id;
     /* 0. A live recording: the pieces the browser sent, joined in order into one file. */
     if (!l.recording_file && isLive(l)) { await this.assemble(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
-    /* 0. A video link: the file behind it. Kept once downloaded, so a retry after a later step failed does not download again. */
+    /* 0. A video link: the file behind it. Kept until the notes are written (step 6), so a retry after a later step failed does not download again. */
     if (!l.recording_file && l.source === "link") { await this.fetchLink(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
     if (!l.recording_file) throw new Error("no recording");
 
@@ -189,6 +189,11 @@ export class Pipeline implements Jobs {
     /* 5. Save; does nothing if the lecture was deleted meanwhile. */
     this.check(id, signal);
     store.saveNotes(id, detailOut.detail, detailOut.dated, detailOut.title);
+
+    /* 6. The original file was only read to make audio.m4a, which is what is played, downloaded and kept: deleted now that
+       the notes are written (it is about twice the size). A lecture that failed keeps it, so a retry can convert it again.
+       If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way. */
+    if (files.exists(id, AUDIO)) await files.remove(id, l.recording_file).catch(e => console.warn(`[pipeline] ${id} original not deleted: ${(e as Error).message}`));
   }
 
   /* An upload or a video link: the whole recording in one request. */

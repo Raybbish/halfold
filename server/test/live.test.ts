@@ -47,7 +47,9 @@ test("in order: each reply carries the lines of its round; a word cut by the win
   await s.pipeline.idle();
   const done = s.store.lecture(id)!;
   assert.equal(done.status, "ready"); assert.equal(done.duration, 55); assert.equal(done.client_duration, 56);
-  assert.equal(fs.readFileSync(s.files.path(id, "recording"), "utf8"), fakeChunk() + fakeChunk() + fakeChunk() + fakeChunk(10));
+  /* The stub media copies what it converts, so audio.m4a holds the joined recording; the original went with the notes. */
+  assert.equal(fs.readFileSync(s.files.path(id, "audio.m4a"), "utf8"), fakeChunk() + fakeChunk() + fakeChunk() + fakeChunk(10));
+  assert.equal(s.files.exists(id, "recording"), false);
   assert.equal(fs.existsSync(s.files.chunkDir(id)), false);
   assert.equal((s.media as StubMedia).speech.at(-1)!.o!.fillGaps, true);
   assert.deepEqual(s.stt.windows.at(-1), [53, 55]);
@@ -315,7 +317,9 @@ test("finish joins the pieces in order into one recording, without piling up lis
   for (let seq = 0; seq < 12; seq++) assert.equal((await send(s, token, id, seq, fakeChunk(5))).status, 200);
   await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 60 } }); await s.pipeline.idle();
   assert.equal(s.store.lecture(id)!.status, "ready");
-  assert.equal(fs.readFileSync(s.files.path(id, "recording"), "utf8"), fakeChunk(5).repeat(12), "every piece, in order, once");
+  /* The stub media copies what it converts, so audio.m4a holds the joined recording; the original went with the notes. */
+  assert.equal(fs.readFileSync(s.files.path(id, "audio.m4a"), "utf8"), fakeChunk(5).repeat(12), "every piece, in order, once");
+  assert.equal(s.files.exists(id, "recording"), false);
   assert.equal(fs.existsSync(s.files.chunkDir(id)), false, "the pieces are removed");
   await new Promise(r => setImmediate(r));
   assert.deepEqual(warned.filter(w => w === "MaxListenersExceededWarning"), []);

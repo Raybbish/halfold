@@ -76,6 +76,18 @@ export async function sweepAudio(d: Keep & { files: FileStore }, now = new Date(
   return n;
 }
 
+/* Deletes the original file of lectures with notes: those written before the pipeline deleted it with the notes
+   (pipeline.ts step 6), and any it could not delete then. Only where audio.m4a is there: without it the original is the
+   only copy. Lectures that failed or are still being written keep theirs. Runs at start and every few hours. */
+export async function sweepOriginals(d: { store: Store; files: FileStore }) {
+  let n = 0;
+  for (const l of d.store.lecturesWithStatus("ready")) {
+    if (!l.recording_file || !d.files.exists(l.id, l.recording_file) || !d.files.exists(l.id, AUDIO)) continue;
+    await d.files.remove(l.id, l.recording_file); n++;
+  }
+  return n;
+}
+
 /* The file, whole (200) or one byte range (206). A range that does not fit is 416; several ranges get the whole file. */
 export async function sendFile(req: Request, file: string, type: string, extra: Record<string, string> = {}): Promise<Response> {
   const size = (await fsp.stat(file)).size;
