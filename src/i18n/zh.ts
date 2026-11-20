@@ -148,7 +148,7 @@ export const ZH: Record<string, string> = {
   "Free": "免費", "Plus for a semester": "Plus 學期版", "Unlimited lectures": "課堂數量不限", "Unlimited review packs": "溫習包數量不限", "Recordings kept for good": "錄音一直保留",
   "Pay by card, Apple Pay or Google Pay. Renews every month; cancel any time.": "可用信用卡、Apple Pay 或 Google Pay 付款。每月自動續費，隨時可以取消。",
   "Pay once by card, Alipay or WeChat Pay. Does not renew.": "一次付清，可用信用卡、支付寶或微信支付，不會自動續費。",
-  "Plan and usage": "方案與用量", "Plans and prices are not decided yet. This space is reserved for them.": "方案和價錢尚未決定，這個位置預留給它們。", "Your plan": "你的方案", "Choose this plan": "選擇這個方案", "Checkout is not connected yet.": "付款功能尚未接通。",
+  "Plan and usage": "方案與用量", "Plans and prices are not decided yet. This space is reserved for them.": "方案和價錢尚未決定，這個位置預留給它們。", "Your plan": "你的方案", "Choose this plan": "選擇這個方案", "Paying is not switched on yet": "付款功能還沒開通", "You cannot change your plan from here yet. Nothing was charged.": "目前還不能在這裡更改方案，沒有扣任何費用。", "OK": "好",
   "Sign out": "登出", "This device will no longer remember you.": "這部裝置將不再記住你。",
   /* errors */
   "That did not load": "載入失敗", "Page not found": "找不到頁面", "That address does not match anything in Halfold.": "這個網址在 Halfold 裡找不到對應的內容。", "Go to home": "回到主頁", "Something went wrong. Try again.": "出了點問題，請再試一次。", "Today": "今天",
@@ -198,7 +198,8 @@ export const ZH: Record<string, string> = {
   "The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.": "這堂課的錄音已不再保留。筆記、逐字稿、閃卡和測驗仍然在這裡。", "See plans": "查看方案",
   /* 中文解釋 in Traditional or Simplified */
   /* lecture page: topics, one dialog for title and course, share to an app */
-  "In short": "重點摘要",
+  "In short": "重點摘要", "What was said, as heard live": "剛才說了甚麼（即時逐字稿）",
+  "The live transcript, to read while the notes are written. The notes may correct some words.": "筆記整理期間可以先看這份即時逐字稿。筆記可能會更正部分字詞。",
   "Hal is putting your notes under the slides. This takes a minute or two, and you can keep reading.": "Hal 正在把筆記放到簡報下，需要一兩分鐘，你可以繼續閱讀。",
   "Slides added. Hal is putting your notes under them.": "已加入簡報，Hal 正在把筆記放到每一頁下。", "Your notes are now under the slides.": "筆記已經放到簡報下。",
   "The slides could not be matched to the notes. The notes are as they were.": "未能把簡報和筆記對上，筆記維持原狀。",
@@ -277,6 +278,28 @@ export const ZH: Record<string, string> = {
   "Works in the browser on a laptop or a phone. Nothing to install.": "在手提電腦或手機的瀏覽器裡就能用，不用安裝。",
   "None of this is written on the slides. Halfold listens for it and pins it to your notes.": "這些都不會寫在簡報上。Halfold 會聽著，並釘在你的筆記上。",
 };
+/* Sentences our server writes about video links (server/src/links: ytdlp.ts STUDENT_MESSAGE, guard.ts linkProblem). A
+   failed lecture's reason (lecture.error) is backend text and normally shown as it is; these exact sentences are ours,
+   so serverText() in i18n/index.ts shows them in Chinese (test of 2026-11-18). They are in ZH as well, for the form on
+   New lecture. server/test/zh-messages.test.ts checks that every one of the server's sentences is here. */
+export const SERVER: Record<string, string> = {
+  "This video needs a sign-in or permission to watch, so it could not be downloaded. Record it with Record an online class while it plays, or download the video and upload the file.": "這段影片要登入或取得權限才能觀看，所以無法下載。可以在播放時用「錄網上課堂」錄下來，或自行下載影片後上載檔案。",
+  "The video site refused the download for now. Try again later, or download the video and upload the file.": "影片網站暫時拒絕下載。請稍後再試，或自行下載影片後上載檔案。",
+  "Only recorded lectures up to 5 hours long can be used. This video is longer, or it is a live stream.": "只能使用 5 小時以內的課堂錄影。這段影片比較長，或者是直播。",
+  "This video is larger than the upload limit. Download just the audio, or the part you need, and upload it.": "這段影片超過上載上限。可以只下載音訊或需要的部分，再上載。",
+  "This live stream has not ended yet. Paste the link again once the recording is up.": "這個直播還沒結束。錄影上載後再貼一次連結。",
+  "This link leads somewhere that cannot be opened from here, such as a private network. Only public web links work.": "這條連結指向這裡打不開的地方，例如內部網絡。只能使用公開的網頁連結。",
+  "No video or audio was found at this link. Check that it opens the video in a browser, or download the video and upload the file.": "這條連結裡找不到影片或音訊。請確認它能在瀏覽器裡開啟影片，或自行下載影片後上載檔案。",
+  "The website could not be reached. Check the link and try again.": "無法連上這個網站。請檢查連結後再試。",
+  "The video took too long to download. Try again later, or download the video and upload the file.": "影片下載時間太長。請稍後再試，或自行下載影片後上載檔案。",
+  "The video could not be downloaded from this link. Try again later, or download the video and upload the file.": "無法從這條連結下載影片。請稍後再試，或自行下載影片後上載檔案。",
+  "Paste the link to the lecture video.": "請貼上課堂影片的連結。",
+  "This link is too long. Paste the link to the video page itself.": "這條連結太長。請貼上影片頁面本身的連結。",
+  "Paste the full link, starting with https://": "請貼上完整連結，以 https:// 開頭",
+  "Only links on the usual web ports (80 and 443) can be opened.": "只能開啟使用一般網頁埠（80 和 443）的連結。",
+  "Only public links can be opened. This one points to a private network.": "只能開啟公開的連結。這條連結指向內部網絡。"
+};
+for (const [k, v] of Object.entries(SERVER)) if (!(k in ZH)) ZH[k] = v;
 export const zhTok = (t: string): string | null => { let m: RegExpMatchArray | null; return t === "Today" ? "今天" : (m = t.match(/^week (\d+)$/)) ? "第 " + m[1] + " 週" : (m = t.match(/^(\d+) min$/)) ? m[1] + " 分鐘" : null; };
 export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^We sent a 6-digit code to (\S+@\S+)\. Check your inbox and spam folder\.$/, m => "已把 6 位數登入碼寄到 " + m[1] + "。請查看收件匣和垃圾郵件。"],

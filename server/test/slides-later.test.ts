@@ -104,3 +104,14 @@ test("slides after the notes: deleted while matching, nothing comes back; stoppe
   assert.equal(s.store.detail(kept)!.slides.length, 2);
   assert.equal(s.stt.calls, 2); assert.equal(s.notes.calls.length, 2);   // one each for the two lectures, at the start
 });
+
+test("section labels are worked out again when notes are read, so notes written before the fix lose a stretched label", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn(), id = await readyLecture(s, token, { slides: true });
+  const raw = JSON.parse((s.store.db.prepare("SELECT detail_json FROM details WHERE lecture_id = ?").get(id) as { detail_json: string }).detail_json);
+  raw.sections[0].slides = "Slides 1 to 3";   // as the old rule wrote it for a look ahead to another section's page
+  s.store.db.prepare("UPDATE details SET detail_json = ? WHERE lecture_id = ?").run(JSON.stringify(raw), id);
+  const d = LectureReplySchema.parse((await s.call("GET", `/lectures/${id}`, { token })).body).detail!;
+  assert.deepEqual(d.sections.map(x => x.slides), ["Slide 1", "Slide 2"]);
+});
+

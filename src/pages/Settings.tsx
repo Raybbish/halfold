@@ -5,7 +5,7 @@ import { plural } from "../lib/helpers";
 import { store } from "../lib/store";
 import { bump } from "../lib/bus";
 import { LANGS, S, nf, session } from "../state/app";
-import { act, toast } from "../state/overlay";
+import { act, closeModal, toast } from "../state/overlay";
 import { LANG, setLang, t, trs } from "../i18n";
 import { zhScript } from "../i18n/zhScript";
 import { live } from "../features/recording/recorder";
@@ -13,6 +13,7 @@ import { plStop } from "../features/player/player";
 import { unwatchAll } from "../features/notes/watch";
 import { forgetUpload, uploading } from "../features/upload/upload";
 import { Shell } from "../ui/Shell";
+import { openModal } from "../ui/Overlay";
 import { css } from "../ui/css";
 import { lecturesLine } from "../ui/limit";
 import { checked, val } from "../ui/form";
@@ -50,4 +51,8 @@ export function signOut() { if (live.active) { toast("End or discard the recordi
 function Plans() { const p = S.plans;
   if (!p || !p.plans || !p.plans.length) return <div className="drop" style={css("margin-top:16px;text-align:left")}>{t("Plans and prices are not decided yet. This space is reserved for them.")}</div>;
   return <div className="plans">{p.plans.map(x => <div key={x.id} className={`plan ${x.id === p.current ? "cur" : ""}`}><b>{t(x.name)}</b><div className="price">{t(x.priceText)}</div><ul>{(x.features || []).map((f, i) => <li key={i}>{t(f)}</li>)}</ul>{x.id === p.current ? <span className="tag grey">{trs("Your plan")}</span> : <button className="btn primary sm" onClick={() => choosePlan(x.id)}>{trs("Choose this plan")}</button>}</div>)}</div>; }
-function choosePlan(id: string) { act(async () => { const r = await api.startCheckout(id); if (r && r.url) location.href = r.url; else toast("Checkout is not connected yet."); }); }
+/* No checkout address (the server has no Stripe key yet): a window that says so, not a notice that flashes by, and that
+   nothing was charged (test of 2026-11-18: choosing a plan seemed to do nothing). */
+function choosePlan(id: string) { act(async () => { const r = await api.startCheckout(id); if (r && r.url) { location.href = r.url; return; }
+  openModal(() => <><h3>{t("Paying is not switched on yet")}</h3><p className="muted" style={css("margin-bottom:16px")}>{t("You cannot change your plan from here yet. Nothing was charged.")}</p>
+    <div style={css("text-align:right")}><button className="btn primary" onClick={closeModal}>{t("OK")}</button></div></>); }); }

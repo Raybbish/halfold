@@ -10,7 +10,7 @@
    ===================================================================== */
 import { store } from "../lib/store";
 import { bumpAll } from "../lib/bus";
-import { ZH, ZHR } from "./zh";
+import { SERVER, ZH, ZHR } from "./zh";
 import { t2s } from "./t2s";
 export { t2s };
 
@@ -37,6 +37,10 @@ function rule(k: string): string | null {
     const o = fn(Object.assign(Array.from(m, g => g == null ? g : Array.from(g, ch => ch < "\u0080" ? ch : hide(ch)).join("")), { index: m.index, input: m.input }) as RegExpMatchArray);
     if (o != null) return Array.from(t2s(o), ch => { const i = ch.charCodeAt(0) - 0xE000; return i >= 0 && i < kept.length ? kept[i] : ch; }).join(""); }
   return null; }
+
+/* A sentence from the backend (a failed lecture's reason): in the interface language when it is one of our server's own
+   (SERVER in zh.ts), anything else exactly as it was sent. */
+export const serverText = (s: string) => Object.prototype.hasOwnProperty.call(SERVER, s) ? trs(s) : s;
 
 /* The interface text of one text node or attribute, in the current language. */
 export const t = (s: string) => trs(s);

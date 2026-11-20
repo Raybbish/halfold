@@ -18,8 +18,12 @@ export function finishAfterUpload(id: string, dur: number, stopped?: Promise<unk
   if (!(await flush())) { modal({ kind: "waiting", id, dur }, true); return; }
   await finalize(id, dur); }); }
 export function doDiscard() { const id = live.id!; dropped.add(id); stopRecording(); outbox.forEach(c => { if (c.id === id && c.key) idb.del(c.key); }); unmark(); live.active = false; live.id = null; flush(); api.deleteLecture(id).catch(() => {}); closeModal(); toast("Recording discarded"); location.hash = "#/home"; }
+/* What the live transcript heard, kept for each recording that ended in this visit, so the lecture page has something to
+   read while the notes are written (test of 2026-11-18: the waiting page was empty). Gone after a reload. */
+export const heardLive = new Map<string, { t: number; text: string }[]>();
 /* The notes are being written: the lecture shows the writing card and is checked in the background. */
 function writing(id: string) {
+  if (live.id === id && live.segs.length) heardLive.set(id, live.segs.map(s => ({ t: s.t, text: s.text })));
   if (live.id === id) live.id = null; if (S.orphan && S.orphan.id === id) S.orphan = null;
   S.homeLoaded = false; const l = lecture(id); if (l) l.status = "processing"; S.detail[id] = null; watch(id);
 }

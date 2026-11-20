@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Alert, Detail, Line, LectureStatus, Source } from "../../src/types";
 import type { ClassLanguage } from "./config";
 import { mixQuiz } from "./notes/mix";
+import { slideLabels } from "./notes/normalize";
 
 /* email: the address the student signs in with (phase 4), bound the first time with the invite code; null for an
    invite code nobody has used with an email yet. stripe_customer: the student in Stripe, once they have paid. */
@@ -476,7 +477,13 @@ export class Store {
     const r = this.db.prepare("SELECT detail_json FROM details WHERE lecture_id = ?").get(lectureId) as { detail_json: string } | undefined;
     if (!r) return null;
     const d = JSON.parse(r.detail_json) as Detail;
-    return Array.isArray(d.quiz) ? { ...d, quiz: mixQuiz(d.quiz) } : d;   // the right answer is not always first (notes/mix.ts)
+    if (Array.isArray(d.quiz)) d.quiz = mixQuiz(d.quiz);   // the right answer is not always first (notes/mix.ts)
+    /* The section labels from the pages of their points (normalize.ts slideLabels), also for notes written before. */
+    if (d.slides && d.slides.length && Array.isArray(d.sections)) {
+      const labels = slideLabels(d.sections);
+      d.sections = d.sections.map((s, i) => { const { slides: _old, ...rest } = s; return labels[i] ? { ...rest, slides: labels[i] } : rest; });
+    }
+    return d;
   }
   /* Changes the notes in one transaction: `change` gets the stored notes and edits them in place. An error thrown by
      `change` (a point that is not there) leaves them as they were. */

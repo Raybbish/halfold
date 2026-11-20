@@ -306,3 +306,18 @@ test("Catch me up: nothing yet; the last five minutes; the model failing; not fo
   assert.equal((await s.call("POST", `/lectures/${up}/catch-up`, { token })).status, 409);
   assert.equal((await s.call("POST", `/lectures/${id}/catch-up`, { token: await s.signIn("CODE-B") })).status, 404);
 });
+
+test("finish joins the pieces in order into one recording, without piling up listeners (12 pieces, more than the 10 Node warns at)", async t => {
+  const s = live(setup()); t.after(() => s.close());
+  const warned: string[] = [], onWarning = (w: Error) => { warned.push(w.name); };
+  process.on("warning", onWarning); t.after(() => { process.off("warning", onWarning); });
+  const token = await s.signIn(), id = await liveLecture(s, token);
+  for (let seq = 0; seq < 12; seq++) assert.equal((await send(s, token, id, seq, fakeChunk(5))).status, 200);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 60 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.equal(fs.readFileSync(s.files.path(id, "recording"), "utf8"), fakeChunk(5).repeat(12), "every piece, in order, once");
+  assert.equal(fs.existsSync(s.files.chunkDir(id)), false, "the pieces are removed");
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(warned.filter(w => w === "MaxListenersExceededWarning"), []);
+});
+

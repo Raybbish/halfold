@@ -31,6 +31,7 @@ const PLANS = { current: 'plus', plans: [
       if (p === '/session') return j({ token: 't', user: { name: 'Jasper' } });
       if (p === '/home') return j({ user: { name: 'Jasper' }, courses: [{ id: 'c1', code: 'ECON 1001', name: 'Micro' }], lectures: [], upcoming: [], settings: { classLanguage: 'en', zhDefault: false }, usage: o.usage === undefined ? USAGE : o.usage });
       if (p === '/plans') return j(o.plans || { plans: [], current: 'free' });
+      if (m === 'POST' && p === '/checkout') return j({ url: null });   // the server without a Stripe key
       if (m === 'POST' && p === '/lectures') { be.posts.push(JSON.parse(req.postData())); return j({ message: LECTURES }, 429); }
       if (m === 'GET' && p === '/courses/c1/review-pack') return j({ status: 'none' });
       if (m === 'POST' && p === '/courses/c1/review-pack') return j({ message: PACKS }, 429);
@@ -95,6 +96,10 @@ const PLANS = { current: 'plus', plans: [
   await open(async page => {
     await page.goto(ORIGIN + '/#/settings'); await page.waitForSelector('.plan');
     const en = await cards(page);
+    await page.click('.plan:nth-child(3) button:text-is("Choose this plan")'); await page.waitForSelector('#overlay h3');
+    const paying = (await page.locator('#overlay').innerText()).replace(/\s+/g, ' ');
+    await page.click('#overlay button:text-is("OK")'); await page.waitForTimeout(200);
+    check('choosing a plan while paying is not switched on: a window that says so and that nothing was charged', paying.includes('Paying is not switched on yet') && paying.includes('Nothing was charged.') && (await page.locator('#overlay h3').count()) === 0, paying);
     await page.evaluate(() => window.__sidenote.setLang('zh-Hant')); await page.waitForTimeout(200);
     const hant = await cards(page);
     await page.evaluate(() => window.__sidenote.setLang('zh-Hans')); await page.waitForTimeout(200);

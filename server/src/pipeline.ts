@@ -1,10 +1,8 @@
 /* Recording -> notes, for lectures in status "processing". Runs in this process with a small queue. Each step keeps
    its result (audio.m4a, the transcript), so a retry after a failure only redoes what failed: a second transcription
    would be paid for twice. Deleting a lecture aborts its run, and a run never writes notes for a lecture that is gone. */
-import fs from "node:fs";
 import path from "node:path";
 import fsp from "node:fs/promises";
-import { pipeline as pump } from "node:stream/promises";
 import type { Config } from "./config";
 import { liveGaps, type Store, type LectureRow } from "./db";
 import type { FileStore } from "./files";
@@ -282,17 +280,20 @@ export class Pipeline implements Jobs {
     if (seqs[0] !== 0) throw new Error(seqs.length ? "the first piece of the live recording never arrived" : "no audio was received");
     const missing = seqs[seqs.length - 1] + 1 - seqs.length;
     if (missing) console.warn(`[pipeline] ${id}: ${missing} piece(s) of the live recording never arrived; they become silence`);
-    const tmp = files.tempPath(), out = fs.createWriteStream(tmp);
+    /* Piece by piece onto one file handle. (A stream pipeline for each piece into one write stream left listeners behind
+       on it, one set per piece: MaxListenersExceededWarning in the log after 10 pieces, and a 90-minute lecture has 360.) */
+    const tmp = files.tempPath(), out = await fsp.open(tmp, "w");
+    let open = true;
     try {
       for (const seq of seqs) {
         this.check(id, signal);
-        await pump(fs.createReadStream(path.join(files.chunkDir(id), files.chunkName(seq))), out, { end: false });
+        await out.appendFile(await fsp.readFile(path.join(files.chunkDir(id), files.chunkName(seq))));
       }
-      await new Promise<void>((ok, bad) => { out.once("error", bad); out.end(() => ok()); });
+      await out.close(); open = false;
       this.check(id, signal);
       await files.commit(tmp, id, "recording");
       store.setRecording(id, "recording");
-    } finally { out.destroy(); await files.discard(tmp); }
+    } finally { if (open) await out.close().catch(() => {}); await files.discard(tmp); }
     await files.removeChunks(id);
   }
 

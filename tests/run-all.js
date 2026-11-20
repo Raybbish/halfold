@@ -18,7 +18,7 @@ const opt = n => { const a = process.argv.find(x => x.startsWith('--' + n + '=')
 const TARGET = 'dist';
 const ONLY = opt('only') ? opt('only').split(',') : null;
 const want = n => !ONLY || ONLY.includes(n);
-const EXPECT = { real5: 65, zhscript: 17, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 17, search: 20, sharing: 7, signin: 14, 'course-picker': 9, 'failed-reason': 6, brand: 19, 'zh-hans': 21, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 21, 'live-meta': 10, 'help-privacy': 11, kept: 9, limits: 15, formulas: 7, 'review-pack': 7 };
+const EXPECT = { real5: 65, zhscript: 17, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 17, search: 20, sharing: 7, signin: 14, 'course-picker': 9, 'failed-reason': 7, brand: 19, 'zh-hans': 21, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 21, 'live-meta': 11, 'help-privacy': 11, kept: 9, limits: 16, formulas: 7, 'review-pack': 7 };
 const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy', 'kept', 'limits', 'formulas', 'review-pack'];
 
 function run(script, target, extraEnv = {}) {

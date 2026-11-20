@@ -1,5 +1,6 @@
 // Recording page (Task 10): a title box and a course list while recording, each saved with PATCH /lectures/:id, and the
-// phone vibrates when an exam alert arrives. Real-backend mode, fake microphone, navigator.vibrate counted.
+// phone vibrates when an exam alert arrives; after End, the waiting page shows what the live transcript heard (test of
+// 2026-11-18: it was empty). Real-backend mode, fake microphone, navigator.vibrate counted.
 const { chromium, ORIGIN, serve, setConfig } = require('./harness');
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail)}`); };
@@ -9,7 +10,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   const errs = [];
   const open = async (courseCount, width = 1280) => {
     const all = [{ id: 'c1', code: 'TEST 1001', name: '' }, { id: 'c2', code: 'TEST 2002', name: '' }];
-    const be = { sent: 0, patches: [], log: [], patchDelay: 0, courses: all.slice(0, courseCount) };
+    const be = { sent: 0, segSent: 0, patches: [], log: [], patchDelay: 0, courses: all.slice(0, courseCount) };
     const ctx = await browser.newContext({ viewport: { width, height: width < 900 ? 780 : 800 }, isMobile: width < 900, hasTouch: width < 900, permissions: ['microphone'] });
     await ctx.addInitScript(() => { try { localStorage.setItem('sidenote.recTip', '1'); localStorage.setItem('sidenote.lastCourse', 'c1'); window.__vib = 0; navigator.vibrate = () => { window.__vib++; return true; }; } catch (e) {} });
     await setConfig(ctx, { USE_MOCK: false, POLL_MS: 50, CHUNK_SECONDS: 1 });
@@ -18,13 +19,13 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
       if (!u.pathname.startsWith('/api/')) return serve(route, { USE_MOCK: false, POLL_MS: 50, CHUNK_SECONDS: 1 });
       const p = u.pathname.slice(4); be.log.push(m + ' ' + p);
       if (p === '/session') return j({ token: 'tok', user: { name: 'T' } });
-      if (p === '/home') return j({ user: { name: 'T' }, courses: be.courses, lectures: [], upcoming: [], settings: { classLanguage: 'en', zhDefault: false } });
-      if (m === 'POST' && p === '/lectures') { const b = JSON.parse(req.postData() || '{}'); return j({ id: 'lnew', course: b.courseId, title: b.title, date: 'Today', duration: 0, status: 'recording' }); }
+      if (p === '/home') return j({ user: { name: 'T' }, courses: be.courses, lectures: be.lec ? [{ ...be.lec, status: be.status || 'recording' }] : [], upcoming: [], settings: { classLanguage: 'en', zhDefault: false } });
+      if (m === 'POST' && p === '/lectures') { const b = JSON.parse(req.postData() || '{}'); be.lec = { id: 'lnew', course: b.courseId, title: b.title, date: 'Today', duration: 0, status: 'recording' }; return j(be.lec); }
       if (m === 'PATCH' && p === '/lectures/lnew') { be.patches.push(req.postData()); if (be.patchDelay) await new Promise(r => setTimeout(r, be.patchDelay)); return j(null).catch(() => {}); }
       if (m === 'POST' && p === '/lectures/lnew/finish') return j({ status: 'processing' });
       if (m === 'GET' && p === '/lectures/lnew') return j({ lecture: { id: 'lnew', course: 'c1', title: 'Week 11', date: 'Today', duration: 0, status: 'processing' }, detail: null });
-      if (m === 'POST' && /\/chunks$/.test(p)) return j({ segments: [], alerts: be.alert && !be.sent++ ? [{ t: 5, kind: 'Exam', text: 'Exam on Friday' }] : [] });
-      if (/\/status$/.test(p)) return j({ status: 'recording' });
+      if (m === 'POST' && /\/chunks$/.test(p)) return j({ segments: be.segs && !be.segSent++ ? be.segs : [], alerts: be.alert && !be.sent++ ? [{ t: 5, kind: 'Exam', text: 'Exam on Friday' }] : [] });
+      if (/\/status$/.test(p)) return j({ status: be.status || 'recording' });
       return j({ message: 'Not found' }, 404);
     });
     const page = await ctx.newPage(); page.on('pageerror', e => errs.push(e.message));
@@ -56,6 +57,13 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     await page.waitForFunction(() => location.hash.startsWith('#/lecture/'), null, { timeout: 8000 }).catch(() => {}); await page.waitForTimeout(1200);
     const api = be.log.filter(x => /^(PATCH|POST) \/lectures\/lnew(\/finish)?$/.test(x)), mark = await page.evaluate(() => localStorage.getItem('sidenote.live'));
     check('ending the recording while the title box still has the focus sends the title (PATCH) before /finish, and leaves no recording mark', focused && api[0] === 'PATCH /lectures/lnew' && api.includes('POST /lectures/lnew/finish') && be.patches[0] === '{"title":"Week 11"}' && mark === null, { focused, api, patches: be.patches, mark });
+    await ctx.close(); }
+  { const { ctx, page, be } = await open(1); be.status = 'processing'; be.segs = [{ t: 1, text: 'Today we cover elasticity.' }, { t: 4, text: 'The midterm is on Friday.' }];
+    await page.waitForFunction(() => /elasticity/.test(document.body.innerText), null, { timeout: 8000 }).catch(() => {});
+    await page.evaluate(() => [...document.querySelectorAll('.live-actions button')].find(b => b.textContent.trim() === 'End and make notes').click());
+    await page.waitForSelector('.main .card.wait', { timeout: 8000 }).catch(() => {});
+    const heard = { h: await page.locator('.main h2').first().innerText().catch(() => ''), lines: await page.locator('.main .stream .seg-line').allInnerTexts() };
+    check('after End, the page that waits for the notes shows what the live transcript heard', heard.h === 'What was said, as heard live' && heard.lines.length === 2 && heard.lines[0].includes('Today we cover elasticity.'), heard);
     await ctx.close(); }
   { const { ctx, page } = await open(1);
     const n = await page.locator('.live-meta select').count(), input = await page.locator('.live-meta input').count();

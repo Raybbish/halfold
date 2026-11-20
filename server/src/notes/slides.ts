@@ -3,7 +3,7 @@
    page a title. The text and order of the points, the student's edits and the student's own points (t null) stay as
    they are. Points are numbered 1, 2, 3... across the lecture in the prompt, so the reply refers to them unambiguously. */
 import type { Detail, Point } from "../../../src/types";
-import { slideLabel, slideList } from "./normalize";
+import { slideLabels, slideList } from "./normalize";
 
 export interface SlidesInput {
   courseCode: string;
@@ -82,8 +82,8 @@ export function fileUnder(detail: Detail, pages: { n: number; text: string }[], 
       return { ...p, slide: f && f.slide !== null && valid.has(f.slide) ? f.slide : null, off: !!f?.off };
     });
     const { slides: _old, ...rest } = s;
-    const label = slideLabel(points.map(p => p.slide).filter((x): x is number => x != null));
-    return { ...rest, ...(label ? { slides: label } : {}), points };
+    return { ...rest, points };
   });
-  return { ...detail, sections, slides: slideList(pages, filing.slides) };
+  const labels = slideLabels(sections);
+  return { ...detail, sections: sections.map((s, i) => labels[i] ? { ...s, slides: labels[i] } : s), slides: slideList(pages, filing.slides) };
 }

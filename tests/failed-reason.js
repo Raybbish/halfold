@@ -1,7 +1,8 @@
 // Why a lecture failed, when the backend knows (API-CHANGES.md section 9: lecture.error), such as a video link that
 // needs a sign-in. Real-backend mode (fake API by request interception): the reason is shown instead of "Your recording
 // is safe", Try again still asks the backend again, a failed lecture without a reason keeps the old sentence, and in
-// Chinese the reason is shown as the backend sent it (never translated, even when it equals a dictionary key). And a
+// Chinese the reason is shown as the backend sent it (never translated, even when it equals a dictionary key), except our
+// own server's sentences about links, which are in Chinese (SERVER in src/i18n/zh.ts, test of 2026-11-18). And a
 // link the backend refuses when it is sent leaves no empty lecture behind (it would count toward the month's lectures).
 const { chromium, ORIGIN, serve, setConfig } = require('./harness');
 const results = [];
@@ -50,6 +51,8 @@ const SAFE = 'Your recording is safe. Hal can try again from it.';
   await page.evaluate(() => window.__sidenote.setLang('zh'));
   const c = await box('l3');
   check('in Chinese the heading is translated but the reason is shown as the backend sent it', c.h !== 'These notes could not be written' && c.p === 'Try again', c);
+  const d = await box('l1');
+  check('in Chinese, a reason that is one of our server\'s own sentences is shown in Chinese', d.p === '這段影片要登入或取得權限才能觀看，所以無法下載。可以在播放時用「錄網上課堂」錄下來，或自行下載影片後上載檔案。', d);
 
   await page.evaluate(() => window.__sidenote.setLang('en'));
   await page.goto(ORIGIN + '/#/new'); await page.waitForSelector('.choice');

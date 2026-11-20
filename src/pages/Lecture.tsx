@@ -3,13 +3,13 @@
    the retention notice, timeline, tabs and player. */
 import { useLayoutEffect, type ReactNode } from "react";
 import { CONFIG } from "../config";
-import { plural } from "../lib/helpers";
+import { fmt, plural } from "../lib/helpers";
 import { store } from "../lib/store";
 import { S, course, cur, daysLeft, dayMon, lecture, meta, setCur, state, type Tab } from "../state/app";
-import { t } from "../i18n";
+import { serverText, t } from "../i18n";
 import { live } from "../features/recording/recorder";
 import { recoverOrphan } from "../features/recording/orphan";
-import { retryNotes } from "../features/recording/finish";
+import { heardLive, retryNotes } from "../features/recording/finish";
 import { isFiling, isWatching } from "../features/notes/watch";
 import { cancelUpload, ownReason, reupload, runUpload, up, upPct } from "../features/upload/upload";
 import { hasAudio, pl, plLoad, plStop } from "../features/player/player";
@@ -31,11 +31,16 @@ const Box = ({ mood, h, p, btn }: { mood: Mood; h: ReactNode; p: string | ReactN
 
 /* Notes being written. The lecture is checked in the background (features/notes/watch.ts) and this page updates by
    itself; "Check again" appears only when nothing is checking any more (it gave up after a long wait). */
-const Writing = ({ id }: { id: string }) =>
+const Writing = ({ id }: { id: string }) => <>
   <div className="card wait"><Hal size={52} mood="wow" /><div className="grow"><h3>{t("Hal is writing your notes")}</h3><p className="muted">{t("First the transcript, then notes, flashcards and a quiz. This usually takes about two minutes.")}</p>
     <div className="bar ind" role="progressbar" aria-label={t("Writing notes")}><b></b></div>
     <p className="small muted">{t("You do not have to wait here. This page updates by itself, and the lecture is on your home page when it is ready.")}</p>
-    <div className="brow"><a className="btn plain sm" href="#/home">{t("Go to home")}</a>{isWatching(id) ? null : <button className="btn plain sm" onClick={refreshLecture}>{t("Check again")}</button>}</div></div></div>;
+    <div className="brow"><a className="btn plain sm" href="#/home">{t("Go to home")}</a>{isWatching(id) ? null : <button className="btn plain sm" onClick={refreshLecture}>{t("Check again")}</button>}</div></div></div>
+  <HeardLive id={id} /></>;
+/* A recording that ended in this visit: what the live transcript heard, to read while the notes are written. */
+function HeardLive({ id }: { id: string }) { const segs = heardLive.get(id); if (!segs || !segs.length) return null;
+  return <><h2 style={css("font-size:17px;margin:24px 0 4px")}>{t("What was said, as heard live")}</h2><p className="small muted" style={css("margin-bottom:8px")}>{t("The live transcript, to read while the notes are written. The notes may correct some words.")}</p>
+    <div className="card stream" data-notr="">{segs.map((s, i) => <div key={i} className="seg-line"><span className="ts">{fmt(s.t)}</span><div>{s.text}</div></div>)}</div></>; }
 
 /* The recording of this lecture is being uploaded in the background (features/upload/upload.ts). The bar and the
    percentage move without a redraw (paint() there finds #upBar and .upPct). */
@@ -70,8 +75,9 @@ export function LectureBody() {
   const { l, c, d, shared } = cur!;
   if (!d) {
     if (!shared && up.id === l.id) return up.state === "failed" ? <UploadFailed /> : <Uploading />;
-    /* lecture.error: why it failed, from the backend (a video link that needs a sign-in, ...), shown as it is. */
-    if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{l.error}</span> : "Your recording is safe. Hal can try again from it."} btn={<div className="brow"><button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button><button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div>} />;
+    /* lecture.error: why it failed, from the backend (a video link that needs a sign-in, ...), shown as it is, or in
+       Chinese when it is one of our server's own sentences (serverText). */
+    if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{serverText(l.error)}</span> : "Your recording is safe. Hal can try again from it."} btn={<div className="brow"><button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button><button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div>} />;
     if (l.status === "recording") return live.active && live.id === l.id
       ? <Box mood="wow" h={t("This lecture is being recorded")} p="The notes are written when you end the recording." btn={<a className="btn primary" href="#/live">{t("Return to the recording")}</a>} />
       : <Unfinished />;
