@@ -25,8 +25,9 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   const landing = await text('body');
   check('the landing page has Help in the top bar and Help and Privacy in the footer', navHelp && footHelp && footPrivacy, { navHelp, footHelp, footPrivacy });
 
-  check('the privacy page names who handles the data', ['ElevenLabs', 'Deepgram', 'DeepSeek', 'Stripe', 'Resend'].every(n => privacy.includes(n)), privacy.slice(0, 200));
-  check('the privacy page says where the server is and marks the contact email still to be decided', privacy.includes('[Contact email: to be decided]') && !privacy.includes('[Where the server is') && privacy.includes('The Halfold server is in Singapore, at Tencent Cloud.'));
+  check('the privacy page says what kind of service handles the data and where, without naming them', ['speech-to-text service', 'in the United States', 'AI model service', 'in mainland China', 'payment service', 'email delivery service'].every(n => privacy.includes(n))
+    && !['ElevenLabs', 'Deepgram', 'DeepSeek', 'Stripe', 'Resend', 'Tencent'].some(n => privacy.includes(n)), privacy.slice(0, 200));
+  check('the privacy page says where the server is and marks the contact email still to be decided', privacy.includes('[Contact email: to be decided]') && !privacy.includes('[Where the server is') && privacy.includes('The Halfold server is at a cloud provider in Singapore.'));
 
   await page.goto(ORIGIN + '/#/help'); await page.waitForTimeout(400);
   const shortcuts = await page.evaluate(() => { const h = [...document.querySelectorAll('h2')].find(x => x.textContent.trim() === 'Keyboard shortcuts'); const out = []; for (let e = h && h.nextElementSibling; e && e.tagName !== 'H2'; e = e.nextElementSibling) out.push(e.innerText); return out.join(' '); });

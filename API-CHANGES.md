@@ -464,4 +464,4 @@
 - 后端的新设置 `CONTACT_EMAIL`（见 `server/.env.example`）：隐私页的联系邮箱，也用来向维基媒体说明身份（见上）。不设时隐私页仍显示“待定”。
 - 后端把它放进页面的 `window.SIDENOTE_CONFIG.CONTACT_EMAIL`（只在设了时）；前端的 `CONFIG.CONTACT_EMAIL` 默认是 `null`。
 - 线上定为 `support@halfold.app`，用 Cloudflare Email Routing 转发。转发设好、能收到信之后，再在服务器上设这个值（`halfold env`）。
-
+- 隐私页的“谁处理你的数据”改为按服务类别和所在地写（语音转文字服务在美国，AI 模型服务在中国内地，付款服务、邮件发送服务），不写服务商名字；服务器写成“新加坡的云服务商”。换服务商时只要所在地没变，这一页就不用改；所在地变了要同步改 `src/pages/Privacy.tsx`。

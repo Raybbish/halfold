@@ -10,8 +10,14 @@ const L = (xs: string[]) => xs.map(x => t(x));
 
 export const Privacy = () => <DocPage title="Privacy" lead="What Halfold does with your recordings and notes." sections={[
   ["What is stored", L(["Your email address and the name you give.", "Your lecture recordings, transcripts, notes, flashcards and quizzes, and the slides (PDF) you add.", "Your own edits and your progress, such as the flashcards you know."])],
-  ["Who handles it", L(["Speech to text is done by ElevenLabs or Deepgram, whichever the server is set to use. Your recording is sent there to be turned into a transcript.", "Notes, flashcards, quizzes, catch-up summaries and review packs are written by DeepSeek, from the transcript and the slides.", "Payments go through Stripe.", "The sign-in email with your code is sent through Resend."])],
-  ["Where the server is", "The Halfold server is in Singapore, at Tencent Cloud. Your account, recordings, transcripts and notes are stored there."],
+  /* By kind of service and where it is, not by name (2026-11-20): what matters to a student is what leaves Halfold and
+     for where, and a service can change without this page changing. Keep the places true when a service changes:
+     speech to text (ElevenLabs or Deepgram) in the United States, the AI model (DeepSeek) in mainland China. */
+  ["Who handles it", L(["Your recording is sent to a speech-to-text service, which turns it into a transcript. The service is in the United States.",
+    "Notes, flashcards, quizzes, catch-up summaries and review packs are written by an AI model service, from the transcript and the slides. The service is in mainland China.",
+    "Payments go through a payment service. Halfold never sees your card number.",
+    "The sign-in email with your code is sent through an email delivery service, which gets your email address."])],
+  ["Where the server is", "The Halfold server is at a cloud provider in Singapore. Your account, recordings, transcripts and notes are stored there."],
   ["Video links", "When you paste a public video link, the Halfold server downloads that video to make the notes."],
   ["How long it is kept", L(["A recording is kept for the number of days your plan allows. Settings shows the number, and some plans keep recordings for good.", "Notes stay until you delete them."])],
   ["Sharing", "A share link shows the notes, transcript, flashcards and quiz, not the recording. You can turn the link off at any time with Stop sharing."],
