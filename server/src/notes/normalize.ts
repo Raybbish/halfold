@@ -6,6 +6,7 @@
    is an error. The pipeline checks the result against DetailSchema. */
 import type { Alert, Detail, Line, Point, QuizQuestion, Section, Slide } from "../../../src/types";
 import { bothScripts } from "./zh";
+import { studyCounts } from "./prompt";
 
 export interface ModelPoint { t: number; text: string; zh: string | null; slide: number | null; off: boolean }
 export interface ModelSection { title: string; start: number | null; end: number | null; points: ModelPoint[] }
@@ -15,6 +16,8 @@ export interface ModelNotes {
   alerts: { t: number; kind: string; text: string; date: string | null }[];
   flashcards: { q: string; a: string }[];
   quiz: { q: string; opts: string[]; a: number | null; why: string | null; t: number | null }[];
+  summary: string[];   // the lecture in 3 to 5 sentences
+  title: string;       // what the lecture is about; "" when the model gave none
 }
 
 type Obj = Record<string, unknown>;
@@ -55,7 +58,9 @@ export function parseModelNotes(reply: string): ModelNotes {
     quiz: items(top.quiz, q => {
       const opts = (Array.isArray(q.opts) ? q.opts : []).map(str);
       return { q: str(q.q), opts, a: answer(q.a, opts.length), why: str(q.why) || null, t: num(q.t) };
-    })
+    }),
+    summary: (Array.isArray(top.summary) ? top.summary : []).map(str).filter(Boolean),
+    title: str(top.title)
   };
 }
 
@@ -81,7 +86,8 @@ export function slideList(pages: { n: number; text: string }[], titled: { n: num
   return pages.map(p => ({ n: p.n, title: titles.get(p.n) || p.text.split("\n").map(x => x.trim()).find(Boolean)?.slice(0, 80) || `Slide ${p.n}`, image: null }));
 }
 
-export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail; dated: Dated[] } {
+/* title: the model's title for the lecture, a single line of at most 120 characters, or null. */
+export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail; dated: Dated[]; title: string | null } {
   const end = Math.max(1, Math.round(ctx.duration));
   const at = (x: number) => Math.min(end, Math.max(0, Math.round(x)));
   const pages = new Set(ctx.slidePages.map(p => p.n)), hasSlides = pages.size > 0;
@@ -116,6 +122,7 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
     return { t, kind, text: a.text };
   }).sort((a, b) => a.t - b.t);
 
+  const most = studyCounts(ctx.duration);
   const quiz: QuizQuestion[] = m.quiz
     .filter(q => q.q && q.opts.length >= 2 && q.opts.every(Boolean) && q.a !== null && Number.isInteger(q.a) && q.a >= 0 && q.a < q.opts.length)
     .map(q => ({ q: q.q, opts: q.opts, a: q.a!, ...(q.why ? { why: q.why } : {}), t: q.t === null ? null : at(q.t) }));
@@ -123,7 +130,9 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
   const transcript = ctx.lines.filter(l => l.text.trim()).map(l => ({ t: at(l.t), text: l.text.trim() })).sort((a, b) => a.t - b.t);
 
   return {
-    detail: { alerts, sections, slides: hasSlides ? slides : [], transcript, flashcards: m.flashcards, quiz },
-    dated
+    detail: { ...(m.summary.length ? { summary: m.summary.slice(0, 5) } : {}), alerts, sections, slides: hasSlides ? slides : [], transcript,
+      flashcards: m.flashcards.slice(0, most.cards), quiz: quiz.slice(0, most.quiz) },
+    dated,
+    title: m.title.replace(/\s+/g, " ").trim().slice(0, 120) || null
   };
 }

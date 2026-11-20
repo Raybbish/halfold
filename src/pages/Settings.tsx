@@ -44,8 +44,10 @@ export function signOut() { if (live.active) { toast("End or discard the recordi
   if (uploading()) { toast("Wait for the upload to finish or cancel it before signing out."); return; }   // the file lives only in this page
   live.id = null; plStop(); unwatchAll(); forgetUpload(); session.clear(); location.hash = "#/"; }
 
-/* Names, prices and features come from the backend and are shown as they are (data-notr); only the two button labels are interface text. */
+/* Names, prices and features come from the backend. Ours writes them from plans.json in a fixed set of English sentences
+   (server/src/billing.ts plans()), so they go through t() like the interface: the known ones (src/i18n/zh.ts, the
+   "plans" rules) come out in Chinese, anything else stays as sent. */
 function Plans() { const p = S.plans;
   if (!p || !p.plans || !p.plans.length) return <div className="drop" style={css("margin-top:16px;text-align:left")}>{t("Plans and prices are not decided yet. This space is reserved for them.")}</div>;
-  return <div className="plans">{p.plans.map(x => <div key={x.id} className={`plan ${x.id === p.current ? "cur" : ""}`} data-notr=""><b>{x.name}</b><div className="price">{x.priceText}</div><ul>{(x.features || []).map((f, i) => <li key={i}>{f}</li>)}</ul>{x.id === p.current ? <span className="tag grey">{trs("Your plan")}</span> : <button className="btn primary sm" onClick={() => choosePlan(x.id)}>{trs("Choose this plan")}</button>}</div>)}</div>; }
+  return <div className="plans">{p.plans.map(x => <div key={x.id} className={`plan ${x.id === p.current ? "cur" : ""}`}><b>{t(x.name)}</b><div className="price">{t(x.priceText)}</div><ul>{(x.features || []).map((f, i) => <li key={i}>{t(f)}</li>)}</ul>{x.id === p.current ? <span className="tag grey">{trs("Your plan")}</span> : <button className="btn primary sm" onClick={() => choosePlan(x.id)}>{trs("Choose this plan")}</button>}</div>)}</div>; }
 function choosePlan(id: string) { act(async () => { const r = await api.startCheckout(id); if (r && r.url) location.href = r.url; else toast("Checkout is not connected yet."); }); }

@@ -157,22 +157,23 @@ const DETAIL = withSlides => ({ alerts: [], transcript: [{ t: 0, text: 'line' }]
     check('Try again on a failed lecture calls /retry and shows the writing card, not a dialog', be.log.includes('POST /lectures/l3/retry') && !be.log.includes('POST /lectures/l3/finish') && writingCard && !modal && be.polls('l3') > 0, { writingCard, modal, log: be.log.filter(x => /l3/.test(x)).slice(0, 4) });
     await ctx.close(); }
 
-  console.log('\n=== adding slides later keeps its own wait ===');
+  console.log('\n=== adding slides later has its own check (batch 2: in the background too) ===');
   { const { ctx, page, be } = await open([lec('l4', 'ready', { notes: true })]);
     await page.goto(ORIGIN + '/#/lecture/l4'); await page.waitForSelector('.nsec');
     await page.click('.page-h button:text-is("More")');
     const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#overlay button:text-is("Add slides")')]);
     await fc.setFiles({ name: 'slides.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(50000, 1) });
-    const slidesDialog = await page.waitForSelector('#overlay h3:text-is("Hal is putting the notes under the slides")', { timeout: 5000 }).then(() => true, () => false);
+    const slidesNotice = await page.waitForSelector('.main .alert:has-text("Hal is putting your notes under the slides")', { timeout: 5000 }).then(() => true, () => false);
     await until(() => be.polls('l4') > 0);
     // Whatever would start a background check while the slides are being matched: the home data (where the lecture is
     // now processing) and the lecture page itself. The back button would do this too.
     await page.evaluate(() => { S.homeLoaded = false; route(); }); await sleep(600);
     const watched = await page.evaluate(() => !!(window.__sidenote.isWatching && window.__sidenote.isWatching('l4')));
     be.slides.l4 = true; be.set('l4', 'ready');
-    await page.waitForSelector('.toast', { timeout: 5000 }).catch(() => {});
+    await page.waitForSelector('.toast:has-text("Your notes are now under the slides.")', { timeout: 5000 }).catch(() => {});
     const toast = (await lastToast(page)).text, n = be.polls('l4'); await sleep(500);
-    check('adding slides later still waits in its own dialog and the lecture is not polled twice', slidesDialog && be.max.l4 === 1 && !watched && toast === 'Slides added' && be.polls('l4') === n, { slidesDialog, max: be.max.l4, watched, toast, polls: [n, be.polls('l4')] });
+    check('adding slides later is checked by its own loop (notice on the page, no dialog): the lecture is not polled twice, and polling stops at the end',
+      slidesNotice && (await page.locator('#overlay .modal').count()) === 0 && be.max.l4 === 1 && !watched && toast === 'Your notes are now under the slides.' && be.polls('l4') === n, { slidesNotice, max: be.max.l4, watched, toast, polls: [n, be.polls('l4')] });
     await ctx.close(); }
 
   console.log('\n=== signing out ===');

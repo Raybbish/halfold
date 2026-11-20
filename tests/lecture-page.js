@@ -22,7 +22,7 @@ const DETAIL1 = () => ({ alerts: [], slides: [], flashcards: [{ q: 'q', a: 'a' }
     { title: 'Supply', start: 640, end: 1260, points: [pt(700, 'Supply slopes up'), pt(800, 'Shifts of supply')] },
     { title: 'Demand', start: 1260, end: 1800, points: [pt(1300, 'Demand slopes down')] }],
   transcript: Array.from({ length: 40 }, (_, i) => ({ t: i * 10 + 200, text: 'Transcript line ' + i })), audio: { url: ORIGIN + '/audio/a.wav' } });
-const DETAIL2 = () => ({ alerts: [], slides: [], flashcards: [], transcript: [], quiz: [{ q: 'q', opts: ['a', 'b'], a: 0, why: 'w', t: 5 }],
+const DETAIL2 = () => ({ summary: ['Supply meets demand at one price.', 'Elasticity is %ΔQ / %ΔP, and x^2 is a square.'], alerts: [], slides: [], flashcards: [], transcript: [], quiz: [{ q: 'q', opts: ['a', 'b'], a: 0, why: 'w', t: 5 }],
   sections: [{ title: 'Only topic', start: 0, end: 600, points: [pt(10, 'One point')] }] });
 
 (async () => {
@@ -90,6 +90,11 @@ const DETAIL2 = () => ({ alerts: [], slides: [], flashcards: [], transcript: [],
     await page.goto(ORIGIN + '/#/lecture/l1'); await page.waitForSelector('.nsec'); await page.waitForTimeout(200);
     check('the closed topics are forgotten when the page is visited again', (await closedOf(page)).every(x => !x), await closedOf(page));
     check('a lecture with one topic has no Topics row and no "Collapse all topics"', await (async () => { await lecture(page, 'l2'); return (await page.locator('.chips').count()) === 0 && (await page.locator('button[data-act=collapse]').count()) === 0; })());
+    // detail.summary (the model's summary, batch 2): "In short" above the notes, formulas shown, printed; none without it (l1).
+    const brief = { h: await page.locator('.brief h3').innerText().catch(() => ''), items: await page.locator('.brief li').allInnerTexts(), sup: await page.locator('.brief sup').count(), first: await page.evaluate(() => { const b = document.querySelector('.brief'), n = document.querySelector('.nsec'); return !!b && !!n && !!(b.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING); }) };
+    await page.emulateMedia({ media: 'print' }); brief.print = await page.locator('.brief').isVisible(); await page.emulateMedia({ media: 'screen' });
+    await lecture(page, 'l1'); brief.none = await page.locator('.brief').count();
+    check('the summary is "In short" above the notes, with formulas, kept in print; a lecture without one has none', brief.h === 'In short' && brief.items.length === 2 && brief.items[0] === 'Supply meets demand at one price.' && brief.sup === 1 && brief.first && brief.print && brief.none === 0, brief);
 
     // "Print or save notes as PDF" with two topics folded: what is on the page when the print dialog opens (window.print is
     // replaced so that the page can be read at that moment) has every topic open with all its notes.

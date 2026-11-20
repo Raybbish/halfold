@@ -74,7 +74,7 @@
 前端的流程：
 
 1. 上传 PDF，有进度条，可以取消。取消只中止上传，不删除这堂课。
-2. 上传成功后轮询 `GET /lectures/:id/status`，直到不再是 `processing`。轮询间隔是 `POLL_MS`，最多 100 次。
+2. 上传成功后窗口就关掉，在后台轮询 `GET /lectures/:id/status`，直到不再是 `processing`（第 12 节）。轮询间隔是 `POLL_MS`，最多 200 次。这期间笔记照常显示，课堂页顶部有一条提示；刷新页面后，课堂是 `processing` 而且已经有笔记，就接着轮询。
 3. 重新读取 `GET /lectures/:id`：
    - `detail.slides` 不为空：提示已加入；
    - 仍然为空：提示未能加入、笔记维持原样；
@@ -338,7 +338,7 @@
 | 录音保留 | 30 天 | 一直保留 |
 
 - `GET /home` 的 `usage.minutesLimit` 和 `usage.audioDays` 跟着方案变（Plus 不给 `audioDays`）。`usage.lecturesThisMonth` 和 `usage.lecturesLimit` 是本月已算的课堂数和方案的上限，方案不限课堂数时两个都不给（第 11 节）。
-- `createLecture` 超出每月课堂数：429，`You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until 1 Dec.`。还在录或在上传的课也算；笔记写好以后删掉的课仍然算；笔记写好之前删掉的不算；`saveShared` 存的副本不算。
+- `createLecture` 超出每月课堂数：429，`You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until 1 Dec.`。还在录或在上传的课也算；笔记写好以后删掉的课仍然算；笔记写好之前删掉的不算；失败的课不算（重试时又算上）；`saveShared` 存的副本不算。
 - `makeReviewPack` 超出每月复习包数：429，说明类似。正在做时再点不算；课程里还没有笔记（空复习包）不算。
 - 前端遇到这两个 429（或 402）时弹一个窗口：标题 “You have reached the limit of your plan”，下面是这句话、本月已用几堂课，按钮 “See the plans” 去设置页（`src/ui/limit.tsx`，第 11 节）。新建课堂页、首页一键录音、复习包页都一样。
 - 每天现场录音的分钟数照第 6 节的规则，只是上限按方案。
@@ -402,7 +402,7 @@
 
 ### 前端发的新字段
 
-- `createLecture` 现在多发一个 `autoTitle: boolean`：学生没写标题、标题是前端用日期填的就是 `true`。后端目前忽略它（请求体里多出的字段本来就不校验），第 3 批会用到。
+- `createLecture` 现在多发一个 `autoTitle: boolean`：学生没写标题、标题是前端用日期填的就是 `true`。后端记下它，笔记写好时换成模型起的标题（第 12 节）。
 
 ## 11. 设计师 11 月 19 日的改动，第一批（2026-11-20）
 
@@ -423,4 +423,20 @@
 - 分享：第一次点 “Share with class” 先说明链接是什么，点 “Make the link” 才调 `createShareLink`。已经有链接时直接显示链接。
 - 邮箱登录：邀请码一栏从第一步就在表单上（以前用这个邮箱登录过的人留空）。`POST /session` 的请求体不变。服务器对新邮箱回 403 时，这一栏被标出来，服务器那句话显示成说明而不是红字，并说明刚才的登录码仍然有效（后端本来就不会作废它）。
 - 简体字表补了 15 个字和“电邮”几个词。`tests/zh-hans.js` 改用 OpenCC 判断繁体字，不再拿字表检查字表自己，所以以后漏字会直接报出来。
+
+## 12. 设计师 11 月 19 日的改动，第二批（2026-11-20）
+
+### 后端
+
+- **失败的课不算本月课堂数。** 课堂变成 `failed` 时，这堂课的额度记录被删掉；`retry` 或对它再调 `finishLecture` 时又算上。笔记写好以后再删的课仍然算，和以前一样。
+- **闪卡和测验的数量随录音长短变化。** 提示词里写明上限：大约每 6 分钟一张闪卡、每 10 分钟一道题，最少 2 张和 1 题，最多 15 张和 10 题（90 分钟的课是 15 张、9 题；1 分钟的录音是 2 张、1 题），内容少时可以更少或没有。不许考课堂怎么上（点名、休息、课件放在哪）、老师的习惯和口头禅。模型多给的部分在 `buildDetail` 里截掉（`server/src/notes/prompt.ts` 的 `studyCounts`）。
+- **`detail.summary`：** 模型写的 3 到 5 句摘要（短录音 1 到 2 句），可以没有。字段本来就在 INTEGRATION.md 3.2 里，现在后端真的会给。
+- **模型起的标题：** 模型同时写一个标题（最多 8 个词，英文，不带日期和课程编号）。`createLecture` 带 `autoTitle: true` 时后端记下来（`lectures.auto_title`），笔记写好时把标题换成模型的；这之前学生改过名字（`PATCH /lectures/:id` 带 `title`），就不换。
+
+### 前端（请求不变）
+
+- 笔记最上面是 “In short”（`detail.summary`），打印时也保留；Markdown 导出也带上。
+- 设置页的套餐卡片跟着界面语言显示：后端写的名字、价格和句子都是固定的几种（`server/src/billing.ts` 的 `plans()`），翻译在 `src/i18n/zh.ts` 里，句子带数字和日期的用规则翻译。认不出的句子原样显示。后端以后加了新句子，要在那里补翻译。
+- 补传课件：只有上传时有窗口（可以取消）；把笔记放到课件下的过程在后台检查，笔记照常可读，课堂页顶部有提示，完成后提示 “Your notes are now under the slides.”（在别的页面时可以点过去）。见第 3 节。
+- 复习包：点 “Make review pack” 后不再锁屏，页面显示正在制作，在后台每 `POLL_MS` 查一次（最多 300 次），学生可以离开；做好时在别的页面弹一条可以点过去的提示。刷新页面后，`GET` 回 `processing` 就接着查。`GET` 回 502 时显示这句话，页面回到 “Make review pack”。
 

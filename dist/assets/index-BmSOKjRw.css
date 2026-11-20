@@ -479,7 +479,9 @@ a.toast{text-decoration:underline;text-underline-offset:3px}
 .sec-t::before{content:"";flex:none;width:0;height:0;border-left:7px solid var(--ink);border-top:5px solid transparent;border-bottom:5px solid transparent;transform:rotate(90deg);transition:transform .12s}
 .nsec.closed .sec-t::before{transform:none}
 .nsec .cnt{font-weight:500;margin-left:auto}
-@media print{.sum{display:none!important}}
+.brief ul{padding-left:20px;margin:0}
+.brief li{margin:4px 0}
+@media print{.sum:not(.brief){display:none!important}}
 .live-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
 .live-meta input{flex:1;min-width:200px;font:inherit;font-size:16px;font-weight:600;padding:9px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--ink)}
 .live-meta input::placeholder{font-size:13px;font-weight:500}

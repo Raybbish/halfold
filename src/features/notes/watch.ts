@@ -7,8 +7,8 @@
    At the end the lecture's status is updated and its cached notes are dropped. The lecture page, if it is open, updates by
    itself; any other page gets a notice that links to the lecture (red when the notes failed). After the 600th try the
    lecture page offers "Check again" instead.
-   Adding slides to a lecture that has notes polls on its own (pages/lecture/actions.tsx) and holds this module off that
-   lecture meanwhile (holdWatch), so one lecture is never polled twice. */
+   Slides added to a lecture that has notes are checked by watchSlides below, which holds the loop above off that lecture
+   meanwhile (holdWatch), so one lecture is never polled twice. */
 import { CONFIG } from "../../config";
 import { api } from "../../api/api";
 import type { HttpError } from "../../api/http";
@@ -31,9 +31,40 @@ export function watch(id: string) { if (watching.has(id) || held.has(id)) return
    picked up again. */
 export function resumeWatch(id: string) { if (!seen.has(id)) watch(id); }
 /* Signing out stops every loop. */
-export function unwatchAll() { watching.clear(); seen.clear(); }
+export function unwatchAll() { watching.clear(); seen.clear(); filing.clear(); held.clear(); }
 /* Adding slides later: on stops any loop for the lecture and keeps new ones from starting until it is called with off. */
 export function holdWatch(id: string, on: boolean) { if (on) { held.add(id); watching.delete(id); } else held.delete(id); }
+
+/* ---------- slides added to a lecture that has notes ----------
+   The server files the existing points under the slides: the lecture is "processing", then "ready" again, with slides or,
+   when that failed, with the notes as they were (API-CHANGES.md section 3). That takes a minute or two, so it is checked
+   here in the background: the notes stay on screen, the lecture page shows a notice (isFiling), and at the end the
+   lecture is read again and a notice says how it went (with a link when another page is open). Same waits as above, at
+   most 200 tries; a lecture still processing after that is left to the loop above on its next visit. */
+const filing = new Set<string>();
+export const isFiling = (id: string) => filing.has(id);
+export function watchSlides(id: string) { if (filing.has(id)) return; filing.add(id); holdWatch(id, true); runSlides(id); }
+
+async function runSlides(id: string) {
+  const mine = () => filing.has(id), done = () => { filing.delete(id); held.delete(id); };
+  let status: LectureStatus = "processing", gap = CONFIG.POLL_MS;
+  for (let i = 0; i < 200 && status === "processing"; i++) {
+    await wait(i ? gap : 1000); if (!mine()) return;
+    try { const r = await api.getStatus(id); status = (r && r.status) || status; gap = CONFIG.POLL_MS; }
+    catch (e) { const s = (e as HttpError).status; if (s === 404 || s === 401) { done(); return; } gap = Math.min(gap * 2, CONFIG.POLL_MS * 20); }
+    if (!mine()) return;
+  }
+  const here = () => R.a === "lecture" && R.b === id, href = "#/lecture/" + encodeURIComponent(id);
+  if (status === "processing") { done(); if (here()) bump(); toast("Still working. The notes will be under the slides when ready."); return; }
+  let filed = false;
+  try { const r = await api.getLecture(id); S.detail[id] = r.detail; const i = S.lectures.findIndex(x => x.id === id); if (i >= 0) S.lectures[i] = r.lecture; filed = !!(r.detail && r.detail.slides.length); }
+  catch (e) { const l = lecture(id); if (l) l.status = status; }
+  done(); S.homeLoaded = false; seen.add(id);
+  const link = here() ? {} : { href };
+  if (filed) toast("Your notes are now under the slides.", link);
+  else toast("The slides could not be matched to the notes. The notes are as they were.", { error: true, ...link });
+  if (here()) bump(); else if (R.a === "home" || R.a === "course") refresh();
+}
 
 async function run(id: string, me: object) {
   const mine = () => watching.get(id) === me; let status: LectureStatus = "processing", gap = CONFIG.POLL_MS;

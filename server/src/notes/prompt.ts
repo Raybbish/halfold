@@ -2,6 +2,14 @@
    detail.transcript comes from the speech-to-text words, not from the model. */
 import type { NotesInput } from "./types";
 
+/* How many flashcards and quiz questions a recording this long is worth, at most: about one card for every 6 minutes and
+   one question for every 10; at least 2 and 1, at most 15 and 10. A 1-minute recording got 8 cards and 5 questions in the
+   test of 2026-11-18, about the class itself. buildDetail (normalize.ts) keeps no more than this. */
+export function studyCounts(seconds: number) {
+  const min = Math.max(0, seconds) / 60, clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+  return { cards: clamp(Math.round(min / 6), 2, 15), quiz: clamp(Math.round(min / 10), 1, 10) };
+}
+
 const clock = (s: number) => { const m = Math.floor(s / 60), r = Math.floor(s % 60); return `${m}:${String(r).padStart(2, "0")}`; };
 
 const LANGUAGE: Record<NotesInput["language"], string> = {
@@ -13,17 +21,19 @@ const LANGUAGE: Record<NotesInput["language"], string> = {
 
 export function systemPrompt(input: NotesInput) {
   const zh = input.zh === "hans" ? "Simplified Chinese (as used in mainland China)" : "Traditional Chinese (as used in Hong Kong)";
-  const withSlides = input.slides.length > 0;
+  const withSlides = input.slides.length > 0, n = studyCounts(input.duration);
   return `You write lecture notes for Halfold, an app for university students. The student recorded a lecture; you get its transcript${withSlides ? " and the text of the lecture slides" : ""}. Reply with one JSON object and nothing else.
 
 What the student needs:
+- "title": what the lecture is about, in English, at most 8 words (such as "Opportunity cost and the production frontier"). No date, no course code.
+- "summary": the 3 to 5 most important things the lecture taught, one short sentence each, in the order taught (1 or 2 for a short recording). The student reads them before the notes.
 - Notes grouped by topic, in the order the lecture covered them. Each section is one topic, with the second it starts and ends in the recording.
 - Points: short, clear sentences in English a student would write down, each with the second ("t") the lecturer said it. Keep the lecturer's examples, numbers, definitions and warnings. Leave out greetings, filler and repetition.${withSlides ? `
 - For each point, "slide" is the number of the slide it belongs to (null if none fits), and "off" is true when the lecturer said it but it is NOT on the slides: an extra example, an explanation, a hint about the exam, a correction. This is what the student most needs, so judge it carefully against the slide text.` : `
 - There are no slides: set "slide" to null and "off" to false on every point.`}${input.zh ? `
 - "zh" on each point: one short explanation of the point in ${zh}, written for a student whose first language is Chinese. Use standard written Chinese (書面語), not spoken Cantonese, even when the lecturer spoke Cantonese. Explain the idea; do not just translate word for word. Keep key English terms in brackets where they help.` : ""}
 - Alerts: everything said about exams, quizzes, assignments and deadlines. "kind" is exactly one of "Midterm", "Deadline", "Exam hint", "Quiz", "Final". "date" is the day it happens as YYYY-MM-DD when the lecturer gave or implied one (work out "next Tuesday" from the lecture date), otherwise null.
-- 8 to 15 flashcards on the key ideas, and 5 to 10 multiple-choice questions with 4 options each. "a" is the index (0 to 3) of the right option, "why" explains it in one sentence, "t" is the second it was taught. The options are shown in a mixed order, so no option may refer to another ("all of the above", "both A and B").${withSlides ? `
+- Up to ${n.cards} flashcards and up to ${n.quiz} multiple-choice question${n.quiz === 1 ? "" : "s"} with 4 options each, on the ideas worth remembering; fewer, or none, when the recording teaches less. Never ask about how the class is run (attendance, breaks, where the slides are posted), the lecturer's habits or filler words. "a" is the index (0 to 3) of the right option, "why" explains it in one sentence, "t" is the second it was taught. The options are shown in a mixed order, so no option may refer to another ("all of the above", "both A and B").${withSlides ? `
 - "slides": one entry per slide page you were given, with a short title (at most 8 words).` : `
 - "slides": an empty array.`}
 
@@ -35,6 +45,8 @@ Rules:
 
 The JSON object has exactly these fields:
 {
+  "title": "...",
+  "summary": ["...", "..."],
   "sections": [{ "title": "Opportunity cost", "start": 200, "end": 640, "points": [{ "t": 252, "text": "...", ${input.zh ? `"zh": "...", ` : ""}"slide": ${withSlides ? 3 : "null"}, "off": ${withSlides ? "true" : "false"} }] }],
   "slides": [${withSlides ? `{ "n": 3, "title": "Opportunity cost" }` : ""}],
   "alerts": [{ "t": 18, "kind": "Midterm", "text": "Midterm is in week 12 and covers chapters 1 to 5.", "date": "2026-11-26" }],

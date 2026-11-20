@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { ErrorReplySchema, HomeSchema, PlansSchema, UrlReplySchema } from "../src/shapes";
 import { addDays, sweepAudio } from "../src/audio";
 import { localDate, monthOf, shortDate } from "../src/time";
-import { readyLecture, setup, type TestServer } from "./helpers";
+import { readyLecture, setup, uploadedLecture, type TestServer } from "./helpers";
 
 const isError = (r: { body: unknown }) => ErrorReplySchema.parse(r.body);
 const ORIGIN = "https://app.example.com";
@@ -226,6 +226,24 @@ test("a paid period that passed without a webhook: GET /home asks Stripe; when S
   await choose(s, token, "plus-semester").catch(() => null);
   assert.equal((await s.call("GET", "/plans", { token })).status, 200);
   assert.equal((await s.call("GET", "/home", { token })).status, 200);
+});
+
+test("a lecture that fails is not one of the month's lectures; a retry counts it again, and so does a later delete", async t => {
+  const s = setup({ realPlans: true }); t.after(() => s.close());
+  const token = await s.signIn();
+  const used = async () => (await home(s, token)).usage!.lecturesThisMonth;
+  const id = await uploadedLecture(s, token);
+  s.stt.error = new Error("elevenlabs replied 500: busy");
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 600 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "failed");
+  assert.equal(await used(), 0, "the failed lecture does not count");
+  s.stt.error = null;
+  assert.equal((await s.call("POST", `/lectures/${id}/retry`, { token })).status, 200);
+  assert.equal(await used(), 1, "tried again: it counts while it is made");
+  await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  await s.call("DELETE", `/lectures/${id}`, { token });
+  assert.equal(await used(), 1, "notes were written: deleting it does not give it back");
 });
 
 test("the free plan's limits: lectures a month (copies of shared notes are free), review packs a month, live minutes a day; Plus lifts them", async t => {

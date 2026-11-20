@@ -156,3 +156,29 @@ test("slides that cannot be read are left out: the notes are written without the
   assert.deepEqual(s.notes.calls[0].input.slides, []);
   assert.deepEqual(s.store.detail(id)!.slides, []);
 });
+
+test("the model's summary and title: the summary goes above the notes; the title replaces only a dated title nobody changed", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn();
+  const reply = () => JSON.stringify({ ...goodNotes(), title: "  Opportunity cost\nand choices ", summary: ["Cost is what you give up.", "", "The midterm is on 26 November.", "a", "b", "c", "d"] });
+  const auto = await uploadedLecture(s, token, { title: "Lecture, Fri 20 Nov, 14:05", autoTitle: true });
+  const renamed = await uploadedLecture(s, token, { title: "Lecture, Fri 20 Nov, 16:00", autoTitle: true });
+  const typed = await uploadedLecture(s, token, { title: "Week 9", autoTitle: false });
+  await s.call("PATCH", `/lectures/${renamed}`, { token, json: { title: "My own name" } });
+  s.notes.replies = [reply(), reply(), reply()];
+  for (const id of [auto, renamed, typed]) await finish(s, token, id);
+  await s.pipeline.idle();
+  const got = async (id: string) => (await s.call("GET", `/lectures/${id}`, { token })).body;
+  const a = await got(auto);
+  assert.equal(a.lecture.title, "Opportunity cost and choices", "the dated title becomes the model's, on one line");
+  assert.deepEqual(a.detail.summary, ["Cost is what you give up.", "The midterm is on 26 November.", "a", "b", "c"], "empty sentences dropped, at most 5");
+  DetailSchema.parse(a.detail);
+  assert.equal((await got(renamed)).lecture.title, "My own name", "renamed before the notes: the student's name stays");
+  assert.equal((await got(typed)).lecture.title, "Week 9", "a typed title stays");
+  /* Without a summary or a title in the reply (goodNotes), nothing changes and detail has no summary. */
+  const plain = await uploadedLecture(s, token, { title: "Lecture, Sat 21 Nov, 09:00", autoTitle: true });
+  await finish(s, token, plain); await s.pipeline.idle();
+  const p = await got(plain);
+  assert.equal(p.lecture.title, "Lecture, Sat 21 Nov, 09:00"); assert.equal(p.detail.summary, undefined);
+});
+

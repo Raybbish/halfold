@@ -10,7 +10,7 @@ import { t } from "../i18n";
 import { live } from "../features/recording/recorder";
 import { recoverOrphan } from "../features/recording/orphan";
 import { retryNotes } from "../features/recording/finish";
-import { isWatching } from "../features/notes/watch";
+import { isFiling, isWatching } from "../features/notes/watch";
 import { cancelUpload, ownReason, reupload, runUpload, up, upPct } from "../features/upload/upload";
 import { hasAudio, pl, plLoad, plStop } from "../features/player/player";
 import { Player } from "../features/player/PlayerBar";
@@ -93,7 +93,8 @@ export function LectureBody() {
   return <>
     <div className="page-h" style={css("margin-bottom:10px")}><div><h1 data-notr="">{l.title}</h1><p className="muted num" style={css("margin-top:6px")}>{t(meta(l, c))}{shared ? null : <> <button className="ts" style={css("margin-left:8px")} onClick={detailsModal}>{t("Rename")}</button></>}</p></div>
       {shared ? null : <div style={css("display:flex;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={moreMenu}>{t("More")}</button><button className="btn primary" onClick={share}>{t("Share with class")}</button></div>}</div>
-    {keep}<Timeline d={d} dur={l.duration} pos={state.pos} />
+    {keep}{!shared && isFiling(l.id) ? <div className="alert noprint" role="status"><span className="tag grey">{t("Slides")}</span><span>{t("Hal is putting your notes under the slides. This takes a minute or two, and you can keep reading.")}</span></div> : null}
+    <Timeline d={d} dur={l.duration} pos={state.pos} />
     <div id="tabtop"></div>
     <div className="tabs" role="tablist">{tabs.map(([k, n]) => <button key={k} role="tab" aria-selected={state.tab === k} className={state.tab === k ? "on" : ""} onClick={() => setTab(k)}>{t(n)}</button>)}</div>
     <Body d={d} />{audio && ((state.tab !== "cards" && state.tab !== "quiz") || (pl.a && !pl.a.paused)) ? <Player /> : null}

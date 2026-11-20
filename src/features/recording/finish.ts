@@ -1,13 +1,10 @@
 /* ---------- ending a recording, and starting the notes ---------- */
-import { CONFIG } from "../../config";
 import { api } from "../../api/api";
-import { wait } from "../../lib/helpers";
 import { idb } from "../../lib/idb";
 import { bump } from "../../lib/bus";
 import { R, S, cur, lecture } from "../../state/app";
 import { act, busy, closeModal, modal, toast } from "../../state/overlay";
 import { route } from "../../state/router";
-import type { LectureStatus } from "../../types";
 import { live, saveLiveMeta, stopRecording } from "./recorder";
 import { outbox, dropped, flush } from "./outbox";
 import { unmark } from "./orphan";
@@ -21,10 +18,6 @@ export function finishAfterUpload(id: string, dur: number, stopped?: Promise<unk
   if (!(await flush())) { modal({ kind: "waiting", id, dur }, true); return; }
   await finalize(id, dur); }); }
 export function doDiscard() { const id = live.id!; dropped.add(id); stopRecording(); outbox.forEach(c => { if (c.id === id && c.key) idb.del(c.key); }); unmark(); live.active = false; live.id = null; flush(); api.deleteLecture(id).catch(() => {}); closeModal(); toast("Recording discarded"); location.hash = "#/home"; }
-/* Only adding slides later still waits in a dialog for the backend (pages/lecture/actions.tsx). Notes are checked in the background (features/notes/watch.ts). */
-export async function pollNotes(id: string) { let st: { status: LectureStatus } = { status: "processing" };
-  for (let i = 0; i < 100 && st.status === "processing"; i++) { st = await api.getStatus(id); if (st.status === "processing") await wait(CONFIG.POLL_MS); }
-  return st.status; }
 /* The notes are being written: the lecture shows the writing card and is checked in the background. */
 function writing(id: string) {
   if (live.id === id) live.id = null; if (S.orphan && S.orphan.id === id) S.orphan = null;

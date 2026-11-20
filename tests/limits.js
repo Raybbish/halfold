@@ -1,7 +1,8 @@
 // A limit of the plan (test of halfold.app, 2026-11-18): a new lecture or review pack over the month's limit (the server
 // answers 429) opens a window that explains it and offers the plans, instead of a notice that is gone in a few seconds;
 // New lecture and Settings show this month's lectures when /home gives them (usage.lecturesThisMonth / lecturesLimit);
-// the server's sentence and the count in Chinese. Real-backend mode (fake API by request interception), built app only.
+// the server's sentence and the count in Chinese; the plan cards in the reader's language (batch 2: our server writes them
+// in fixed sentences, server/src/billing.ts plans()). Real-backend mode (fake API by request interception), built app only.
 const { chromium, ORIGIN, serve, setConfig } = require('./harness');
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail)}`); };
@@ -9,6 +10,11 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
 const LECTURES = 'You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until 1 Dec.';
 const PACKS = 'You have made the 1 review pack that Free includes this month. Choose Plus in Settings for more review packs, or wait until 1 Dec.';
 const USAGE = { minutesToday: 10, minutesLimit: 90, lecturesThisMonth: 4, lecturesLimit: 4 };
+/* GET /plans as server/src/billing.ts writes it for a student on Plus (billing.test.ts), and one sentence it never writes. */
+const PLANS = { current: 'plus', plans: [
+  { id: 'free', name: 'Free', priceText: 'Free', features: ['90 minutes of live recording a day', '4 lectures a month', '1 review pack a month', 'Recordings kept for 30 days'] },
+  { id: 'plus', name: 'Plus', priceText: 'HK$98 / month', features: ['Renews on 1 Dec 2026', '240 minutes of live recording a day', '40 lectures a month', 'Unlimited review packs', 'Recordings kept for good', 'Pay by card, Apple Pay or Google Pay. Renews every month; cancel any time.'] },
+  { id: 'plus-semester', name: 'Plus for a semester', priceText: 'HK$348 for 120 days', features: ['Pay once by card, Alipay or WeChat Pay. Does not renew.', 'A sentence nobody translated.'] }] };
 
 (async () => {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
@@ -24,7 +30,7 @@ const USAGE = { minutesToday: 10, minutesLimit: 90, lecturesThisMonth: 4, lectur
       const p = u.pathname.slice(4), m = req.method();
       if (p === '/session') return j({ token: 't', user: { name: 'Jasper' } });
       if (p === '/home') return j({ user: { name: 'Jasper' }, courses: [{ id: 'c1', code: 'ECON 1001', name: 'Micro' }], lectures: [], upcoming: [], settings: { classLanguage: 'en', zhDefault: false }, usage: o.usage === undefined ? USAGE : o.usage });
-      if (p === '/plans') return j({ plans: [], current: 'free' });
+      if (p === '/plans') return j(o.plans || { plans: [], current: 'free' });
       if (m === 'POST' && p === '/lectures') { be.posts.push(JSON.parse(req.postData())); return j({ message: LECTURES }, 429); }
       if (m === 'GET' && p === '/courses/c1/review-pack') return j({ status: 'none' });
       if (m === 'POST' && p === '/courses/c1/review-pack') return j({ message: PACKS }, 429);
@@ -84,6 +90,23 @@ const USAGE = { minutesToday: 10, minutesLimit: 90, lecturesThisMonth: 4, lectur
     const p = await win(page);
     check('in Simplified: the review pack sentence', p.includes('已达到套餐上限') && p.includes('本月 Free 套餐包含的 1 个复习包已经用完。可以到“设置”选择 Plus，或等到 12月1日。'), p);
   });
+
+  const cards = page => page.locator('.plan').evaluateAll(xs => xs.map(x => x.innerText.replace(/\s+/g, ' ').trim()));
+  await open(async page => {
+    await page.goto(ORIGIN + '/#/settings'); await page.waitForSelector('.plan');
+    const en = await cards(page);
+    await page.evaluate(() => window.__sidenote.setLang('zh-Hant')); await page.waitForTimeout(200);
+    const hant = await cards(page);
+    await page.evaluate(() => window.__sidenote.setLang('zh-Hans')); await page.waitForTimeout(200);
+    const hans = await cards(page);
+    check('plan cards in English are as the server wrote them', en[0].includes('90 minutes of live recording a day') && en[1].includes('HK$98 / month') && en[2].includes('Plus for a semester'), en);
+    check('plan cards in Traditional: names, prices, every sentence and the renewal date; a sentence the app does not know stays as sent',
+      ['免費', '每天 90 分鐘現場錄音', '每月 4 堂課', '每月 1 個溫習包', '錄音保留 30 天'].every(x => hant[0].includes(x))
+      && ['HK$98／月', '2026年12月1日 自動續費', '每天 240 分鐘現場錄音', '溫習包數量不限', '錄音一直保留', '每月自動續費，隨時可以取消。'].every(x => hant[1].includes(x))
+      && ['Plus 學期版', 'HK$348，可用 120 天', '支付寶或微信支付', 'A sentence nobody translated.'].every(x => hant[2].includes(x)), hant);
+    check('plan cards in Simplified', ['免费', '每天 90 分钟现场录音', '每月 1 个复习包'].every(x => hans[0].includes(x)) && ['HK$98／月', '复习包数量不限', '银行卡'].every(x => hans[1].includes(x))
+      && ['Plus 学期版', '支付宝'].every(x => hans[2].includes(x)), hans);
+  }, { plans: PLANS });
 
   check('no page errors', errs.length === 0, errs);
   await browser.close();

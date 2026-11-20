@@ -144,6 +144,10 @@ export const ZH: Record<string, string> = {
   "Notes are ready": "筆記準備好了", "Still working. The notes will appear in the lecture when ready.": "仍在處理中。完成後筆記會出現在課堂裡。",
   /* settings */
   "Name": "名字", "Language usually spoken in class": "課堂通常使用的語言", "Show 中文解釋 under each point by default": "預設在每個重點下顯示中文解釋", "Interface language": "介面語言", "Save settings": "儲存設定", "Settings saved": "已儲存設定",
+  /* The plan cards (server/src/billing.ts plans()): names from plans.json and the fixed sentences; the ones with numbers are rules (ZHR). */
+  "Free": "免費", "Plus for a semester": "Plus 學期版", "Unlimited lectures": "課堂數量不限", "Unlimited review packs": "溫習包數量不限", "Recordings kept for good": "錄音一直保留",
+  "Pay by card, Apple Pay or Google Pay. Renews every month; cancel any time.": "可用信用卡、Apple Pay 或 Google Pay 付款。每月自動續費，隨時可以取消。",
+  "Pay once by card, Alipay or WeChat Pay. Does not renew.": "一次付清，可用信用卡、支付寶或微信支付，不會自動續費。",
   "Plan and usage": "方案與用量", "Plans and prices are not decided yet. This space is reserved for them.": "方案和價錢尚未決定，這個位置預留給它們。", "Your plan": "你的方案", "Choose this plan": "選擇這個方案", "Checkout is not connected yet.": "付款功能尚未接通。",
   "Sign out": "登出", "This device will no longer remember you.": "這部裝置將不再記住你。",
   /* errors */
@@ -194,7 +198,12 @@ export const ZH: Record<string, string> = {
   "The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.": "這堂課的錄音已不再保留。筆記、逐字稿、閃卡和測驗仍然在這裡。", "See plans": "查看方案",
   /* 中文解釋 in Traditional or Simplified */
   /* lecture page: topics, one dialog for title and course, share to an app */
-  "Topics": "主題", "Collapse all topics": "收起全部主題", "Expand all topics": "展開全部主題", "Edit title and course": "編輯標題和課程", "Save changes": "儲存變更", "Changes saved": "已儲存變更", "Send to an app": "傳送到應用程式",
+  "In short": "重點摘要",
+  "Hal is putting your notes under the slides. This takes a minute or two, and you can keep reading.": "Hal 正在把筆記放到簡報下，需要一兩分鐘，你可以繼續閱讀。",
+  "Slides added. Hal is putting your notes under them.": "已加入簡報，Hal 正在把筆記放到每一頁下。", "Your notes are now under the slides.": "筆記已經放到簡報下。",
+  "The slides could not be matched to the notes. The notes are as they were.": "未能把簡報和筆記對上，筆記維持原狀。",
+  "Building the review pack": "正在整理溫習包", "Your review pack is ready.": "溫習包整理好了。",
+  "You do not have to wait here. This page updates by itself, and Halfold tells you when the pack is ready.": "不用在這裡等。這個頁面會自動更新，溫習包整理好時 Halfold 會通知你。", "Topics": "主題", "Collapse all topics": "收起全部主題", "Expand all topics": "展開全部主題", "Edit title and course": "編輯標題和課程", "Save changes": "儲存變更", "Changes saved": "已儲存變更", "Send to an app": "傳送到應用程式",
   "Show 中文解釋 in": "中文解釋顯示為", "中文解釋": "中文解釋", "Chinese characters": "中文字體",
   // Help, Privacy and the landing footer (Halfold batch 1, task 11). Most of the help text is the designer's own Chinese; the rest is written for what this app does.
   "Help": "說明",
@@ -286,6 +295,15 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^(\d+) min$/, m => m[1] + " 分鐘"],
   [/^(\d+) of (\d+) recording minutes used today$/, m => "今天已用 " + m[1] + "／" + m[2] + " 分鐘錄音時間"],
   [/^(\d+) of (\d+) lectures used this month$/, m => "本月已用 " + m[1] + "／" + m[2] + " 堂課"],
+  /* The plan cards (server/src/billing.ts plans() and features(); prices from plans.ts money(): "HK$98", "12.50 SGD"). */
+  [/^(\d+) minutes of live recording a day$/, m => "每天 " + m[1] + " 分鐘現場錄音"],
+  [/^(\d+) lectures? a month$/, m => "每月 " + m[1] + " 堂課"],
+  [/^(\d+) review packs? a month$/, m => "每月 " + m[1] + " 個溫習包"],
+  [/^Recordings kept for (\d+) days$/, m => "錄音保留 " + m[1] + " 天"],
+  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) \/ month$/, m => m[1] + "／月"],
+  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) for (\d+) days$/, m => m[1] + "，可用 " + m[2] + " 天"],
+  [/^(Paid until|Renews on|Ends on) (\d{1,2}) ([A-Z][a-z]{2}) (\d{4})$/, m => { const n = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[3]) / 3 + 1; if (n < 1) return null;
+    const d = m[4] + "年" + n + "月" + m[2] + "日"; return m[1] === "Paid until" ? "已付費至 " + d : m[1] === "Renews on" ? d + " 自動續費" : d + " 結束"; }],
   /* The server's plan limits (server/src/billing.ts checkLecture, checkPack); the date it gives ("1 Dec") becomes 12月1日. */
   [/^You have (?:used|made) the (\d+) (lectures?|review packs?) that (.+?) includes this month\. (?:Choose (.+?) in Settings for more (?:lectures|review packs), or wait until (.+)|More are available from (.+))\.$/, m => {
     const day = (s: string) => { const d = /^(\d{1,2}) ([A-Z][a-z]{2})$/.exec(s), n = d ? "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(d[2]) / 3 + 1 : 0; return n >= 1 ? n + "月" + d![1] + "日" : s; };

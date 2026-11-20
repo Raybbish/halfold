@@ -1,8 +1,9 @@
 // Adding slides to a lecture after its notes were made (added after the migration).
-// Sample mode: a lecture made without slides, the two ways in (More menu, the line under the notes), the upload and the
-// wait, the student's own note kept, Cancel keeping the lecture, a file that is not a PDF, lectures that already have
-// slides, Chinese. Real-backend mode (fake API by request interception): what is sent and polled, adding that fails,
-// a server error, still processing when the wait runs out.
+// Sample mode: a lecture made without slides, the two ways in (More menu, the line under the notes), the upload, then the
+// filing in the background (batch 2: no locked dialog, the notes stay readable with a notice), the student's own note
+// kept, Cancel keeping the lecture, a file that is not a PDF, lectures that already have slides, Chinese. Real-backend
+// mode (fake API by request interception): what is sent and polled, the notes readable meanwhile, a notice with a link
+// on another page, a reload picking it up, adding that fails, a server error, still processing when the wait runs out.
 const { chromium, ORIGIN, serve, setConfig } = require('./harness');
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok || detail === undefined ? '' : '  -> ' + JSON.stringify(detail)}`); };
@@ -22,6 +23,9 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
   };
   const clearToasts = page => page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
   const toast = async (page, timeout = 15000) => { await page.waitForSelector('.toast', { timeout }); return page.locator('.toast').last().innerText(); };
+  /* The notice that ends the filing (the first one, "Slides added. Hal is putting...", comes right after the upload). */
+  const END = /^(Your notes are now under the slides\.|The slides could not be matched|Still working|筆記已經放到簡報下)/;
+  const endToast = async (page, timeout = 15000) => { await page.waitForFunction(re => [...document.querySelectorAll('.toast')].some(t => new RegExp(re).test(t.textContent)), END.source, { timeout }); return (await page.locator('.toast').allInnerTexts()).filter(x => END.test(x)).pop(); };
   const noModal = async page => (await page.locator('#overlay .modal').count()) === 0;
   const tabs = page => page.locator('.tabs button').allInnerTexts();
   const hint = page => page.locator('.main p:has(button.ts:text-is("Add slides"))').count();
@@ -61,11 +65,15 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
     // Add slides from More
     await page.evaluate(() => { window.__seen = []; new MutationObserver(() => { const h = document.querySelector('#overlay h3'); if (h && !window.__seen.includes(h.textContent)) window.__seen.push(h.textContent); }).observe(document.getElementById('overlay'), { subtree: true, childList: true, characterData: true }); });
     await viaMore(page, pdf());
-    const t2 = await toast(page);
+    await page.waitForSelector('.toast:has-text("Slides added. Hal is putting your notes under them.")');
+    const during = { modal: await noModal(page), notes: await page.locator('.nsec').count(), notice: await page.locator('.main .alert:has-text("Hal is putting your notes under the slides")').count(), hint: await hint(page) };
+    const t2 = await endToast(page);
     const seen = await page.evaluate(() => window.__seen);
-    check('adding slides shows the upload, then the wait while Hal files the notes', seen.includes('Uploading') && seen.includes('Hal is putting the notes under the slides'), seen);
+    check('adding slides shows the upload only; then the notes stay readable with a notice while Hal files them, and Add slides is gone meanwhile',
+      seen.includes('Uploading') && !seen.some(x => /Hal is putting/.test(x)) && during.modal && during.notes > 0 && during.notice === 1 && during.hint === 0, { seen, during });
     const after = { toast: t2, tabs: await tabs(page), tags: await page.locator('.nsec h3 .tag').count(), hint: await hint(page), mine: (await page.locator('.nsec').first().innerText()).includes('My own point about week 10') };
-    check('then the notes are under the slides: Slides tab, slide labels, no more Add slides', after.toast === 'Slides added' && after.tabs.includes('Slides') && after.tags > 0 && after.hint === 0 && await noModal(page), after);
+    after.notice = await page.locator('.main .alert:has-text("Hal is putting your notes")').count();
+    check('then the notes are under the slides: a notice, Slides tab, slide labels, no more Add slides', after.toast === 'Your notes are now under the slides.' && after.tabs.includes('Slides') && after.tags > 0 && after.hint === 0 && after.notice === 0 && await noModal(page), after);
     check('the note the student added is still there', after.mine);
     await page.click('.page-h button:text-is("More")');
     check('a lecture with slides has no Add slides in More', (await page.locator('#overlay button:text-is("Add slides")').count()) === 0); await page.keyboard.press('Escape');
@@ -82,8 +90,10 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
     const zhLine = await page.locator('.main p:has(button.ts)').filter({ hasText: '簡報' }).innerText();
     await page.evaluate(() => { window.__seen = []; });
     await clearToasts(page); const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('.main button.ts:text-is("加入簡報")')]); await fc.setFiles(pdf());
-    const zt = await toast(page); const zseen = await page.evaluate(() => window.__seen);
-    check('in Chinese: the line under the notes, the wait and the result', zhLine === '這堂課還沒有簡報。 加入簡報' && zseen.includes('Hal 正在把筆記放到簡報下') && zt === '已加入簡報', { zhLine, zseen, zt });
+    await page.waitForSelector('.toast:has-text("已加入簡報，Hal 正在把筆記放到每一頁下。")');
+    const znotice = await page.locator('.main .alert').filter({ hasText: 'Hal 正在把筆記放到簡報下，需要一兩分鐘，你可以繼續閱讀。' }).count();
+    const zt = await endToast(page);
+    check('in Chinese: the line under the notes, the notice while filing and the result', zhLine === '這堂課還沒有簡報。 加入簡報' && znotice === 1 && zt === '筆記已經放到簡報下。', { zhLine, znotice, zt });
     await ctx.close(); }
 
   console.log('\n=== real backend (fake API) ===');
@@ -103,23 +113,36 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
       if (be.uploadFails) return j({ message: 'That PDF is too large for your plan.' }, 413);
       be.polls = 0; return route.fulfill({ status: 204 });
     }
-    if (p === '/lectures/l1/status') { be.polls++; return j({ status: be.forever || be.polls < 3 ? 'processing' : 'ready' }); }
-    if (m === 'GET' && p === '/lectures/l1') return j({ lecture: lec, detail: detail(be.upload && !be.uploadFails && !be.filingFails) });
+    if (p === '/lectures/l1/status') { be.polls++; return j({ status: be.forever || be.polls < (be.slow || 3) ? 'processing' : 'ready' }); }
+    /* While filing, the server still sends the notes (without slides), with the lecture processing. */
+    const filing = be.upload && !be.uploadFails && be.polls < (be.slow || 3);
+    if (m === 'GET' && p === '/lectures/l1') return j({ lecture: { ...lec, status: be.forever || filing ? 'processing' : 'ready' }, detail: detail(be.upload && !be.uploadFails && !be.filingFails && !filing) });
     return j({ message: 'Not found' }, 404);
   };
   const realOpen = async be => { const r = await open({ USE_MOCK: false, POLL_MS: be.pollMs || 50 }, backend(be)); await r.page.goto(ORIGIN + '/#/lecture/l1'); await r.page.waitForSelector('.nsec'); return r; };
 
   { const be = { log: [] }; const { ctx, page } = await realOpen(be);
-    await viaMore(page, pdf(MB / 2)); const t = await toast(page);
+    await viaMore(page, pdf(MB / 2)); const t = await endToast(page);
     const u = be.upload || {};
     check('sends the PDF as multipart "file" to POST /lectures/:id/slides with the token', u.hasFile && u.name === 'week10-slides.pdf' && u.auth === 'Bearer tok' && /^multipart\/form-data; boundary=/.test(u.type), u);
     const after = be.log.slice(be.log.indexOf('POST /lectures/l1/slides'));
-    check('then polls the status until ready, reads the lecture again and shows the Slides tab', after.filter(x => x === 'GET /lectures/l1/status').length === 3 && after[after.length - 1] === 'GET /lectures/l1' && t === 'Slides added' && (await tabs(page)).includes('Slides'), { after, t });
+    check('then polls the status until ready, reads the lecture again and shows the Slides tab', after.filter(x => x === 'GET /lectures/l1/status').length === 3 && after[after.length - 1] === 'GET /lectures/l1' && t === 'Your notes are now under the slides.' && (await tabs(page)).includes('Slides'), { after, t });
+    await ctx.close(); }
+
+  /* Going elsewhere while the notes are filed: a notice there links back. A reload while filing picks the check up again. */
+  { const be = { log: [], slow: 25, pollMs: 100 }; const { ctx, page } = await realOpen(be);
+    await viaMore(page, pdf(MB / 2)); await page.waitForSelector('.main .alert:has-text("Hal is putting your notes")');
+    await page.reload(); await page.waitForSelector('.nsec');
+    const reloaded = { notes: await page.locator('.nsec').count(), notice: await page.locator('.main .alert:has-text("Hal is putting your notes")').count() };
+    check('a reload while the notes are filed shows the notes with the notice and keeps checking', reloaded.notes === 1 && reloaded.notice === 1, reloaded);
+    await page.goto(ORIGIN + '/#/home'); await page.waitForSelector('.shell');
+    const t = await endToast(page, 20000), href = await page.locator('a.toast').filter({ hasText: 'Your notes are now under the slides.' }).getAttribute('href').catch(() => null);
+    check('on another page the end of the filing is a notice that links to the lecture', t.startsWith('Your notes are now under the slides.') && href === '#/lecture/l1', { t, href });
     await ctx.close(); }
 
   { const be = { log: [], filingFails: true }; const { ctx, page } = await realOpen(be);
-    await viaMore(page, pdf(MB / 2)); const t = await toast(page);
-    check('if the lecture still has no slides afterwards, says so and keeps the notes', t === 'The slides could not be added. The notes are as they were.' && !(await tabs(page)).includes('Slides') && (await page.locator('.nsec').count()) === 1 && await noModal(page), t);
+    await viaMore(page, pdf(MB / 2)); const t = await endToast(page);
+    check('if the lecture still has no slides afterwards, says so and keeps the notes', t === 'The slides could not be matched to the notes. The notes are as they were.' && !(await tabs(page)).includes('Slides') && (await page.locator('.nsec').count()) === 1 && await noModal(page), t);
     await ctx.close(); }
 
   { const be = { log: [], uploadFails: true }; const { ctx, page } = await realOpen(be);
@@ -128,7 +151,7 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
     await ctx.close(); }
 
   { const be = { log: [], forever: true, pollMs: 5 }; const { ctx, page } = await realOpen(be);
-    await viaMore(page, pdf(MB / 2)); const t = await toast(page, 30000);
+    await viaMore(page, pdf(MB / 2)); const t = await endToast(page, 30000);
     check('still processing when the wait runs out: says it is still working', t === 'Still working. The notes will be under the slides when ready.' && await noModal(page), t);
     await ctx.close(); }
 

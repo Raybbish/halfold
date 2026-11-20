@@ -55,6 +55,7 @@ export interface Line { t: number; text: string }
 export interface Flashcard { q: string; a: string }
 export interface QuizQuestion { q: string; opts: string[]; a: number; why?: string; t?: number | null }
 export interface Detail {
+  summary?: string[];   // the lecture in 3 to 5 sentences, shown above the notes
   audio?: Audio | null;
   progress?: { known: number[] };
   alerts: Alert[];

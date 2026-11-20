@@ -40,6 +40,9 @@ export interface LectureRow {
   /* Video links. link: what the student pasted (source "link"). public_error: why the lecture failed, in a sentence for
      the student, when that is known (a download that failed); error keeps the details for the log. */
   link: string | null; public_error: string | null;
+  /* auto_title: 1 while the title is the dated one the front end filled in (createLecture autoTitle) and nobody renamed
+     the lecture; the notes then give it the title the model wrote (saveNotes). */
+  auto_title: number;
 }
 export interface UpcomingRow { lecture_id: string; date: string; kind: string; text: string; t: number; course_code: string }
 export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
@@ -129,7 +132,7 @@ const ADDED: [string, string, string][] = [
   ["lectures", "live_limit", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "chunk_bytes", "INTEGER NOT NULL DEFAULT 0"],
   ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"], ["lectures", "live_gaps", "TEXT"],
   ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
-  ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"],
+  ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"], ["lectures", "auto_title", "INTEGER NOT NULL DEFAULT 0"],
   ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"]
 ];
 
@@ -316,9 +319,9 @@ export class Store {
   }
 
   /* ---- lectures ---- */
-  createLecture(l: Pick<LectureRow, "id" | "user_id" | "course_id" | "title" | "language" | "source">): LectureRow {
-    this.db.prepare("INSERT INTO lectures (id, user_id, course_id, title, language, source, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'recording', ?)")
-      .run(l.id, l.user_id, l.course_id, l.title, l.language, l.source, now());
+  createLecture(l: Pick<LectureRow, "id" | "user_id" | "course_id" | "title" | "language" | "source"> & { auto_title?: boolean }): LectureRow {
+    this.db.prepare("INSERT INTO lectures (id, user_id, course_id, title, language, source, status, created_at, auto_title) VALUES (?, ?, ?, ?, ?, ?, 'recording', ?, ?)")
+      .run(l.id, l.user_id, l.course_id, l.title, l.language, l.source, now(), l.auto_title ? 1 : 0);
     return this.lecture(l.id)!;
   }
   lecture(id: string) { return this.db.prepare("SELECT * FROM lectures WHERE id = ?").get(id) as LectureRow | undefined; }
@@ -333,15 +336,20 @@ export class Store {
     const marks = from.map(() => "?").join(",");
     const r = this.db.prepare(`UPDATE lectures SET status = 'processing', error = NULL, finished_at = COALESCE(finished_at, ?), client_duration = COALESCE(?, client_duration) WHERE id = ? AND status IN (${marks})`)
       .run(now(), clientDuration ?? null, id, ...from);
-    /* The lecture now counts against the month's limit for good (plans.json lecturesPerMonth), even if it is deleted later. */
+    /* The lecture now counts against the month's limit (plans.json lecturesPerMonth), even if it is deleted later; only
+       a lecture that fails stops counting (setFailed), and a retry that starts it again counts it again. */
     if (Number(r.changes) > 0) this.db.prepare("INSERT OR IGNORE INTO quota (kind, ref, user_id, created_at) SELECT 'lecture', id, user_id, created_at FROM lectures WHERE id = ? AND copied_from IS NULL").run(id);
     return Number(r.changes) > 0;
   }
-  renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ? WHERE id = ?").run(title, id); }
+  renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ?, auto_title = 0 WHERE id = ?").run(title, id); }
   moveLecture(id: string, courseId: string) { this.db.prepare("UPDATE lectures SET course_id = ? WHERE id = ?").run(courseId, id); }
   setLink(id: string, url: string) { this.db.prepare("UPDATE lectures SET link = ? WHERE id = ?").run(url, id); }
+  /* A lecture that could not be made into notes is not one of the month's lectures: the student got nothing from it. */
   setFailed(id: string, error: string, publicError: string | null = null) {
-    this.db.prepare("UPDATE lectures SET status = 'failed', error = ?, public_error = ? WHERE id = ?").run(error.slice(0, 2000), publicError, id);
+    this.tx(() => {
+      this.db.prepare("UPDATE lectures SET status = 'failed', error = ?, public_error = ? WHERE id = ?").run(error.slice(0, 2000), publicError, id);
+      this.db.prepare("DELETE FROM quota WHERE kind = 'lecture' AND ref = ?").run(id);
+    });
   }
   deleteLecture(id: string) { this.db.prepare("DELETE FROM lectures WHERE id = ?").run(id); }
   /* Live recordings (record, tab) started since a time, for the daily limit. */
@@ -450,7 +458,8 @@ export class Store {
     return r ? JSON.parse(r.lines_json) as Line[] : null;
   }
   /* Notes, the dated alerts and status ready in one transaction. Does nothing when the lecture was deleted meanwhile. */
-  saveNotes(lectureId: string, detail: Detail, dated: { date: string; kind: string; text: string; t: number }[]) {
+  /* title: the model's title for the lecture; it replaces the title only while that is still the automatic one. */
+  saveNotes(lectureId: string, detail: Detail, dated: { date: string; kind: string; text: string; t: number }[], title: string | null = null) {
     this.db.exec("BEGIN");
     try {
       if (!this.lecture(lectureId)) { this.db.exec("ROLLBACK"); return false; }
@@ -459,6 +468,7 @@ export class Store {
       const ins = this.db.prepare("INSERT INTO upcoming (lecture_id, date, kind, text, t) VALUES (?, ?, ?, ?, ?)");
       for (const u of dated) ins.run(lectureId, u.date, u.kind, u.text, u.t);
       this.db.prepare("UPDATE lectures SET status = 'ready', error = NULL WHERE id = ?").run(lectureId);
+      if (title) this.db.prepare("UPDATE lectures SET title = ?, auto_title = 0 WHERE id = ? AND auto_title = 1").run(title.slice(0, 200), lectureId);
       this.db.exec("COMMIT"); return true;
     } catch (e) { this.db.exec("ROLLBACK"); throw e; }
   }

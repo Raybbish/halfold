@@ -49,6 +49,7 @@ const quizFields = {
 const answerIsAnOption = (q: { a: number; opts: string[] }) => q.a < q.opts.length;
 export const QuizSchema: z.ZodType<QuizQuestion> = z.strictObject(quizFields).refine(answerIsAnOption, "the answer index is not one of the options");
 export const DetailSchema: z.ZodType<Detail> = z.strictObject({
+  summary: z.array(z.string().min(1)).min(1).max(5).optional(),
   audio: AudioSchema.nullable().optional(), progress: z.strictObject({ known: z.array(z.number().int().nonnegative()) }).optional(),
   alerts: z.array(AlertSchema), sections: z.array(SectionSchema).min(1), slides: z.array(SlideSchema), transcript: z.array(LineSchema),
   flashcards: z.array(FlashcardSchema), quiz: z.array(QuizSchema)

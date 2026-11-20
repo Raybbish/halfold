@@ -3,14 +3,13 @@
 import { CONFIG } from "../../config";
 import { api } from "../../api/api";
 import { bump } from "../../lib/bus";
-import { R, S, course, cur, dayMon, state, type Tab } from "../../state/app";
-import { act, busy, closeModal, toast, uploadDialog, uploadProgress } from "../../state/overlay";
+import { R, S, course, cur, dayMon, lecture, state, type Tab } from "../../state/app";
+import { act, closeModal, toast, uploadDialog, uploadProgress } from "../../state/overlay";
 import { route } from "../../state/router";
 import { isZh, t } from "../../i18n";
 import { pl, plPlay, plSeek, segAt } from "../../features/player/player";
 import { doExport } from "../../features/export";
-import { pollNotes } from "../../features/recording/finish";
-import { holdWatch } from "../../features/notes/watch";
+import { holdWatch, isFiling, watchSlides } from "../../features/notes/watch";
 import { forgetOrphan } from "../../features/recording/orphan";
 import { openModal } from "../../ui/Overlay";
 import { css } from "../../ui/css";
@@ -50,7 +49,7 @@ export function onLectureKey(e: KeyboardEvent) {
 /* ---------- More menu: exports, add slides, edit title and course, delete ---------- */
 export function moreMenu() { const au = C().d && C().d!.audio; openModal(() => <><h3 data-notr="">{C().l.title}</h3>{au && au.keptUntil && !au.expired ? <p className="small muted" style={css("margin-top:6px")}>{t("Recording kept until " + dayMon(au.keptUntil) + ".")}</p> : null}
   <div style={css("display:grid;gap:8px;margin-top:14px")}><button className="btn plain" onClick={() => doExport("pdf")}>{t("Print or save notes as PDF")}</button><button className="btn plain" onClick={() => doExport("md")}>{t("Download notes as Markdown")}</button><button className="btn plain" onClick={() => doExport("anki")}>{t("Download flashcards for Anki")}</button><button className="btn plain" onClick={() => doExport("txt")}>{t("Download transcript as text")}</button>{C().d && C().d!.audio && C().d!.audio!.url ? <a className="btn plain" href={C().d!.audio!.url!} download="">{t("Download recording")}</a> : null}
-    {C().d && !C().d!.slides.length ? <button className="btn plain" onClick={() => { closeModal(); pickSlides(); }}>{t("Add slides")}</button> : null}<button className="btn plain" onClick={detailsModal}>{t("Edit title and course")}</button><button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
+    {C().d && !C().d!.slides.length && !isFiling(C().l.id) ? <button className="btn plain" onClick={() => { closeModal(); pickSlides(); }}>{t("Add slides")}</button> : null}<button className="btn plain" onClick={detailsModal}>{t("Edit title and course")}</button><button className="btn plain" style={css("color:var(--red)")} onClick={deleteModal}>{t("Delete lecture")}</button></div></>); }
 /* One dialog for the title and the course. Only what changed is sent. A new course drops the review packs of both courses
    from the store, so they load again with the lecture in its new place, and the exam dates of the lecture follow it. With
    one course there is no list to choose from. */
@@ -69,9 +68,9 @@ function doDetails(f: HTMLFormElement) { const l = C().l, title = val(f, "t").tr
 /* ---------- adding slides after the lecture (added after the migration) ----------
    For a lecture whose notes were made without slides. The PDF is sent with the same upload as on New lecture (progress
    bar, Cancel); the backend then files the existing points under the slides, keeping the student's own notes and edits,
-   and reports "processing" until that is done. The lecture is read again at the end: if it still has no slides, adding
-   them failed and the notes are as they were. This keeps its locked dialogs and its own polling; meanwhile the background
-   check of notes (features/notes/watch.ts) is held off this lecture, so it is never polled twice. */
+   and reports "processing" until that is done. Only the upload waits in a dialog (it can be cancelled); the filing is
+   checked in the background (watchSlides in features/notes/watch.ts) while the notes stay readable, with a notice on the
+   lecture page, and a notice at the end says whether the notes are now under the slides. */
 export function pickSlides() {
   const old = document.getElementById("slidesPick"); if (old) old.remove();   // left over when the last picker was closed without a file
   const i = document.createElement("input"); i.type = "file"; i.accept = "application/pdf,.pdf"; i.id = "slidesPick"; i.hidden = true;
@@ -86,12 +85,10 @@ function addSlides(f: File) {
     uploadDialog(f.size, () => stop.abort());
     try { await api.uploadSlides(id, f, { signal: stop.signal, onProgress: (sent, of) => uploadProgress(f.size * sent / of, f.size) }); }
     catch (e) { if ((e as Error).name !== "AbortError") throw e; closeModal(); toast("Upload cancelled."); return; }
-    busy("Hal is putting the notes under the slides", "This usually takes a minute or two. Your own notes and edits stay.");
-    const status = await pollNotes(id);
-    if (status === "processing") { delete S.detail[id]; closeModal(); toast("Still working. The notes will be under the slides when ready."); return; }
-    const r = await api.getLecture(id); S.detail[id] = r.detail; const i = S.lectures.findIndex(x => x.id === id); if (i >= 0) S.lectures[i] = r.lecture;
-    closeModal(); toast(r.detail && r.detail.slides.length ? "Slides added" : "The slides could not be added. The notes are as they were."); bump();
-  } finally { holdWatch(id, false); } });
+  } finally { holdWatch(id, false); }
+  /* Sent: the server now files the notes under the slides. That is checked in the background; the notes stay readable. */
+  closeModal(); const l = lecture(id); if (l) l.status = "processing"; S.homeLoaded = false;
+  watchSlides(id); toast("Slides added. Hal is putting your notes under them."); bump(); });
 }
 
 export function deleteModal() { openModal(() => <><h3>{t("Delete this lecture?")}</h3><p className="muted">{t("The recording, notes, flashcards, quiz and any shared link will be removed. This cannot be undone.")}</p>

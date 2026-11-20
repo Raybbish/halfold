@@ -118,7 +118,7 @@ export function privateRoutes(deps: Deps) {
       if (!config.liveRecording) fail(501, "Recording in Halfold is not available right now. Record the lecture with another app and upload the file.");
     }
     const title = str(b.title).slice(0, 200) || "Untitled lecture";
-    const l = store.createLecture({ id: "lec-" + randomId(12), user_id: user.id, course_id: courseId, title, language, source });
+    const l = store.createLecture({ id: "lec-" + randomId(12), user_id: user.id, course_id: courseId, title, language, source, auto_title: b.autoTitle === true && !!str(b.title) });
     return c.json(lectureView(l, config.timezone));
   });
 

@@ -6,7 +6,8 @@ import { api } from "../api/api";
 import { bump } from "../lib/bus";
 import { plStop } from "../features/player/player";
 import { live } from "../features/recording/recorder";
-import { resumeWatch } from "../features/notes/watch";
+import { resumeWatch, watchSlides } from "../features/notes/watch";
+import { watchPack } from "../features/packWatch";
 import { closeModal } from "./overlay";
 import { R, S, findPoint, lecture, session, setPendingPoint, setPendingPos, pendingPoint, pendingPos, state, view } from "./app";
 
@@ -29,9 +30,10 @@ export async function route() {
     if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault;
       S.lectures.forEach(l => { if (l.status === "processing") resumeWatch(l.id); }); }   // notes still being written (after a reload, say) are checked in the background
     if (needLec) { const r = await api.getLecture(b); S.detail[b] = r.detail; const i = S.lectures.findIndex(x => x.id === b); if (i < 0) S.lectures.unshift(r.lecture); else S.lectures[i] = r.lecture; }
-    if (a === "lecture") { const l = lecture(b); if (l && l.status === "processing") resumeWatch(b); }
+    /* Processing with notes already there: slides added later are being matched to them (the notes stay readable). */
+    if (a === "lecture") { const l = lecture(b); if (l && l.status === "processing") { if (S.detail[b]) watchSlides(b); else resumeWatch(b); } }
     if (needSh) S.shared[b] = await api.getShared(b);
-    if (needPack) S.pack[b] = await api.getReviewPack(b);
+    if (needPack) { S.pack[b] = await api.getReviewPack(b); if (S.pack[b]!.status === "processing") watchPack(b); }   // still being made (after a reload, say)
     if (needPlans) S.plans = await api.getPlans().catch(() => ({ plans: [], current: null }));   // Settings still opens when the plans endpoint is not there yet
     if (changed && a === "lecture" && S.detail[b] && S.detail[b]!.progress) state.known = new Set(S.detail[b]!.progress!.known || []);
     if (hit && S.detail[b]) { state.found = findPoint(S.detail[b]!, hit); state.goFound = !!state.found; }

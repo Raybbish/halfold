@@ -190,7 +190,7 @@ export class Pipeline implements Jobs {
 
     /* 5. Save; does nothing if the lecture was deleted meanwhile. */
     this.check(id, signal);
-    store.saveNotes(id, detailOut.detail, detailOut.dated);
+    store.saveNotes(id, detailOut.detail, detailOut.dated, detailOut.title);
   }
 
   /* An upload or a video link: the whole recording in one request. */

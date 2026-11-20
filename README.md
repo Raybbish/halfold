@@ -119,7 +119,7 @@ npm test
 | `tests/upload.js` | 27 | 上传在后台进行：课堂页的进度条和取消、其他页顶部的 "Uploading" 链接、关页面前提醒、上传失败后重发同一个文件、通知 |
 | `tests/backend-text.js` | 13 | 后端给的内容（课程编号和名称、章节名、课件页码标签、文件名）原样显示、不翻译 |
 | `tests/courses.js` | 18 | 改课程编号和名称、删课程、把课堂移到别的课程，中文，以及真后端模式的请求和出错 |
-| `tests/slides-later.js` | 15 | 课后补传课件（保持锁屏窗口和自己的轮询）：上传、等待、学生自己的笔记保留、取消不删课 |
+| `tests/slides-later.js` | 17 | 课后补传课件：上传有窗口，之后在后台把笔记放到课件下（笔记照常可读、有提示、刷新后接着查、在别的页面有带链接的提示）；学生自己的笔记保留、取消不删课 |
 | `tests/search.js` | 20 | 首页搜索全部笔记 |
 | `tests/sharing.js` | 7 | 分享：先说明、点 "Make the link" 才建链接；停止分享后旧链接重新向后端要；"You" 只标在自己的课里 |
 | `tests/signin.js` | 14 | 邮件验证码登录和邀请码（邀请码一栏从第一步就在，新邮箱时标出这一栏、不显示红字） |
@@ -130,12 +130,13 @@ npm test
 | `tests/background-notes.js` | 16 | 课堂结束后在后台写笔记，不弹锁屏窗口；通知；同一堂课同一时间只有一个轮询；出错时放慢再问、不停；停了之后 "Check again" 重新开始 |
 | `tests/stuck-lecture.js` | 19 | 卡住或失败的课堂只显示和它来源相符的按钮（`lecture.source`），可以删除；删掉本机中断的录音后提示不再出现 |
 | `tests/quick-record.js` | 17 | 首页一键录音：默认课程、没有课程时建 "My classes"、日期标题、录音中的卡片 |
-| `tests/lecture-page.js` | 20 | 课堂页：主题列表和折叠（打印时全部展开）、标题和课程一个窗口、时间点开始播放、有内容才有标签、Send to an app |
+| `tests/lecture-page.js` | 21 | 课堂页：摘要 "In short"（打印时保留）、主题列表和折叠（打印时全部展开）、标题和课程一个窗口、时间点开始播放、有内容才有标签、Send to an app |
 | `tests/live-meta.js` | 10 | 录音页：录音中改名字和课程（没离开标题框就按 End 也会先存名字），考试提醒时手机振动，手机上标题框的提示文字不被截断 |
 | `tests/help-privacy.js` | 11 | 公开的 Help 和 Privacy 页、落地页顶栏和页脚；Help 只说这个应用有的功能 |
 | `tests/kept.js` | 9 | 保留我们自己的东西里别处没人盯着的几条：手机顶栏、底部导航、`#/courses`、"See plans"、分享窗口说明录音不公开（分享页不带链接、失败原因和来源由服务器测试 `server/test/links.test.ts` 盯着） |
-| `tests/limits.js` | 12 | 方案上限：新建课堂、首页一键录音、复习包遇到 429 时弹窗说明并提供 "See the plans"；本月已用几堂课；中文 |
+| `tests/limits.js` | 15 | 方案上限：新建课堂、首页一键录音、复习包遇到 429 时弹窗说明并提供 "See the plans"；本月已用几堂课；套餐卡片跟着界面语言（英文、繁体、简体）；中文 |
 | `tests/formulas.js` | 7 | 笔记、中文解释、闪卡、测验里的公式显示成上下标，其他文字不当作标记 |
+| `tests/review-pack.js` | 7 | 复习包在后台制作：页面显示正在制作并自己检查，别的页面有带链接的提示，刷新后接着查，502 时说明，中文 |
 
 加上 `overflow5.js`、`printcheck.js` 和 `shots5.js`（390 和 375 两遍）。
 

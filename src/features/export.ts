@@ -8,6 +8,7 @@ import { zhText } from "../i18n/zhScript";
 
 export function download(name: string, text: string, type: string) { const a = document.createElement("a"), url = URL.createObjectURL(new Blob([text], { type: type + ";charset=utf-8" })); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); toast("Downloaded " + name); }
 export function notesMarkdown() { const { l, c } = cur!, d = cur!.d!; let o = "# " + l.title + "\n\n" + [c && c.code, l.date].filter(Boolean).join(", ") + "\n";
+  if (d.summary && d.summary.length) o += "\n## In short\n\n" + d.summary.map(x => "- " + x).join("\n") + "\n";
   if (d.alerts.length) o += "\n## Dates and exam hints\n\n" + d.alerts.map(a => "- **" + a.kind + "** (" + fmt(a.t) + "): " + a.text).join("\n") + "\n";
   d.sections.forEach(s => { o += "\n## " + s.title + (s.slides ? " (" + s.slides + ")" : "") + "\n\n" + s.points.map(p => "- " + (p.t != null ? "[" + fmt(p.t) + "] " : "") + (p.off ? "**Halfold:** " : "") + p.text + (zhText(p) ? "\n  - " + zhText(p) : "")).join("\n") + "\n"; });
   return o; }
