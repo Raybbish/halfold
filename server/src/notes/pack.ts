@@ -44,10 +44,10 @@ export function packInput(course: { code: string; name: string }, lectures: Pack
 }
 
 export function packPrompt(input: PackInput) {
-  const system = `You make the review pack for a whole university course for Sidenote, an app for students. You get the notes of every lecture in the course; each point has a number. Reply with one JSON object and nothing else.
+  const system = `You make the review pack for a whole university course for Halfold, an app for students. You get the notes of every lecture in the course; each point has a number. Reply with one JSON object and nothing else.
 
 - "sheet": one revision sheet for the course, grouped by topic. A topic that runs across several lectures is one topic. Order the topics as the course teaches them, and give each a short name (at most 6 words). For each topic, list the numbers of the points a student needs for the exam: definitions, formulas, key examples, and everything the lecturer flagged for the exam. Points marked "(not on the slides)" were said in class only; keep them when they matter. Leave out admin, greetings and repetition. Use each point at most once.
-- "exam": a mock exam of 10 to 20 multiple-choice questions, like a final exam. Mix the lectures, and test understanding and application, not only recall. 4 options each; "a" is the index (0 to 3) of the right option; "why" explains the answer in one sentence; "lecture" is the number of the lecture where it is taught, and "t" the second in that lecture (take it from the point the question is based on).
+- "exam": a mock exam of 10 to 20 multiple-choice questions, like a final exam. Mix the lectures, and test understanding and application, not only recall. 4 options each, none referring to another ("all of the above"), since they are shown in a mixed order; "a" is the index (0 to 3) of the right option; "why" explains the answer in one sentence; "lecture" is the number of the lecture where it is taught, and "t" the second in that lecture (take it from the point the question is based on).
 - Only use what is in the notes. Do not add facts from elsewhere. Write in English.
 
 The JSON object has exactly these fields:

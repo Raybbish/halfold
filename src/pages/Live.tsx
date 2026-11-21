@@ -6,9 +6,10 @@ import { fmt } from "../lib/helpers";
 import { bump } from "../lib/bus";
 import { closeModal } from "../state/overlay";
 import { t } from "../i18n";
-import { live, togglePause } from "../features/recording/recorder";
+import { S } from "../state/app";
+import { live, togglePause, saveLiveMeta } from "../features/recording/recorder";
 import { doDiscard, endLive, recap } from "../features/recording/finish";
-import { Sid } from "../ui/icons";
+import { Hal } from "../ui/icons";
 import { Shell } from "../ui/Shell";
 import { openModal } from "../ui/Overlay";
 import { css } from "../ui/css";
@@ -25,6 +26,8 @@ export function Live() {
       <div><div className="muted">{t((live.paused ? "Paused" : "Recording") + " " + live.courseCode)}</div>{live.mic === "on" ? <div className="lvl" title={t("Microphone level")}><b id="lvl"></b></div> : null}</div><button className="ts discard-m" onClick={discardModal}>{t("Discard")}</button><span style={css("flex:1")}></span>
       <div className="live-actions"><button className="btn plain discard" onClick={discardModal}>{t("Discard")}</button><button className="btn plain" onClick={togglePause}>{t(live.paused ? "Resume" : "Pause")}</button>
         <button className="btn dark" onClick={endLive}>{t("End and make notes")}</button></div></div>
+    <div className="live-meta"><input maxLength={120} aria-label={t("Lecture title")} placeholder={t("Name this lecture (optional, you can do it later)")} defaultValue={live.title} onChange={e => { live.title = e.currentTarget.value; }} onBlur={saveLiveMeta} />
+      {S.courses.length > 1 ? <select data-notr="" aria-label={t("Course")} value={live.courseId} onChange={e => { live.courseId = e.currentTarget.value; saveLiveMeta(); }}>{S.courses.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}</select> : null}</div>
     {live.micNote ? <div className="alert" style={css("margin-top:14px")}><span className="tag amber">{t("Microphone")}</span><span>{t(live.micNote + (live.mic === "none" && CONFIG.USE_MOCK ? " The sample transcript below still plays so you can see the screen." : ""))}</span></div> : null}
     {live.netNote ? <div className="alert" style={css("margin-top:14px")}><span className="tag amber">{t("Connection")}</span><span>{t(live.netNote)}</span></div> : null}
     <div id="liveAlert"><LiveAlert /></div>
@@ -32,7 +35,7 @@ export function Live() {
       <div><h2 style={css("font-size:17px;margin-bottom:8px")}>{t("Live transcript")}</h2>
         <div className="card stream" id="stream"><Stream /></div>
         {CONFIG.USE_MOCK ? <p className="note-demo">{t("Sample build: this transcript is sample text. The microphone is " + (live.mic === "on" ? "really recording, and audio is handed to the upload function every " + CONFIG.CHUNK_SECONDS + " seconds" : "not recording") + ".")}</p> : null}</div>
-      <div className="catch"><div style={css("display:flex;gap:12px;align-items:center")}><Sid size={40} mood="wow" /><h2 style={css("font-size:19px")}>{t("Lost the thread?")}</h2></div><p className="small" style={css("margin:8px 0 16px")}>{t("Sid sums up the last five minutes so you can rejoin the class.")}</p>
+      <div className="catch"><div style={css("display:flex;gap:12px;align-items:center")}><Hal size={40} mood="wow" /><h2 style={css("font-size:19px")}>{t("Lost the thread?")}</h2></div><p className="small" style={css("margin:8px 0 16px")}>{t("Hal sums up the last five minutes so you can rejoin the class.")}</p>
         <button className="btn blue" onClick={recap} disabled={live.recapBusy}>{t(live.recapBusy ? "Reading back" : "Catch me up")}</button>
         {live.recap ? <div className="recap" style={css("margin-top:16px;padding-top:14px;border-top:2px solid var(--ink)")}><b style={css("color:var(--ink)")}>{t("The last five minutes")}</b><ul style={css("padding-left:18px;margin:8px 0 0")}>{live.recap.map((r, i) => <li key={i} style={css("margin-bottom:6px")} data-notr="">{r}</li>)}</ul></div> : null}</div>
     </div>

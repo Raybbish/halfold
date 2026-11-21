@@ -22,11 +22,11 @@ async function sendAll() {
 }
 export function setOffline(off: boolean, e?: HttpError) {
   if (off === live.offline) return; live.offline = off;
-  live.netNote = !off ? "" : e && e.status ? "Sidenote could not save the audio just now. Recording continues and it will keep trying. Keep this page open."
+  live.netNote = !off ? "" : e && e.status ? "Halfold could not save the audio just now. Recording continues and it will keep trying. Keep this page open."
     : "Connection lost. Recording continues and the audio will be sent when you are back online. Keep this page open.";
   if (live.active && R.a === "live") bump();
 }
 /* New transcript lines and exam alerts from a chunk reply. sidenote.html rewrote #stream and #liveAlert here without a
    full render; the live page now draws them from `live`, and the transcript is still scrolled to the bottom. */
-export function applyChunk(res: ChunkReply | null, id: string) { if (!res || !live.active || id !== live.id) return; if (res.segments) live.segs.push(...res.segments); if (res.alerts && res.alerts.length) live.alert = res.alerts[res.alerts.length - 1];
+export function applyChunk(res: ChunkReply | null, id: string) { if (!res || !live.active || id !== live.id) return; if (res.segments) live.segs.push(...res.segments); if (res.alerts && res.alerts.length) { live.alert = res.alerts[res.alerts.length - 1]; try { navigator.vibrate && navigator.vibrate(200); } catch (e) {} }
   if (R.a !== "live") return; refresh(); const st = document.getElementById("stream"); if (st) st.scrollTop = st.scrollHeight; }

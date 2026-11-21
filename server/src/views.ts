@@ -13,7 +13,7 @@ export function lectureView(l: LectureRow, timeZone: string, now = new Date()): 
   const duration = l.duration ?? l.client_duration;
   return {
     id: l.id, course: l.course_id, title: l.title, date: displayDate(l.created_at, timeZone, now),
-    ...(duration != null ? { duration: Math.round(duration) } : {}), status: l.status, shareUrl: l.share_url ?? null,
+    ...(duration != null ? { duration: Math.round(duration) } : {}), status: l.status, shareUrl: l.share_url ?? null, source: l.source,
     ...(l.link ? { link: l.link } : {}), ...(l.status === "failed" && l.public_error ? { error: l.public_error } : {})
   };
 }
@@ -30,7 +30,7 @@ export function liveMinutesToday(store: Store, userId: string, timeZone: string,
 }
 
 export function homeView(d: { store: Store; config: Config; billing: Billing }, user: UserRow, now = new Date()): Home {
-  const { store, config } = d, today = localDate(now, config.timezone), tier = d.billing.entitlement(user.id, now).tier;
+  const { store, config } = d, today = localDate(now, config.timezone), tier = d.billing.entitlement(user.id, now).tier, lectures = d.billing.lectureUsage(user.id, now);
   return {
     user: { name: user.name },
     courses: store.courses(user.id).map(courseView),
@@ -38,7 +38,8 @@ export function homeView(d: { store: Store; config: Config; billing: Billing }, 
     upcoming: store.upcoming(user.id, today).map(u => ({ date: u.date, kind: u.kind, text: u.text, course: u.course_code, lecture: u.lecture_id, t: u.t })),
     settings: { classLanguage: user.class_language, zhDefault: !!user.zh_default, ...(user.zh_script === "hant" || user.zh_script === "hans" ? { zhScript: user.zh_script } : {}) },
     usage: { minutesToday: liveMinutesToday(store, user.id, config.timezone, now), minutesLimit: tier.dailyLiveMinutes,
-      ...(tier.audioDays !== null ? { audioDays: tier.audioDays } : {}) },
+      ...(tier.audioDays !== null ? { audioDays: tier.audioDays } : {}),
+      ...(lectures ? { lecturesThisMonth: lectures.used, lecturesLimit: lectures.limit } : {}) },
     today
   };
 }

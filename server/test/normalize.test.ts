@@ -1,7 +1,8 @@
 /* Tidying the model's reply into a Detail that keeps INTEGRATION.md 3.2, and cutting words into transcript lines. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildDetail, parseModelNotes, slideLabel } from "../src/notes/normalize";
+import { buildDetail, parseModelNotes, slideLabel, slideLabels } from "../src/notes/normalize";
+import { studyCounts, systemPrompt } from "../src/notes/prompt";
 import { joinTokens, wordsToLines } from "../src/stt/lines";
 import { DetailSchema } from "../src/shapes";
 
@@ -66,7 +67,7 @@ test("parseModelNotes: one unusable item is dropped on its own, not the whole re
   assert.deepEqual(m.alerts, [{ t: 3, kind: "", text: "Quiz next week", date: null }]);
   assert.deepEqual(m.flashcards, [{ q: "q1", a: "a1" }]);
   assert.deepEqual(m.quiz.map(q => [q.opts, q.a]), [[["3", "4", "5", "6"], 1], [["w", "x", "y", "z"], 2], [["w", "x"], null]]);
-  const { detail } = buildDetail(m, { ...ctx, slidePages: [] });
+  const { detail } = buildDetail(m, { ...ctx, duration: 5400, slidePages: [] });   // a 90-minute lecture: room for both questions
   assert.deepEqual(detail.sections.map(s => [s.start, s.end]), [[0, 60], [60, 120]]);
   assert.deepEqual(detail.quiz.map(q => q.q), ["numbers", "letter"]);
   assert.equal(detail.alerts[0].kind, "Exam hint");
@@ -78,8 +79,19 @@ test("buildDetail: a section with no start begins at its first point; the last o
   assert.deepEqual([detail.sections[0].start, detail.sections[0].end], [42, 600]);
 });
 
-test("slideLabel", () => {
-  assert.equal(slideLabel([]), undefined); assert.equal(slideLabel([4, 4]), "Slide 4"); assert.equal(slideLabel([6, 3, 4]), "Slides 3 to 6");
+test("slideLabel: the pages as they are, a range only over pages that are all there", () => {
+  assert.equal(slideLabel([]), undefined); assert.equal(slideLabel([4, 4]), "Slide 4"); assert.equal(slideLabel([6, 3, 4, 5]), "Slides 3 to 6");
+  assert.equal(slideLabel([3, 1]), "Slides 1 and 3"); assert.equal(slideLabel([6, 3, 4]), "Slides 3 to 4 and 6"); assert.equal(slideLabel([1, 2, 3, 5, 8]), "Slides 1 to 3, 5 and 8");
+});
+
+test("slideLabels: a page counts for the section with most of its points, so a look ahead or back does not stretch a label", () => {
+  /* The lecture of the test of 2026-11-18, page numbers only: "Slides 1 to 3", "Slide 2", "Slide 3", "Slides 3 to 4" before. */
+  const sec = (...pages: (number | null)[]) => ({ points: pages.map(slide => ({ slide })) });
+  assert.deepEqual(slideLabels([sec(1, 3), sec(2, 2, 2, 2), sec(3, 3), sec(4, 4, 4, 3, 4)]), ["Slide 1", "Slide 2", "Slide 3", "Slide 4"]);
+  /* A page shared evenly counts for both (2); page 1 counts where most of its points are; no pages, no label. */
+  assert.deepEqual(slideLabels([sec(1, 2), sec(2, 3), sec(3, 3, 1, 1), sec(null)]), ["Slide 2", "Slide 2", "Slides 1 and 3", undefined]);
+  /* A section whose pages all count elsewhere keeps its own. */
+  assert.deepEqual(slideLabels([sec(5), sec(5, 5, 6)]), ["Slide 5", "Slides 5 to 6"]);
 });
 
 test("joinTokens: spaces between English words, none between Chinese characters or before punctuation", () => {
@@ -112,4 +124,19 @@ test("cantoneseTraditional: Simplified Cantonese from speech-to-text becomes Hon
   assert.equal(cantoneseTraditional("即系话，你拣咗一样嘢，就系机会成本。"), "即係話，你揀咗一樣嘢，就係機會成本。");
   assert.equal(cantoneseTraditional("我系经济系学生，系咪？唔系。关系好重要。"), "我係經濟系學生，係咪？唔係。關係好重要。");
   assert.equal(cantoneseTraditional("opportunity cost 都系 important"), "opportunity cost 都係 important");
+});
+
+test("flashcards and questions follow the length: at most about one card per 6 minutes and one question per 10, asked for and kept", () => {
+  assert.deepEqual([60, 1200, 3600, 5400, 3 * 3600].map(x => studyCounts(x)), [
+    { cards: 2, quiz: 1 }, { cards: 3, quiz: 2 }, { cards: 10, quiz: 6 }, { cards: 15, quiz: 9 }, { cards: 15, quiz: 10 }]);
+  const input = { courseCode: "ECON 1001", courseName: "", title: "t", date: "Fri 20 Nov 2026", language: "en" as const, duration: 60, lines: [], slides: [], zh: null };
+  const short = systemPrompt(input), long = systemPrompt({ ...input, duration: 5400 });
+  assert.match(short, /Up to 2 flashcards and up to 1 multiple-choice question with 4 options/);
+  assert.match(long, /Up to 15 flashcards and up to 9 multiple-choice questions with 4 options/);
+  assert.match(short, /Never ask about how the class is run/);
+  const many = parseModelNotes(JSON.stringify({ sections: [{ title: "A", start: 0, end: 60, points: [{ t: 5, text: "p" }] }],
+    flashcards: Array.from({ length: 8 }, (_, i) => ({ q: "q" + i, a: "a" + i })),
+    quiz: Array.from({ length: 5 }, (_, i) => ({ q: "Q" + i, opts: ["a", "b", "c", "d"], a: 0 })) }));
+  const { detail } = buildDetail(many, { ...ctx, duration: 60, slidePages: [] });
+  assert.deepEqual([detail.flashcards.map(f => f.q), detail.quiz.map(q => q.q)], [["q0", "q1"], ["Q0"]], "a 1-minute recording keeps 2 cards and 1 question");
 });

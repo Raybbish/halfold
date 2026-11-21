@@ -1,6 +1,5 @@
-/* Icons, the mascot Sid and the logo. Same SVG as sidenote.html. */
+/* Icons, the mascot Hal and the logo. */
 import type { ReactNode } from "react";
-import { t } from "../i18n";
 
 const Ic = ({ children }: { children: ReactNode }) => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>;
 export const ICON = {
@@ -11,9 +10,11 @@ export const ICON = {
 };
 
 export type Mood = "plain" | "smile" | "wow" | "sad";
-/* Sid, the sticky note with eyes. */
-export function Sid({ size = 28, mood = "plain", color = "#FFD93B" }: { size?: number; mood?: Mood; color?: string }) {
-  const mouth = mood === "smile" ? <path d="M12.5 18.5q3.5 3 7 0" fill="none" stroke="#16233B" strokeWidth="1.8" strokeLinecap="round" /> : mood === "wow" ? <ellipse cx="16" cy="20" rx="2" ry="2.4" fill="#16233B" /> : mood === "sad" ? <path d="M12.5 20.5q3.5 -3 7 0" fill="none" stroke="#16233B" strokeWidth="1.8" strokeLinecap="round" /> : null;
-  return <svg className="sid" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h26v17l-9 9H3z" fill={color} stroke="#16233B" strokeWidth="2" strokeLinejoin="round" /><path d="M29 20h-9v9" fill="#fff" fillOpacity=".55" stroke="#16233B" strokeWidth="2" strokeLinejoin="round" /><circle className="eye" cx="11.5" cy="13" r="2.1" fill="#16233B" /><circle className="eye" cx="20.5" cy="13" r="2.1" fill="#16233B" />{mouth}</svg>;
+/* Hal, the logo: the original sticky note with eyes and a folded corner (the drawing Sidenote's mascot had; the user chose it over
+   the half note and the split note). The mouth shows the mood. */
+export function Hal({ size = 28, mood = "plain", color = "#FFD93B" }: { size?: number; mood?: Mood; color?: string }) {
+  const ink = "#16233B";
+  const mouth = mood === "smile" ? <path d="M12.5 18.5q3.5 3 7 0" fill="none" stroke={ink} strokeWidth="1.8" strokeLinecap="round" /> : mood === "wow" ? <ellipse cx="16" cy="20" rx="2" ry="2.4" fill={ink} /> : mood === "sad" ? <path d="M12.5 20.5q3.5 -3 7 0" fill="none" stroke={ink} strokeWidth="1.8" strokeLinecap="round" /> : null;
+  return <svg className="sid" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path d="M3 3h26v17l-9 9H3z" fill={color} stroke={ink} strokeWidth="2" strokeLinejoin="round" /><path d="M29 20h-9v9" fill="#fff" fillOpacity=".55" stroke={ink} strokeWidth="2" strokeLinejoin="round" /><circle className="eye" cx="11.5" cy="13" r="2.1" fill={ink} /><circle className="eye" cx="20.5" cy="13" r="2.1" fill={ink} />{mouth}</svg>;
 }
-export const Logo = ({ href }: { href: string }) => <a className="logo" href={href}><Sid size={28} />{t("sidenote")}</a>;
+export const Logo = ({ href }: { href: string }) => <a className="logo" href={href} data-notr=""><Hal size={30} />halfold</a>;

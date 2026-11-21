@@ -6,6 +6,7 @@
    is an error. The pipeline checks the result against DetailSchema. */
 import type { Alert, Detail, Line, Point, QuizQuestion, Section, Slide } from "../../../src/types";
 import { bothScripts } from "./zh";
+import { studyCounts } from "./prompt";
 
 export interface ModelPoint { t: number; text: string; zh: string | null; slide: number | null; off: boolean }
 export interface ModelSection { title: string; start: number | null; end: number | null; points: ModelPoint[] }
@@ -15,6 +16,8 @@ export interface ModelNotes {
   alerts: { t: number; kind: string; text: string; date: string | null }[];
   flashcards: { q: string; a: string }[];
   quiz: { q: string; opts: string[]; a: number | null; why: string | null; t: number | null }[];
+  summary: string[];   // the lecture in 3 to 5 sentences
+  title: string;       // what the lecture is about; "" when the model gave none
 }
 
 type Obj = Record<string, unknown>;
@@ -55,7 +58,9 @@ export function parseModelNotes(reply: string): ModelNotes {
     quiz: items(top.quiz, q => {
       const opts = (Array.isArray(q.opts) ? q.opts : []).map(str);
       return { q: str(q.q), opts, a: answer(q.a, opts.length), why: str(q.why) || null, t: num(q.t) };
-    })
+    }),
+    summary: (Array.isArray(top.summary) ? top.summary : []).map(str).filter(Boolean),
+    title: str(top.title)
   };
 }
 
@@ -68,10 +73,26 @@ const realDate = (s: string | null | undefined) => {
   const d = new Date(s + "T00:00:00Z");
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s ? s : null;
 };
+/* The pages as they are: "Slide 4", "Slides 3 to 6", "Slides 1 and 3", "Slides 1 to 3 and 5". A range is only written
+   over pages that are all there, so a label never names a page that is not in it. */
 export function slideLabel(nums: number[]) {
-  if (!nums.length) return undefined;
-  const lo = Math.min(...nums), hi = Math.max(...nums);
-  return lo === hi ? `Slide ${lo}` : `Slides ${lo} to ${hi}`;
+  const pages = [...new Set(nums)].sort((a, b) => a - b);
+  if (!pages.length) return undefined;
+  const runs: number[][] = [];
+  for (const n of pages) { const r = runs[runs.length - 1]; if (r && n === r[r.length - 1] + 1) r.push(n); else runs.push([n]); }
+  const items = runs.map(r => r.length > 1 ? `${r[0]} to ${r[r.length - 1]}` : String(r[0]));
+  return (pages.length === 1 ? "Slide " : "Slides ") + (items.length > 1 ? items.slice(0, -1).join(", ") + " and " + items[items.length - 1] : items[0]);
+}
+
+/* Each section's label. A page counts for the section that has most of its points (each of them, on a tie), so a point
+   that looks ahead or back to another topic's page does not stretch a label over pages it is not about (test of
+   2026-11-18: a section about slide 1, with one point on slide 3, was "Slides 1 to 3"). A section whose pages all count
+   elsewhere keeps its own. The points keep their page either way. */
+export function slideLabels(sections: { points: { slide?: number | null }[] }[]): (string | undefined)[] {
+  const per = sections.map(s => { const m = new Map<number, number>(); for (const p of s.points) if (p.slide != null) m.set(p.slide, (m.get(p.slide) || 0) + 1); return m; });
+  const most = new Map<number, number>();
+  for (const m of per) for (const [n, k] of m) most.set(n, Math.max(most.get(n) || 0, k));
+  return per.map(m => { const all = [...m.keys()], own = all.filter(n => m.get(n) === most.get(n)); return slideLabel(own.length ? own : all); });
 }
 
 /* detail.slides: one per page, titled by the model, else by the first line of the page. */
@@ -81,7 +102,8 @@ export function slideList(pages: { n: number; text: string }[], titled: { n: num
   return pages.map(p => ({ n: p.n, title: titles.get(p.n) || p.text.split("\n").map(x => x.trim()).find(Boolean)?.slice(0, 80) || `Slide ${p.n}`, image: null }));
 }
 
-export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail; dated: Dated[] } {
+/* title: the model's title for the lecture, a single line of at most 120 characters, or null. */
+export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail; dated: Dated[]; title: string | null } {
   const end = Math.max(1, Math.round(ctx.duration));
   const at = (x: number) => Math.min(end, Math.max(0, Math.round(x)));
   const pages = new Set(ctx.slidePages.map(p => p.n)), hasSlides = pages.size > 0;
@@ -102,11 +124,11 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
     .sort((a, b) => a.start - b.start);
   if (!sections.length) throw new Error("the notes have no points");
   /* Sections follow one another: each ends where the next starts; the last ends where the model said, or at the end. */
+  const labels = slideLabels(sections);
   sections.forEach((s, i) => {
     const next = sections[i + 1];
     s.end = next ? next.start : Math.max(s.start, s.end > s.start ? s.end : end);
-    const label = slideLabel(s.points.map(p => p.slide).filter((x): x is number => x != null));
-    if (label) s.slides = label;
+    if (labels[i]) s.slides = labels[i];
   });
 
   const dated: Dated[] = [];
@@ -116,6 +138,7 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
     return { t, kind, text: a.text };
   }).sort((a, b) => a.t - b.t);
 
+  const most = studyCounts(ctx.duration);
   const quiz: QuizQuestion[] = m.quiz
     .filter(q => q.q && q.opts.length >= 2 && q.opts.every(Boolean) && q.a !== null && Number.isInteger(q.a) && q.a >= 0 && q.a < q.opts.length)
     .map(q => ({ q: q.q, opts: q.opts, a: q.a!, ...(q.why ? { why: q.why } : {}), t: q.t === null ? null : at(q.t) }));
@@ -123,7 +146,9 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
   const transcript = ctx.lines.filter(l => l.text.trim()).map(l => ({ t: at(l.t), text: l.text.trim() })).sort((a, b) => a.t - b.t);
 
   return {
-    detail: { alerts, sections, slides: hasSlides ? slides : [], transcript, flashcards: m.flashcards, quiz },
-    dated
+    detail: { ...(m.summary.length ? { summary: m.summary.slice(0, 5) } : {}), alerts, sections, slides: hasSlides ? slides : [], transcript,
+      flashcards: m.flashcards.slice(0, most.cards), quiz: quiz.slice(0, most.quiz) },
+    dated,
+    title: m.title.replace(/\s+/g, " ").trim().slice(0, 120) || null
   };
 }

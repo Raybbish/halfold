@@ -26,7 +26,7 @@ test("slides after the notes: processing before the reply, then every point unde
   assert.equal(during.lecture.status, "processing"); assert.deepEqual(during.detail!.sections, before.sections);
   /* Edits and more slides wait until it is done. */
   const edit = await s.call("PATCH", `/lectures/${id}/points`, { token, json: { section: 0, index: 0, text: "x" } });
-  assert.equal(edit.status, 409); assert.equal(ErrorReplySchema.parse(edit.body).message, "Sid is putting the notes under the slides. Try again in a minute.");
+  assert.equal(edit.status, 409); assert.equal(ErrorReplySchema.parse(edit.body).message, "Hal is putting the notes under the slides. Try again in a minute.");
   assert.equal((await s.call("POST", `/lectures/${id}/slides`, { token, body: pdf() })).status, 409);
   release();
   await s.pipeline.idle();
@@ -104,3 +104,14 @@ test("slides after the notes: deleted while matching, nothing comes back; stoppe
   assert.equal(s.store.detail(kept)!.slides.length, 2);
   assert.equal(s.stt.calls, 2); assert.equal(s.notes.calls.length, 2);   // one each for the two lectures, at the start
 });
+
+test("section labels are worked out again when notes are read, so notes written before the fix lose a stretched label", async t => {
+  const s = setup(); t.after(() => s.close());
+  const token = await s.signIn(), id = await readyLecture(s, token, { slides: true });
+  const raw = JSON.parse((s.store.db.prepare("SELECT detail_json FROM details WHERE lecture_id = ?").get(id) as { detail_json: string }).detail_json);
+  raw.sections[0].slides = "Slides 1 to 3";   // as the old rule wrote it for a look ahead to another section's page
+  s.store.db.prepare("UPDATE details SET detail_json = ? WHERE lecture_id = ?").run(JSON.stringify(raw), id);
+  const d = LectureReplySchema.parse((await s.call("GET", `/lectures/${id}`, { token })).body).detail!;
+  assert.deepEqual(d.sections.map(x => x.slides), ["Slide 1", "Slide 2"]);
+});
+

@@ -8,20 +8,21 @@ import { DATA } from "../../api/mock";
 import { fmt, mins, wait } from "../../lib/helpers";
 import { idb } from "../../lib/idb";
 import { bump } from "../../lib/bus";
-import { R } from "../../state/app";
+import { R, S, course, lecture } from "../../state/app";
+import { store } from "../../lib/store";
 import { toast } from "../../state/overlay";
 import { outbox, dropped, flush, applyChunk } from "./outbox";
 import { mark } from "./orphan";
 import { tabStream } from "./tabAudio";
 
-export const live = { id: null as string | null, courseCode: "", sec: 0, acc: 0, paused: false, held: false, segs: [] as Line[], alert: null as Alert | null, recap: null as string[] | null, recapBusy: false, mic: "off" as "off" | "on" | "lost" | "none", micNote: "", netNote: "", active: false, offline: false };
+export const live = { id: null as string | null, courseCode: "", title: "", courseId: "", savedTitle: "", savedCourse: "", sec: 0, acc: 0, paused: false, held: false, segs: [] as Line[], alert: null as Alert | null, recap: null as string[] | null, recapBusy: false, mic: "off" as "off" | "on" | "lost" | "none", micNote: "", netNote: "", active: false, offline: false };
 export const rec = { full: null as MediaStream | null, stream: null as MediaStream | null, mr: null as MediaRecorder | null, seq: 0, wake: null as WakeLockSentinel | null, ctx: null as AudioContext | null, an: null as AnalyserNode | null, tick: null as ReturnType<typeof setInterval> | null, feed: null as ReturnType<typeof setInterval> | null, lvl: null as ReturnType<typeof setInterval> | null, last: 0, beat: 0, stopped: null as Promise<unknown> | null, hiddenAt: 0 };
 export const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 export async function keepAwake() { try { rec.wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
 export function micLost() { if (!live.active || live.mic !== "on") return; live.mic = "lost"; live.micNote = "The microphone stopped. End the recording to keep what you have so far."; if (R.a === "live") bump(); else toast(live.micNote); }
 export async function beginRecording(lec: Lecture, courseCode: string, source: Source) {
-  Object.assign(live, { id: lec.id, courseCode, sec: 0, acc: 0, paused: false, held: false, segs: [], alert: null, recap: null, mic: "off", micNote: "", netNote: "", offline: false, active: true }); rec.seq = 0;
+  Object.assign(live, { id: lec.id, courseCode, title: "", courseId: lec.course, savedTitle: "", savedCourse: lec.course, sec: 0, acc: 0, paused: false, held: false, segs: [], alert: null, recap: null, mic: "off", micNote: "", netNote: "", offline: false, active: true }); rec.seq = 0;
   try {
     if (!navigator.mediaDevices || !window.MediaRecorder) throw Object.assign(new Error(), { name: "NotSupportedError" });
     rec.stream = source === "tab" ? await tabStream() : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
@@ -52,7 +53,7 @@ export async function beginRecording(lec: Lecture, courseCode: string, source: S
   if (CONFIG.USE_MOCK) rec.feed = setInterval(() => { if (live.paused) return; const s = DATA.detail.transcript[DATA.feed]; if (!s) return; DATA.feed++; applyChunk({ segments: [s], alerts: DATA.detail.alerts.filter(a => a.t === s.t) }, lec.id); }, 3000);
 }
 /* Phones. The screen lock is released whenever the page is hidden, so it is asked for again on return. iOS also stops
-   the microphone while Sidenote is in the background: the clock waits, and the student is told how much was missed.
+   the microphone while Halfold is in the background: the clock waits, and the student is told how much was missed.
    Registered once, in main.tsx. */
 export function onVisibilityChange() {
   if (!live.active) return;
@@ -62,7 +63,17 @@ export function onVisibilityChange() {
   live.held = false; rec.last = performance.now();
   if (rec.stream && rec.stream.getAudioTracks().some(t => t.readyState === "ended")) return micLost();
   const gap = Math.round((Date.now() - rec.hiddenAt) / 1000);
-  if (gap >= 3 && live.mic === "on") { live.micNote = "Recording stopped for about " + (gap < 90 ? gap + " seconds" : mins(gap)) + " while Sidenote was in the background. Keep this page open with the screen on."; if (R.a === "live") bump(); else toast(live.micNote); }
+  if (gap >= 3 && live.mic === "on") { live.micNote = "Recording stopped for about " + (gap < 90 ? gap + " seconds" : mins(gap)) + " while Halfold was in the background. Keep this page open with the screen on."; if (R.a === "live") bump(); else toast(live.micNote); }
+}
+/* The title box and the course list on the recording page. Only what changed is sent; an empty title box sends nothing, so the dated default title stays. */
+export function saveLiveMeta() {
+  const id = live.id; if (!id) return;
+  const p: { title?: string; course?: string } = {}, t0 = live.title.trim(), c = course(live.courseId);
+  if (t0 && t0 !== live.savedTitle) p.title = t0;
+  if (c && c.id !== live.savedCourse) { p.course = c.id; live.courseCode = c.code; store.set("lastCourse", c.id); bump(); }
+  if (!Object.keys(p).length) return;
+  if (p.title) live.savedTitle = p.title; if (p.course) live.savedCourse = p.course;
+  api.updateLecture(id, p).then(() => { const l = lecture(id); if (l) Object.assign(l, p, p.title ? { autoTitle: false } : {}); S.homeLoaded = false; if (live.active && live.id === id) mark(); toast("Saved"); }).catch(e => toast((e as Error).message, { error: true }));   // the answer can come after End (endLive saves first): no mark for a recording that has ended
 }
 export function togglePause() { live.paused = !live.paused; try { if (rec.mr && rec.mr.state !== "inactive") live.paused ? rec.mr.pause() : rec.mr.resume(); } catch (e) {} bump(); }
 export function stopRecording() {   // resolves once the recorder has handed over its last piece of audio

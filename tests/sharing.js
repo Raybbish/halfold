@@ -62,11 +62,15 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
 
   console.log('\n=== stopping sharing ===');
   { const be = { log: [] }; const { ctx, page } = await open(be, '#/lecture/l1'); await page.waitForSelector('.pt');
-    await page.click('.page-h button >> nth=1'); await page.waitForSelector('#shareUrl');
+    await page.click('.page-h button.btn.primary'); await page.waitForSelector('#overlay button:text-is("Make the link")');
+    const first = { text: (await page.locator('#overlay').innerText()).replace(/\s+/g, ' '), asked: be.log.filter(x => x === 'POST /lectures/l1/share').length };
+    check('Share with class first says what a link does and makes none until Make the link (test of 2026-11-18)', first.asked === 0 && first.text.includes('This makes a link. Nothing is public until you make it.') && first.text.includes('The recording stays private'), first);
+    await page.click('#overlay button:text-is("Make the link")'); await page.waitForSelector('#shareUrl');
     const url = await page.inputValue('#shareUrl');
     await page.click('#overlay a.btn.plain'); await page.waitForSelector('.shared-bar');
     const previewed = await page.locator('.page-h h1').innerText();
-    await go(page, '#/lecture/l1'); await page.click('.page-h button >> nth=1'); await page.waitForSelector('#shareUrl');
+    // The link is made already: Share shows it straight away.
+    await go(page, '#/lecture/l1'); await page.click('.page-h button.btn.primary'); await page.waitForSelector('#shareUrl');
     await page.click('#overlay button:has-text("Stop sharing")'); await page.waitForSelector('#overlay', { state: 'detached' }).catch(() => {});
     const before = be.log.filter(x => x === 'GET /shared/sh-abc').length;
     await go(page, '#/s/sh-abc');

@@ -1,0 +1,40 @@
+# The Halfold server. activate.sh installs this as /etc/systemd/system/halfold.service on every deploy.
+# Starts at boot, and again 3 seconds after a crash.
+
+[Unit]
+Description=Halfold server (API and front end on 127.0.0.1:8787, Caddy in front)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=halfold
+Group=halfold
+WorkingDirectory=/srv/halfold/server
+# What `npm start` runs, without npm and the tsx wrapper process in between, so the stop signal reaches the server
+# (src/index.ts stops its runs and closes the database; unfinished notes start again on the next start).
+# The settings (server/.env on your computer) are in /etc/halfold/halfold.env: `halfold env` edits them.
+ExecStart=/usr/local/bin/node --disable-warning=ExperimentalWarning --env-file-if-exists=/etc/halfold/halfold.env --import tsx src/index.ts
+# Only this machine reaches the server; students come in through Caddy. Set here, these win over halfold.env.
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+# yt-dlp and deno (video links) keep their caches here.
+CacheDirectory=halfold
+Environment=XDG_CACHE_HOME=/var/cache/halfold
+Environment=DENO_DIR=/var/cache/halfold/deno
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+
+# The server writes only to server/data (database, recordings, temporary files) and /tmp.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/halfold/server/data
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

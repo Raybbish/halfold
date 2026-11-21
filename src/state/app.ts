@@ -22,7 +22,7 @@ export const colorOf = (c: Course | undefined) => (c && c.color) || PALETTE[Math
 export const meta = (l: Lecture, c: Course | undefined) => [c && c.code, l.week && "week " + l.week, l.date, l.duration && mins(l.duration)].filter(Boolean).join(", ");
 export const today = () => S.today || ymd(new Date());   // the date where the student is, not the UTC date
 export const daysLeft = (d: string) => Math.round((+new Date(d) - +new Date(today())) / 864e5);
-export const dayMon = (d: string) => new Date(d).toLocaleDateString(LANG === "zh" ? "zh-HK" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+export const dayMon = (d: string) => new Date(d).toLocaleDateString(LANG === "zh-Hant" ? "zh-HK" : LANG === "zh-Hans" ? "zh-CN" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 export const exHref = () => CONFIG.EXAMPLE_SHARE_ID ? "#/s/" + encodeURIComponent(CONFIG.EXAMPLE_SHARE_ID) : "";
 
 /* The signed-in state lives in localStorage under sidenote.session as {token, user}. */
@@ -35,7 +35,8 @@ export const session = {
 /* ---------- screen state ---------- */
 export type Tab = "notes" | "slides" | "transcript" | "cards" | "quiz";
 export const state = { tab: "notes" as Tab, onlyOff: false, zh: false, pos: 0, hit: null as number | null, fc: 0, flip: false, known: new Set<number>(), qi: 0, picked: null as number | null, score: 0, done: false, q: "", tq: "", edit: false, order: null as number[] | null, wrong: [] as number[],
-  found: null as Point | null, goFound: false };   // found: the point a search result opened, shown marked; goFound: scroll to it once
+  found: null as Point | null, goFound: false,
+  closed: new Set<number>() };   // topics folded on the notes tab: this page visit only   // found: the point a search result opened, shown marked; goFound: scroll to it once
 
 /* The current route, #/a/b. route() updates it in place. */
 export const R = { a: "", b: "" };
@@ -60,9 +61,10 @@ export const view = { loader: "blank" as "blank" | "shell" | "center" | null };
 
 /* Sign-in form. A redraw used to clear the inputs, so what was typed is kept here (React keeps it now as well). */
 export const auth = { err: "", busy: false, code: "", name: "",
-  /* SIGN_IN "email": the address and the code typed, which step is shown, and whether the server asked for an invite code
-     (an address new to Sidenote). Kept as they are typed: every redraw draws the form anew. */
-  email: "", otp: "", step: "email" as "email" | "code", invite: false };
+  /* SIGN_IN "email": the address and the code typed, which step is shown, whether the server asked for an invite code
+     (invite: it answered 403) and what it said when the address is new to Halfold (need, shown as a note, not as an error).
+     Kept as they are typed: every redraw draws the form anew. */
+  email: "", otp: "", step: "email" as "email" | "code", invite: false, need: "" };
 
 /* New lecture form. */
 export const nf = { mode: "record" as Source, courseId: null as string | null, title: "", lang: null as string | null, file: null as File | null, slides: null as File | null, link: "", err: "", busy: false };

@@ -15,7 +15,7 @@ npm start                 # http://localhost:8787
 
 `npm start` 用同一个地址提供 `/api` 和构建好的前端（`../dist`），并替前端把 `USE_MOCK` 关掉、`API_BASE` 设成 `/api`、登录页换成邮箱模式。改了前端要先在仓库根目录 `npm run build`。用邮箱登录（第一次填 `.env` 里的一个邀请码），新建课程，上传一段录音或点 Record now 现场录，等笔记出现。没设 `RESEND_API_KEY` 时，登录码打印在 `npm start` 的终端里。
 
-现场录音要用麦克风，浏览器只在 `localhost` 或 HTTPS 下给麦克风。用手机试要先配 HTTPS（比如反向代理），并设 `PUBLIC_URL`。
+现场录音要用麦克风，浏览器只在 `localhost` 或 HTTPS 下给麦克风。用手机试要先配 HTTPS（比如反向代理），并设 `PUBLIC_URL`。部署到一台服务器见 [../deploy/server/README.md](../deploy/server/README.md)。
 
 不想把 key 写进文件，也可以在启动时用环境变量给。
 
@@ -82,7 +82,7 @@ npm start                 # http://localhost:8787
 
 每天现场录音的分钟数和录音保留多久，现在按学生的方案定，在 `plans.json` 里（见下面“方案和付款”）。快用完时录音页会提醒，用完后停止保存，已保存的部分照常写笔记。
 
-现场录音每小时的转写费是上传录音的 2.12 倍：录音时实时转写一次，结束后为了写笔记再整段转写一次（15 秒一段的准确度差一些，尤其是粤语，见 DESIGN.md）。`npm run costs` 会列出实测的倍数和 Catch me up 每次的成本。
+现场录音只转写一次（2026-11-19 起）：笔记直接用录音时实时转写的逐字稿，结束后只补转实时没转到的部分（最后几秒、服务商长时间出错时跳过的那段），所以转写费约是上传录音的 1.13 倍（每轮会把上一轮最后 2 秒再送一次）。之前是结束后再整段转写一次，约 2.12 倍，见 DESIGN.md“现场录只转写一次”。`npm run costs` 会列出实测的倍数和 Catch me up 每次的成本。
 
 ## 分享的设置
 
@@ -99,7 +99,7 @@ npm start                 # http://localhost:8787
 | 设置 | 默认 | 作用 |
 |---|---|---|
 | `RESEND_API_KEY` | 空 | [Resend](https://resend.com) 的 key，用来发登录码。空着时码打印在服务器终端里，只适合自己电脑上试 |
-| `MAIL_FROM` | `Sidenote <onboarding@resend.dev>` | 发件人。要用你在 Resend 验证过的域名；Resend 的测试发件人只能发到你自己注册 Resend 的邮箱 |
+| `MAIL_FROM` | `Halfold <onboarding@resend.dev>` | 发件人。要用你在 Resend 验证过的域名；Resend 的测试发件人只能发到你自己注册 Resend 的邮箱 |
 | `EMAIL_DOMAINS` | 空 | 只让这些后缀的邮箱登录，如 `connect.hku.hk,link.cuhk.edu.hk`（子域名也算）。空 = 任何邮箱 |
 | `SESSION_DAYS` | 90 | 多少天不用就要重新登录 |
 | `SIGN_IN` | `email` | `invite` = 回到只用邀请码登录 |

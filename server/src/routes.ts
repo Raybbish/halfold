@@ -56,9 +56,9 @@ export function newCourse(store: Store, userId: string, code: string, name: stri
    (shown on the recording screen), and once the minutes are used up the next chunks get 410, which makes the front end
    stop sending them; ending the recording then writes the notes from what was saved. */
 const WARN_SECONDS = 5 * 60;
-const LIMIT_REACHED = "Today's recording minutes are used up, so Sidenote has stopped saving this recording. End it to get notes for what was saved.";
-const limitSoon = (left: number) => `About ${Math.max(1, Math.round(left / 60))} recording minutes are left today. Sidenote stops saving this recording when they run out; end it then to get notes for what was saved.`;
-const NOTHING_YET = "Nothing has been said yet that Sid can sum up. Try again in a minute.";
+const LIMIT_REACHED = "Today's recording minutes are used up, so Halfold has stopped saving this recording. End it to get notes for what was saved.";
+const limitSoon = (left: number) => `About ${Math.max(1, Math.round(left / 60))} recording minutes are left today. Halfold stops saving this recording when they run out; end it then to get notes for what was saved.`;
+const NOTHING_YET = "Nothing has been said yet that Hal can sum up. Try again in a minute.";
 const CATCH_UP_SECONDS = 5 * 60;
 
 /* Waits for `p` at most `ms`, without keeping the process alive. */
@@ -115,24 +115,24 @@ export function privateRoutes(deps: Deps) {
          and again on every chunk (a recording in progress counts too). */
       if (liveMinutesToday(store, user.id, config.timezone) >= billing.dailyLiveMinutes(user.id)) fail(429, "You have used today's recording minutes. Upload a recording instead, or come back tomorrow.");
       /* LIVE_RECORDING=off: refuse before the browser starts a recording that could not be saved. */
-      if (!config.liveRecording) fail(501, "Recording in Sidenote is not available right now. Record the lecture with another app and upload the file.");
+      if (!config.liveRecording) fail(501, "Recording in Halfold is not available right now. Record the lecture with another app and upload the file.");
     }
     const title = str(b.title).slice(0, 200) || "Untitled lecture";
-    const l = store.createLecture({ id: "lec-" + randomId(12), user_id: user.id, course_id: courseId, title, language, source });
+    const l = store.createLecture({ id: "lec-" + randomId(12), user_id: user.id, course_id: courseId, title, language, source, auto_title: b.autoTitle === true && !!str(b.title) });
     return c.json(lectureView(l, config.timezone));
   });
 
   r.post("/lectures/:id/recording", async c => {
     const user = c.get("user"), id = c.req.param("id"), l0 = mine(user.id, id);
     if (l0.status !== "recording") fail(409, "This lecture already has a recording.");
-    if (isLive(l0)) fail(409, "This lecture is being recorded in Sidenote. End the recording to get the notes.");
+    if (isLive(l0)) fail(409, "This lecture is being recorded in Halfold. End the recording to get the notes.");
     const got = await receiveFile(c.req.raw, files, "file", config.maxUploadBytes);
     try {
       const l = store.userLecture(user.id, id);
       if (!l) fail(404, "This lecture was deleted while the file was uploading.");
       if (l!.status !== "recording") fail(409, "This lecture already has a recording.");
       const info = await media.probe(got.tempPath);
-      if (!info || !info.hasAudio) fail(415, "Sidenote could not find any audio in this file. Try an MP3, M4A, WAV or MP4 file.");
+      if (!info || !info.hasAudio) fail(415, "Halfold could not find any audio in this file. Try an MP3, M4A, WAV or MP4 file.");
       /* Stored under a fixed name with no extension: ffmpeg then reads it by its content, as ffprobe just did, and a
          file name such as x.m3u8 cannot make ffmpeg treat it as a playlist of other files. */
       await files.commit(got.tempPath, id, "recording");
@@ -161,7 +161,7 @@ export function privateRoutes(deps: Deps) {
   r.post("/lectures/:id/slides", async c => {
     const user = c.get("user"), id = c.req.param("id");
     const check = (l: LectureRow) => {
-      if (l.status === "processing") fail(409, l.refile ? "Sid is already putting the notes under slides for this lecture." : "Sidenote is writing the notes for this lecture. Add the slides when the notes are ready.");
+      if (l.status === "processing") fail(409, l.refile ? "Hal is already putting the notes under slides for this lecture." : "Halfold is writing the notes for this lecture. Add the slides when the notes are ready.");
       if (l.status === "ready" && store.detail(l.id)?.slides.length) fail(409, "This lecture already has slides.");
     };
     mine(user.id, id);
@@ -194,7 +194,7 @@ export function privateRoutes(deps: Deps) {
     let seq: number;
     try {
       const l = mine(user.id, id);
-      if (!isLive(l)) fail(409, "This lecture is not being recorded in Sidenote.");
+      if (!isLive(l)) fail(409, "This lecture is not being recorded in Halfold.");
       const raw = got.fields.seq ?? "";
       if (!/^\d{1,6}$/.test(raw)) fail(400, "The piece of audio had no number (seq).");
       seq = Number(raw);
@@ -205,7 +205,7 @@ export function privateRoutes(deps: Deps) {
       }
       if (!again) {
         if (l.live_limit >= 2) fail(410, LIMIT_REACHED);
-        if (l.chunk_bytes + got.bytes > config.maxUploadBytes) { store.setLiveLimit(id, 2); fail(410, `This recording has reached ${Math.round(config.maxUploadBytes / 1048576)} MB, so Sidenote has stopped saving it. End it to get notes for what was saved.`); }
+        if (l.chunk_bytes + got.bytes > config.maxUploadBytes) { store.setLiveLimit(id, 2); fail(410, `This recording has reached ${Math.round(config.maxUploadBytes / 1048576)} MB, so Halfold has stopped saving it. End it to get notes for what was saved.`); }
         await files.commitChunk(got.tempPath, id, seq);
         store.addChunk(id, seq, got.bytes);
         /* Deleted while the piece was being stored: the move recreated the folder. */
@@ -250,7 +250,7 @@ export function privateRoutes(deps: Deps) {
       const u = (e as { usage?: Parameters<typeof log>[0]; startedAt?: Date }).usage;
       if (u) log(u, (e as { startedAt?: Date }).startedAt || new Date(), false);
       console.warn(`[catch-up] ${id}: ${(e as Error).message}`);
-      fail(502, "Sid could not sum up the last few minutes just now. Try again in a moment.");
+      fail(502, "Hal could not sum up the last few minutes just now. Try again in a moment.");
     }
   });
 
@@ -262,12 +262,12 @@ export function privateRoutes(deps: Deps) {
     try { const b = await c.req.json(); if (typeof b?.duration === "number" && Number.isFinite(b.duration) && b.duration > 0) duration = b.duration; } catch { /* no body */ }
     if (l.status === "processing" || l.status === "ready") return c.json<StatusReply>({ status: l.status });
     if (isLive(l)) {
-      if (!l.recording_file && !store.hasChunk(id, 0)) fail(409, "Sidenote did not receive any audio for this lecture. Delete it and record again.");
-      /* The notes come from the whole recording, transcribed again in one go: the live rounds can stop. */
+      if (!l.recording_file && !store.hasChunk(id, 0)) fail(409, "Halfold did not receive any audio for this lecture. Delete it and record again.");
+      /* The live rounds stop here; the pipeline transcribes whatever they had not reached (pipeline.ts transcribeLive). */
       live.stop(id);
     } else if (l.source === "link") {
       if (!l.recording_file && !l.link) fail(409, "Paste the link to the lecture video first.");
-    } else if (!l.recording_file) fail(409, "Sidenote did not receive a recording for this lecture. Delete it and upload the file again.");
+    } else if (!l.recording_file) fail(409, "Halfold did not receive a recording for this lecture. Delete it and upload the file again.");
     if (store.startProcessing(id, ["recording", "failed"], duration)) jobs.enqueue(id);
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? "processing" });
   });

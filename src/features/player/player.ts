@@ -91,6 +91,11 @@ export function plPaint() {
 export function plToggle() {
   const a = pl.a; if (!a || pl.err) return;
   if (!a.paused) return a.pause();
+  plPlay();
+}
+/* Starts the recording where it is (does nothing while it is already playing). */
+export function plPlay() {
+  const a = pl.a; if (!a || pl.err || !a.paused) return;
   const p = a.play(); if (p && p.catch) p.catch(() => {});
   if (!pl.url && !pl.told) { pl.told = true; toast("Sample build: playback is simulated, so there is no sound."); }
   plMedia();
@@ -112,7 +117,7 @@ async function plFail(a: Media) {
 export function plRetry() { const at = state.pos; plStop(); pl.err = false; state.pos = at; bump(); }
 function plMedia() {   // lock screen and headphone controls on phones
   try { const ms = navigator.mediaSession; if (!ms || !pl.url) return;
-    ms.metadata = new MediaMetadata({ title: cur!.l.title, artist: (cur!.c && cur!.c.code) || "Sidenote", album: "Sidenote" });
+    ms.metadata = new MediaMetadata({ title: cur!.l.title, artist: (cur!.c && cur!.c.code) || "Halfold", album: "Halfold" });
     ms.setActionHandler("play", () => { if (pl.a && pl.a.paused) plToggle(); });
     ms.setActionHandler("pause", () => { if (pl.a && !pl.a.paused) plToggle(); });
     ms.setActionHandler("seekbackward", () => plSkip(-15)); ms.setActionHandler("seekforward", () => plSkip(15)); } catch (e) {}

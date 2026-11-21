@@ -17,12 +17,14 @@ export interface Lecture {
   status?: LectureStatus;
   shareUrl?: string | null;
   link?: string | null;      // the video link a "link" lecture was made from ("Open the original video")
+  source?: Source;           // how the lecture was made; not on the shared page (API-CHANGES.md 10)
   error?: string;            // why a failed lecture failed, in a sentence for the student, when the backend knows (API-CHANGES.md 9)
 }
 export interface Upcoming { date: string; kind: string; text: string; course: string; lecture: string; t: number }
 export interface Week { lectures: number; known: number; quiz: number; days?: number[] }
 export interface Settings { classLanguage: string; zhDefault: boolean; zhScript?: ZhScript }
-export interface Usage { minutesToday: number; minutesLimit: number; audioDays?: number }
+/* lecturesThisMonth / lecturesLimit: lectures counted this month and the plan's limit; missing when the plan has none. */
+export interface Usage { minutesToday: number; minutesLimit: number; audioDays?: number; lecturesThisMonth?: number; lecturesLimit?: number }
 export interface Home {
   user: User;
   courses: Course[];
@@ -53,6 +55,7 @@ export interface Line { t: number; text: string }
 export interface Flashcard { q: string; a: string }
 export interface QuizQuestion { q: string; opts: string[]; a: number; why?: string; t?: number | null }
 export interface Detail {
+  summary?: string[];   // the lecture in 3 to 5 sentences, shown above the notes
   audio?: Audio | null;
   progress?: { known: number[] };
   alerts: Alert[];
@@ -87,6 +90,6 @@ export interface UrlReply { url: string | null }
 /* GET /search?q= (added after the migration): points in the notes of every lecture that match */
 export interface NoteHit { lecture: string; text: string; t: number | null }
 export interface SearchReply { results: NoteHit[] }
-export interface NewLecture { courseId: string; title: string; language: string; source: Source }
+export interface NewLecture { courseId: string; title: string; language: string; source: Source; autoTitle?: boolean }
 export interface SettingsUpdate { name: string; classLanguage: string; zhDefault: boolean; zhScript?: ZhScript }
 export interface ProgressUpdate { known: number[]; quizScore: number | null }

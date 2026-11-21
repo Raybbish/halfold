@@ -41,7 +41,8 @@ test("in order: each reply carries the lines of its round; a word cut by the win
   /* Home counts the recording in progress toward today's minutes. */
   assert.equal(HomeSchema.parse((await s.call("GET", "/home", { token })).body).usage!.minutesToday, 1);
 
-  /* End: the chunks become one recording, transcribed again as a whole for the notes. */
+  /* End: the chunks become one recording. The notes are written from the live transcript; only the end that no round
+     reached (53 to 55 s) is transcribed now, so the recording is paid for once, not twice. */
   assert.deepEqual((await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 56 } })).body, { status: "processing" });
   await s.pipeline.idle();
   const done = s.store.lecture(id)!;
@@ -51,10 +52,43 @@ test("in order: each reply carries the lines of its round; a word cut by the win
   assert.equal(s.files.exists(id, "recording"), false);
   assert.equal(fs.existsSync(s.files.chunkDir(id)), false);
   assert.equal((s.media as StubMedia).speech.at(-1)!.o!.fillGaps, true);
-  assert.deepEqual(s.store.costs().filter(c => c.stage === "stt").map(c => c.audio_seconds), [600]);   // the stub's whole-file reply says 600
+  assert.deepEqual(s.stt.windows.at(-1), [53, 55]);
+  assert.equal(s.stt.calls, s.stt.windows.length);   // nothing is transcribed as a whole
+  assert.deepEqual(s.store.costs().filter(c => c.stage === "stt").map(c => c.audio_seconds), [2]);
   const d = DetailSchema.parse((await s.call("GET", `/lectures/${id}`, { token })).body.detail);
   assert.ok(d.audio?.url);
-  assert.equal(s.notes.calls[0].input.lines[0].text, "Good afternoon.");
+  assert.deepEqual(s.notes.calls[0].input.lines, lines(s, id));
+  assert.deepEqual(s.store.transcript(id), lines(s, id));
+});
+
+test("finish: the sentence held back at the end and the audio after the last round are transcribed once and joined", async t => {
+  const s = setup(); t.after(() => s.close());
+  s.stt.words = [{ text: "The", start: 9, end: 9.3 }, { text: "law", start: 9.3, end: 9.6 }, { text: "of", start: 9.6, end: 9.8 }, { text: "supply", start: 9.8, end: 10.4 },
+    { text: "says", start: 10.4, end: 10.8 }, { text: "that", start: 10.8, end: 11.2 }, { text: "prices", start: 11.4, end: 12 }, { text: "rise.", start: 12.5, end: 14 }];
+  const token = await s.signIn(), id = await liveLecture(s, token);
+  assert.deepEqual((await send(s, token, id, 0)).body.segments, []);
+  const from = s.store.lecture(id)!.live_from;
+  assert.ok(s.store.lecture(id)!.live_held); assert.ok(from > 12 && from < 12.5);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 15 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.stt.windows, [[0, 15], [from, 15]]);
+  assert.deepEqual(s.notes.calls[0].input.lines, [{ t: 9, text: "The law of supply says that prices rise." }]);
+});
+
+test("after a long outage the live transcript skips ahead; what it skipped is transcribed after the recording ends", async t => {
+  const s = live(setup()); t.after(() => s.close());
+  const token = await s.signIn(), id = await liveLecture(s, token);
+  s.stt.error = new Error("stub-stt replied 503");
+  for (let seq = 0; seq < 10; seq++) await send(s, token, id, seq);   // 150 s that could not be transcribed
+  s.stt.error = null;
+  await send(s, token, id, 10);   // 165 s: the live round takes only the last 30
+  assert.deepEqual(s.stt.windows, [[135, 165]]);
+  assert.deepEqual(lines(s, id), []);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 165 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.stt.windows.slice(1), [[0, 135], [163, 165]]);
+  assert.deepEqual(s.notes.calls[0].input.lines.map((x: { t: number }) => x.t), [1, 6, 13, 22, 33, 50]);
+  assert.deepEqual(s.store.costs().filter(c => c.stage === "stt").map(c => c.audio_seconds), [135, 2]);
 });
 
 test("a sentence that runs past the end of a round is held back and sent whole with the next round", async t => {
@@ -148,7 +182,7 @@ test("finish: refused without audio; idempotent; later chunks are 410 but a rese
   const s = live(setup()); t.after(() => s.close());
   const token = await s.signIn(), id = await liveLecture(s, token);
   const none = await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 30 } });
-  assert.equal(none.status, 409); assert.equal(none.body.message, "Sidenote did not receive any audio for this lecture. Delete it and record again.");
+  assert.equal(none.status, 409); assert.equal(none.body.message, "Halfold did not receive any audio for this lecture. Delete it and record again.");
   /* Only a later piece, never the first: nothing can be read. */
   await send(s, token, id, 1);
   assert.equal((await s.call("POST", `/lectures/${id}/finish`, { token })).status, 409);
@@ -164,7 +198,9 @@ test("finish: refused without audio; idempotent; later chunks are 410 but a rese
   release(); await s.pipeline.idle();
   assert.equal(s.store.lecture(id)!.status, "ready"); assert.equal(s.store.lecture(id)!.duration, 30);
   assert.equal(s.store.lecture(id)!.client_duration, null);   // 0 is not a length
-  assert.equal(s.stt.calls - s.stt.windows.length, 1);   // one whole-file transcription
+  /* Nothing is transcribed as a whole: only the end the live round did not reach. */
+  assert.equal(s.stt.calls, s.stt.windows.length);
+  assert.deepEqual(s.stt.windows.at(-1), [28, 30]);
 });
 
 test("a chunk that never arrived: the recording is joined without it, and a failure is retried without joining again", async t => {
@@ -186,7 +222,7 @@ test("the daily limit: a warning near the end, an alert when it is reached, then
   const token = await s.signIn(), id = await liveLecture(s, token);
   assert.deepEqual((await send(s, token, id, 0, fakeChunk(240))).body.alerts, []);
   const warned = await send(s, token, id, 1, fakeChunk(120));
-  assert.deepEqual(warned.body.alerts, [{ t: 360, kind: "Recording", text: "About 4 recording minutes are left today. Sidenote stops saving this recording when they run out; end it then to get notes for what was saved." }]);
+  assert.deepEqual(warned.body.alerts, [{ t: 360, kind: "Recording", text: "About 4 recording minutes are left today. Halfold stops saving this recording when they run out; end it then to get notes for what was saved." }]);
   assert.deepEqual((await send(s, token, id, 2, fakeChunk(60))).body.alerts, []);   // warned once
   const reached = await send(s, token, id, 3, fakeChunk(180));
   assert.deepEqual(reached.body.alerts.map((a: { kind: string; t: number }) => [a.kind, a.t]), [["Recording", 600]]);
@@ -235,13 +271,18 @@ test("LIVE_TRANSCRIPT=off: chunks are kept and counted, nothing is transcribed l
   /* Each measurement reads only what is new. */
   assert.deepEqual((s.media as StubMedia).cuts.map(c => c.from), [0, 15, 30]);
   assert.equal((await s.call("POST", `/lectures/${id}/catch-up`, { token })).status, 501);
+  /* No live transcript to write the notes from: the whole recording is transcribed once, after it ends. */
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 45 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.stt.windows, [[0, 45]]);
+  assert.equal(s.notes.calls[0].input.lines[0].text, "Good afternoon.");
 });
 
 test("Catch me up: nothing yet; the last five minutes; the model failing; not for an upload", async t => {
   const s = live(setup()); t.after(() => s.close());
   const token = await s.signIn(), id = await liveLecture(s, token, { language: "en-yue" });
   const empty = await s.call("POST", `/lectures/${id}/catch-up`, { token });
-  assert.deepEqual(CatchUpReplySchema.parse(empty.body), { points: ["Nothing has been said yet that Sid can sum up. Try again in a minute."] });
+  assert.deepEqual(CatchUpReplySchema.parse(empty.body), { points: ["Nothing has been said yet that Hal can sum up. Try again in a minute."] });
   assert.equal(s.catchUp.calls.length, 0);
 
   for (const seq of [0, 1, 2]) await send(s, token, id, seq);
@@ -260,10 +301,27 @@ test("Catch me up: nothing yet; the last five minutes; the model failing; not fo
 
   s.catchUp.replies.push(new Error("the reply had no points"));
   const failed = await s.call("POST", `/lectures/${id}/catch-up`, { token });
-  assert.equal(failed.status, 502); assert.equal(failed.body.message, "Sid could not sum up the last few minutes just now. Try again in a moment.");
+  assert.equal(failed.status, 502); assert.equal(failed.body.message, "Hal could not sum up the last few minutes just now. Try again in a moment.");
   assert.equal(s.store.costs().filter(c => c.stage === "catchup").length, 3);   // paid for even when unusable
 
   const up = await uploadedLecture(s, token);
   assert.equal((await s.call("POST", `/lectures/${up}/catch-up`, { token })).status, 409);
   assert.equal((await s.call("POST", `/lectures/${id}/catch-up`, { token: await s.signIn("CODE-B") })).status, 404);
 });
+
+test("finish joins the pieces in order into one recording, without piling up listeners (12 pieces, more than the 10 Node warns at)", async t => {
+  const s = live(setup()); t.after(() => s.close());
+  const warned: string[] = [], onWarning = (w: Error) => { warned.push(w.name); };
+  process.on("warning", onWarning); t.after(() => { process.off("warning", onWarning); });
+  const token = await s.signIn(), id = await liveLecture(s, token);
+  for (let seq = 0; seq < 12; seq++) assert.equal((await send(s, token, id, seq, fakeChunk(5))).status, 200);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 60 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  /* The stub media copies what it converts, so audio.m4a holds the joined recording; the original went with the notes. */
+  assert.equal(fs.readFileSync(s.files.path(id, "audio.m4a"), "utf8"), fakeChunk(5).repeat(12), "every piece, in order, once");
+  assert.equal(s.files.exists(id, "recording"), false);
+  assert.equal(fs.existsSync(s.files.chunkDir(id)), false, "the pieces are removed");
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(warned.filter(w => w === "MaxListenersExceededWarning"), []);
+});
+

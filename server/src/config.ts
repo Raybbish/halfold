@@ -23,9 +23,11 @@ export interface DeepSeekSettings { apiKey: string; baseUrl: string; model: stri
 
 export interface Config {
   port: number;
+  host: string | undefined;           // the address to listen on, e.g. 127.0.0.1 behind a reverse proxy; undefined = every address
   publicUrl: string;                  // where students reach the server, e.g. https://sidenote.example.com; empty = links relative to the page
   webUrl: string;                     // where the front end is, for shared links (#/s/:id); empty = the page that asked
   exampleShareId: string | null;      // the shared lecture behind "Example notes" on the public pages; null hides those links
+  contactEmail: string | null;        // where students write (the Privacy page) and how the server names itself to sites that ask (Wikimedia); null = not set
   dataDir: string;
   webDir: string | null;              // the built front end to serve at "/", or null to serve only the API
   timezone: string;                   // the students' time zone: "today", lecture dates, exam dates
@@ -99,9 +101,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (provider !== "elevenlabs" && provider !== "deepgram") throw new Error(`STT_PROVIDER must be elevenlabs or deepgram, not "${provider}"`);
   return {
     port: num(env.PORT, 8787),
+    host: (env.HOST || "").trim() || undefined,
     publicUrl: (env.PUBLIC_URL || "").trim().replace(/\/+$/, ""),
     webUrl: (env.WEB_URL || "").trim().replace(/\/+$/, ""),
     exampleShareId: /^[A-Za-z0-9_-]+$/.test((env.EXAMPLE_SHARE_ID || "").trim()) ? env.EXAMPLE_SHARE_ID!.trim() : null,
+    contactEmail: /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test((env.CONTACT_EMAIL || "").trim()) ? env.CONTACT_EMAIL!.trim() : null,
     dataDir: path.resolve(SERVER_DIR, env.DATA_DIR || "data"),
     webDir: web,
     timezone: env.APP_TIMEZONE || "Asia/Hong_Kong",
@@ -122,7 +126,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       emailDomains: list(env.EMAIL_DOMAINS).map(d => d.toLowerCase().replace(/^@/, "")),
       sessionDays: Math.max(1, num(env.SESSION_DAYS, 90))
     },
-    mail: { resendKey: (env.RESEND_API_KEY || "").trim(), from: (env.MAIL_FROM || "Sidenote <onboarding@resend.dev>").trim(), apiBase: (env.RESEND_API_BASE || "https://api.resend.com").replace(/\/+$/, "") },
+    mail: { resendKey: (env.RESEND_API_KEY || "").trim(), from: (env.MAIL_FROM || "Halfold <onboarding@resend.dev>").trim(), apiBase: (env.RESEND_API_BASE || "https://api.resend.com").replace(/\/+$/, "") },
     stripe: {
       secretKey: (env.STRIPE_SECRET_KEY || "").trim(), webhookSecret: (env.STRIPE_WEBHOOK_SECRET || "").trim(),
       apiBase: (env.STRIPE_API_BASE || "https://api.stripe.com").replace(/\/+$/, ""), allowLive: onOff(env.STRIPE_ALLOW_LIVE, false)

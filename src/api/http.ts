@@ -22,7 +22,7 @@ function reply(status: number, statusText: string, text: string, anon?: boolean)
   if (status === 401 && !anon) { session.clear(); if (location.hash !== "#/signin") S.next = location.hash; location.hash = "#/signin"; throw Object.assign(new Error("Please sign in again."), { status: 401 }); }
   if (status < 200 || status > 299) { let m = statusText; try { m = JSON.parse(text).message || m; } catch (e) {} throw Object.assign(new Error(m || "Request failed"), { status }); }
   if (!text.trim()) return null;   // endpoints with nothing to return may answer 204 or an empty 200
-  try { return JSON.parse(text); } catch (e) { throw new Error("The server sent a reply Sidenote could not read."); }
+  try { return JSON.parse(text); } catch (e) { throw new Error("The server sent a reply Halfold could not read."); }
 }
 
 export interface UploadOptions {

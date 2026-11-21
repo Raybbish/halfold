@@ -1,0 +1,16 @@
+# The daily backup (backup.sh), started by halfold-backup.timer or by `halfold backup`.
+# R2 settings in /etc/halfold/backup.env (see backup.env.example); without them the copies stay on this server.
+
+[Unit]
+Description=Halfold backup: database copy and lecture files (to Cloudflare R2 when set up)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=halfold
+Group=halfold
+EnvironmentFile=-/etc/halfold/backup.env
+ExecStart=/bin/bash /srv/halfold/deploy/server/backup.sh
+Nice=10
+IOSchedulingClass=idle

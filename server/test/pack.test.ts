@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ErrorReplySchema, ReviewPackSchema } from "../src/shapes";
 import { readyLecture, setup } from "./helpers";
+import { mixQuiz } from "../src/notes/mix";
 
 type S = ReturnType<typeof setup>;
 const hold = (s: S) => { let open!: () => void; s.notes.gate = new Promise(r => { open = r; }); return () => { s.notes.gate = null; open(); }; };
@@ -44,7 +45,9 @@ test("review pack: none, processing, then ready: the flagged items, a sheet of t
     ["Topic of Week 9", [["The midterm is on 26 November.", 18, false, "Week 9", a], ["Edited before the pack.", 252, false, "Week 9", a]]],
     ["Topic of Week 10", [["The midterm is on 26 November.", 18, false, "Week 10", b], ["Opportunity cost is the next best thing you give up.", 252, false, "Week 10", b]]]
   ]);
-  assert.deepEqual(pack.exam, [{ q: "Which is the opportunity cost?", opts: ["The price", "The next best alternative", "A sunk cost", "A tax"], a: 1, why: "It is what you give up.", t: 252, lectureId: a }]);
+  /* The model's question, its options in the mixed order (notes/mix.ts), the right one still the right one. */
+  assert.deepEqual(pack.exam, mixQuiz([{ q: "Which is the opportunity cost?", opts: ["The price", "The next best alternative", "A sunk cost", "A tax"], a: 1, why: "It is what you give up.", t: 252, lectureId: a }]));
+  assert.equal(pack.exam[0].opts[pack.exam[0].a], "The next best alternative");
   /* A renamed lecture shows its new name. The call is in the cost log, under the course. */
   await s.call("PATCH", `/lectures/${a}`, { token, json: { title: "Week 9: costs" } });
   const renamed = await getPack(s, token, course);
@@ -86,7 +89,7 @@ test("review pack: a pack that cannot be made is a 502 once, then none; replies 
   await s.call("POST", `/courses/${course}/review-pack`, { token }); await s.packs.idle();
   assert.match(s.notes.packCalls[1].repair!.problem, /not valid JSON/);
   const failed = await s.call("GET", `/courses/${course}/review-pack`, { token });
-  assert.equal(failed.status, 502); assert.equal(ErrorReplySchema.parse(failed.body).message, "Sid could not make the review pack just now. Try again in a moment.");
+  assert.equal(failed.status, 502); assert.equal(ErrorReplySchema.parse(failed.body).message, "Hal could not make the review pack just now. Try again in a moment.");
   assert.deepEqual(await getPack(s, token, course), { status: "none" });
   /* The model's service failing is the same (no second call: deepseek.ts already retries what the service refused). */
   s.notes.packReplies = [new Error("DeepSeek 503")];

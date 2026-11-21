@@ -61,13 +61,17 @@ export class Billing {
     const up = nextTier(this.book, t);
     return up ? `Choose ${up.name} in Settings for ${what}, or wait until ${shortDate(next)}.` : `More are available from ${shortDate(next)}.`;
   }
+  /* The lectures counted this month and the plan's limit (GET /home usage); null when the plan has no limit. */
+  lectureUsage(userId: string, at = new Date()): { used: number; limit: number } | null {
+    const n = this.entitlement(userId, at).tier.lecturesPerMonth;
+    return n === null ? null : { used: this.d.store.lecturesUsed(userId, this.month(at).start.toISOString()), limit: n };
+  }
   /* POST /lectures: a lecture over the month's limit is refused (429) before anything is recorded or uploaded. */
   checkLecture(userId: string, at = new Date()) {
-    const { tier } = this.entitlement(userId, at), n = tier.lecturesPerMonth;
-    if (n === null) return;
-    const m = this.month(at);
-    if (this.d.store.lecturesUsed(userId, m.start.toISOString()) >= n)
-      fail(429, `You have used the ${n === 1 ? "1 lecture" : n + " lectures"} that ${tier.name} includes this month. ${this.more(tier, "more lectures", m.next)}`);
+    const u = this.lectureUsage(userId, at);
+    if (!u || u.used < u.limit) return;
+    const { tier } = this.entitlement(userId, at), n = u.limit;
+    fail(429, `You have used the ${n === 1 ? "1 lecture" : n + " lectures"} that ${tier.name} includes this month. ${this.more(tier, "more lectures", this.month(at).next)}`);
   }
   /* POST /courses/:id/review-pack, when it would make a new pack from notes. */
   checkPack(userId: string, at = new Date()) {
@@ -128,7 +132,7 @@ export class Billing {
     const portal = async (s: SubscriptionRow) => {
       if (!pay || !s.customer) return null;
       try { return await pay.billingPortal(s.customer, back); }
-      catch (e) { console.warn(`[billing] billing page for ${user.id}: ${(e as Error).message}`); fail(502, "Sidenote could not open the billing page just now. Try again in a moment."); }
+      catch (e) { console.warn(`[billing] billing page for ${user.id}: ${(e as Error).message}`); fail(502, "Halfold could not open the billing page just now. Try again in a moment."); }
       return null;
     };
     if (card.id === ent.current) fail(409, `${card.kind === "pass" ? card.tier.pass!.name : card.tier.name} is already your plan.`);
@@ -151,12 +155,12 @@ export class Billing {
     const t = card.tier, monthly = card.kind === "monthly", { store } = this.d;
     const r = await this.payments!.createCheckout({
       mode: monthly ? "subscription" : "payment",
-      productName: monthly ? `Sidenote ${t.name}, monthly` : `Sidenote ${t.pass!.name}, ${t.pass!.days} days`,
+      productName: monthly ? `Halfold ${t.name}, monthly` : `Halfold ${t.pass!.name}, ${t.pass!.days} days`,
       currency: this.book.currency.toLowerCase(), amount: minorUnits(monthly ? t.monthly! : t.pass!.price),
       successUrl: back, cancelUrl: back, userId: user.id,
       customer: user.stripe_customer ?? sub?.customer ?? null, email: user.email,
       metadata: { user: user.id, plan: t.id, card: card.id }
-    }).catch(e => { console.warn(`[billing] checkout for ${user.id}: ${(e as Error).message}`); return fail(502, "Sidenote could not start the payment just now. Try again in a moment."); });
+    }).catch(e => { console.warn(`[billing] checkout for ${user.id}: ${(e as Error).message}`); return fail(502, "Halfold could not start the payment just now. Try again in a moment."); });
     store.addCheckout({ id: r.id, user_id: user.id, card: card.id, mode: monthly ? "subscription" : "payment" });
     return r.url;
   }

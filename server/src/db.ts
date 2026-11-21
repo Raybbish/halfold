@@ -4,6 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
 import type { Alert, Detail, Line, LectureStatus, Source } from "../../src/types";
 import type { ClassLanguage } from "./config";
+import { mixQuiz } from "./notes/mix";
+import { slideLabels } from "./notes/normalize";
 
 /* email: the address the student signs in with (phase 4), bound the first time with the invite code; null for an
    invite code nobody has used with an email yet. stripe_customer: the student in Stripe, once they have paid. */
@@ -31,6 +33,7 @@ export interface LectureRow {
      chunk_bytes: bytes of audio received. audio_expired: the recording was deleted after AUDIO_KEEP_DAYS. */
   live_from: number; live_audio: number; live_limit: number; chunk_bytes: number; audio_expired: number;
   live_held: string | null;   // JSON words of a sentence not finished at the end of the last round (live/windows.ts holdUnfinished)
+  live_gaps: string | null;   // JSON [from, to] stretches a live round skipped after an outage, transcribed when the recording ends
   /* Phase 3. share_id: the id in the shared link (#/s/:id), null when not shared; share_url: that link as the student
      copied it. refile: 1 while slides sent after the notes are being matched to the points. copied_from: the lecture a
      shared copy was saved from (POST /shared/:id/save). */
@@ -38,6 +41,9 @@ export interface LectureRow {
   /* Video links. link: what the student pasted (source "link"). public_error: why the lecture failed, in a sentence for
      the student, when that is known (a download that failed); error keeps the details for the log. */
   link: string | null; public_error: string | null;
+  /* auto_title: 1 while the title is the dated one the front end filled in (createLecture autoTitle) and nobody renamed
+     the lecture; the notes then give it the title the model wrote (saveNotes). */
+  auto_title: number;
 }
 export interface UpcomingRow { lecture_id: string; date: string; kind: string; text: string; t: number; course_code: string }
 export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
@@ -125,13 +131,23 @@ const normCode = (code: string) => code.trim().toLowerCase();
 const ADDED: [string, string, string][] = [
   ["lectures", "live_from", "REAL NOT NULL DEFAULT 0"], ["lectures", "live_audio", "REAL NOT NULL DEFAULT 0"],
   ["lectures", "live_limit", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "chunk_bytes", "INTEGER NOT NULL DEFAULT 0"],
-  ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"],
+  ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"], ["lectures", "live_gaps", "TEXT"],
   ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
-  ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"],
+  ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"], ["lectures", "auto_title", "INTEGER NOT NULL DEFAULT 0"],
   ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"]
 ];
 
-export interface LiveRound { from: number; next: number; audioEnd: number; lines: Line[]; alerts: Alert[]; held: unknown[] }
+/* gap: the stretch [from, to] this round skipped to catch up after an outage (live/transcriber.ts CATCH_UP_WINDOW). */
+export interface LiveRound { from: number; next: number; audioEnd: number; lines: Line[]; alerts: Alert[]; held: unknown[]; gap?: [number, number] }
+
+/* The stretches live rounds skipped (lectures.live_gaps). */
+export function liveGaps(json: string | null): [number, number][] {
+  if (!json) return [];
+  try {
+    const g = JSON.parse(json);
+    return Array.isArray(g) ? g.filter((x): x is [number, number] => Array.isArray(x) && x.length === 2 && x.every(Number.isFinite)) : [];
+  } catch { return []; }
+}
 
 export class Store {
   readonly db: DatabaseSync;
@@ -304,9 +320,9 @@ export class Store {
   }
 
   /* ---- lectures ---- */
-  createLecture(l: Pick<LectureRow, "id" | "user_id" | "course_id" | "title" | "language" | "source">): LectureRow {
-    this.db.prepare("INSERT INTO lectures (id, user_id, course_id, title, language, source, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'recording', ?)")
-      .run(l.id, l.user_id, l.course_id, l.title, l.language, l.source, now());
+  createLecture(l: Pick<LectureRow, "id" | "user_id" | "course_id" | "title" | "language" | "source"> & { auto_title?: boolean }): LectureRow {
+    this.db.prepare("INSERT INTO lectures (id, user_id, course_id, title, language, source, status, created_at, auto_title) VALUES (?, ?, ?, ?, ?, ?, 'recording', ?, ?)")
+      .run(l.id, l.user_id, l.course_id, l.title, l.language, l.source, now(), l.auto_title ? 1 : 0);
     return this.lecture(l.id)!;
   }
   lecture(id: string) { return this.db.prepare("SELECT * FROM lectures WHERE id = ?").get(id) as LectureRow | undefined; }
@@ -321,15 +337,20 @@ export class Store {
     const marks = from.map(() => "?").join(",");
     const r = this.db.prepare(`UPDATE lectures SET status = 'processing', error = NULL, finished_at = COALESCE(finished_at, ?), client_duration = COALESCE(?, client_duration) WHERE id = ? AND status IN (${marks})`)
       .run(now(), clientDuration ?? null, id, ...from);
-    /* The lecture now counts against the month's limit for good (plans.json lecturesPerMonth), even if it is deleted later. */
+    /* The lecture now counts against the month's limit (plans.json lecturesPerMonth), even if it is deleted later; only
+       a lecture that fails stops counting (setFailed), and a retry that starts it again counts it again. */
     if (Number(r.changes) > 0) this.db.prepare("INSERT OR IGNORE INTO quota (kind, ref, user_id, created_at) SELECT 'lecture', id, user_id, created_at FROM lectures WHERE id = ? AND copied_from IS NULL").run(id);
     return Number(r.changes) > 0;
   }
-  renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ? WHERE id = ?").run(title, id); }
+  renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ?, auto_title = 0 WHERE id = ?").run(title, id); }
   moveLecture(id: string, courseId: string) { this.db.prepare("UPDATE lectures SET course_id = ? WHERE id = ?").run(courseId, id); }
   setLink(id: string, url: string) { this.db.prepare("UPDATE lectures SET link = ? WHERE id = ?").run(url, id); }
+  /* A lecture that could not be made into notes is not one of the month's lectures: the student got nothing from it. */
   setFailed(id: string, error: string, publicError: string | null = null) {
-    this.db.prepare("UPDATE lectures SET status = 'failed', error = ?, public_error = ? WHERE id = ?").run(error.slice(0, 2000), publicError, id);
+    this.tx(() => {
+      this.db.prepare("UPDATE lectures SET status = 'failed', error = ?, public_error = ? WHERE id = ?").run(error.slice(0, 2000), publicError, id);
+      this.db.prepare("DELETE FROM quota WHERE kind = 'lecture' AND ref = ?").run(id);
+    });
   }
   deleteLecture(id: string) { this.db.prepare("DELETE FROM lectures WHERE id = ?").run(id); }
   /* Live recordings (record, tab) started since a time, for the daily limit. */
@@ -398,8 +419,9 @@ export class Store {
       for (const x of r.lines) line.run(lectureId, x.t, x.text);
       const alert = this.db.prepare("INSERT INTO live_alerts (lecture_id, t, kind, text) VALUES (?, ?, ?, ?)");
       for (const a of r.alerts) alert.run(lectureId, a.t, a.kind, a.text);
-      this.db.prepare("UPDATE lectures SET live_from = ?, live_audio = MAX(live_audio, ?), live_held = ? WHERE id = ?")
-        .run(r.next, r.audioEnd, r.held.length ? JSON.stringify(r.held) : null, lectureId);
+      const gaps = r.gap ? JSON.stringify([...liveGaps(l.live_gaps), r.gap]) : l.live_gaps;
+      this.db.prepare("UPDATE lectures SET live_from = ?, live_audio = MAX(live_audio, ?), live_held = ?, live_gaps = ? WHERE id = ?")
+        .run(r.next, r.audioEnd, r.held.length ? JSON.stringify(r.held) : null, gaps, lectureId);
       return true;
     });
   }
@@ -437,7 +459,8 @@ export class Store {
     return r ? JSON.parse(r.lines_json) as Line[] : null;
   }
   /* Notes, the dated alerts and status ready in one transaction. Does nothing when the lecture was deleted meanwhile. */
-  saveNotes(lectureId: string, detail: Detail, dated: { date: string; kind: string; text: string; t: number }[]) {
+  /* title: the model's title for the lecture; it replaces the title only while that is still the automatic one. */
+  saveNotes(lectureId: string, detail: Detail, dated: { date: string; kind: string; text: string; t: number }[], title: string | null = null) {
     this.db.exec("BEGIN");
     try {
       if (!this.lecture(lectureId)) { this.db.exec("ROLLBACK"); return false; }
@@ -446,12 +469,21 @@ export class Store {
       const ins = this.db.prepare("INSERT INTO upcoming (lecture_id, date, kind, text, t) VALUES (?, ?, ?, ?, ?)");
       for (const u of dated) ins.run(lectureId, u.date, u.kind, u.text, u.t);
       this.db.prepare("UPDATE lectures SET status = 'ready', error = NULL WHERE id = ?").run(lectureId);
+      if (title) this.db.prepare("UPDATE lectures SET title = ?, auto_title = 0 WHERE id = ? AND auto_title = 1").run(title.slice(0, 200), lectureId);
       this.db.exec("COMMIT"); return true;
     } catch (e) { this.db.exec("ROLLBACK"); throw e; }
   }
   detail(lectureId: string) {
     const r = this.db.prepare("SELECT detail_json FROM details WHERE lecture_id = ?").get(lectureId) as { detail_json: string } | undefined;
-    return r ? JSON.parse(r.detail_json) as Detail : null;
+    if (!r) return null;
+    const d = JSON.parse(r.detail_json) as Detail;
+    if (Array.isArray(d.quiz)) d.quiz = mixQuiz(d.quiz);   // the right answer is not always first (notes/mix.ts)
+    /* The section labels from the pages of their points (normalize.ts slideLabels), also for notes written before. */
+    if (d.slides && d.slides.length && Array.isArray(d.sections)) {
+      const labels = slideLabels(d.sections);
+      d.sections = d.sections.map((s, i) => { const { slides: _old, ...rest } = s; return labels[i] ? { ...rest, slides: labels[i] } : rest; });
+    }
+    return d;
   }
   /* Changes the notes in one transaction: `change` gets the stored notes and edits them in place. An error thrown by
      `change` (a point that is not there) leaves them as they were. */

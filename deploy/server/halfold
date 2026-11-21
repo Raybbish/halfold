@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# `halfold`: everyday commands on the server. activate.sh installs this as /usr/local/bin/halfold.
+set -euo pipefail
+
+APP=/srv/halfold/server
+SETTINGS=/etc/halfold/halfold.env
+
+usage() {
+  cat <<'EOF'
+halfold status              running or not, which commit, the last log lines
+halfold logs                follow the server's log (Ctrl-C to stop)
+halfold restart             restart the server
+halfold env                 edit the settings and keys (server/.env on your computer), then restart
+halfold invite new|add|list invite codes          (npm run invite)
+halfold plan list|show|give plans and usage        (npm run plan)
+halfold costs               cost of every lecture  (npm run costs)
+halfold feedback            students' feedback     (npm run feedback)
+halfold backup              back up now and show how it went
+EOF
+  exit "${1:-0}"
+}
+
+# The server's admin scripts, as the user that runs the server, with its settings and database.
+script() {
+  cd "$APP"
+  exec sudo -u halfold /usr/local/bin/node --disable-warning=ExperimentalWarning --env-file-if-exists="$SETTINGS" --import tsx "scripts/$1.ts" "${@:2}"
+}
+
+case "${1:-}" in
+  status)   echo "commit: $(cat /srv/halfold/REVISION 2>/dev/null || echo unknown)"; exec sudo systemctl status halfold --no-pager -n 15 ;;
+  logs)     exec sudo journalctl -u halfold -n 100 -f ;;
+  restart)  sudo systemctl restart halfold && echo "restarted" ;;
+  env)      sudoedit "$SETTINGS" && sudo systemctl restart halfold && echo "saved and restarted" ;;
+  invite|plan|costs|feedback) script "$@" ;;
+  backup)   ok=0; sudo systemctl start halfold-backup || ok=$?
+            sudo journalctl -u halfold-backup -n 20 --no-pager -o cat; exit "$ok" ;;
+  ""|-h|--help|help) usage ;;
+  *)        echo "halfold: unknown command $1" >&2; usage 1 ;;
+esac

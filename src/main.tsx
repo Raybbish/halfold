@@ -13,6 +13,7 @@ import { LANG } from "./i18n";
 import { live, onVisibilityChange } from "./features/recording/recorder";
 import { outbox, flush } from "./features/recording/outbox";
 import { findOrphan } from "./features/recording/orphan";
+import { uploading } from "./features/upload/upload";
 import { installTestBridge } from "./testBridge";
 import { onLectureKey } from "./pages/lecture/actions";
 import { App } from "./App";
@@ -25,7 +26,7 @@ setFlusher(fn => flushSync(fn));
 const net = () => document.body.classList.toggle("is-offline", navigator.onLine === false);   // the offline notice
 document.addEventListener("visibilitychange", onVisibilityChange);
 window.addEventListener("online", flush); setInterval(() => { if (outbox.length) flush(); }, 10000);
-window.addEventListener("beforeunload", e => { if (live.active) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", e => { if (live.active || uploading()) { e.preventDefault(); e.returnValue = ""; } });   // a recording, or a file being uploaded (it lives only in this page)
 document.addEventListener("keydown", onLectureKey);   // flashcard and quiz keys
 window.addEventListener("online", net); window.addEventListener("offline", net);
 window.addEventListener("hashchange", route);
@@ -35,7 +36,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !(overlay.
    and only then the first route. */
 if (CONFIG.USE_MOCK) mockDb.prep();
 session.load();
-document.documentElement.lang = LANG === "zh" ? "zh-Hant" : "en"; net();
+document.documentElement.lang = LANG; net();
 installTestBridge();
 createRoot(document.getElementById("app")!).render(<StrictMode><App /></StrictMode>);
 (async () => { await idb.open(); await findOrphan(); route(); })();

@@ -67,8 +67,15 @@ function bytesIn(dir: string) {
   return n;
 }
 
+/* Wikimedia's sites refuse clients that do not say who they are (meta.wikimedia.org/wiki/User-Agent_policy): a direct
+   link to an audio file on upload.wikimedia.org got HTTP 429 on its first request in the test of 2026-11-18. To them the
+   server names itself and a way to reach its operator (identify: "Halfold/1.0 (https://halfold.app; support@...)").
+   Other sites keep yt-dlp's own headers, which some of them (YouTube) depend on. */
+const NAMES_ITSELF_TO = /(^|\.)(wikimedia|wikipedia)\.org$/i;
+export function identifyTo(url: string) { try { return NAMES_ITSELF_TO.test(new URL(url).hostname); } catch { return false; } }
+
 export class YtDlp implements LinkDownloader {
-  constructor(private readonly o: { bin: string; proxy: string; timeoutMs: number; checkEveryMs?: number }) {}
+  constructor(private readonly o: { bin: string; proxy: string; timeoutMs: number; checkEveryMs?: number; identify?: string | null }) {}
 
   download(url: string, dir: string, o: { maxBytes: number; signal?: AbortSignal }): Promise<string> {
     const { signal, maxBytes } = o;
@@ -83,6 +90,7 @@ export class YtDlp implements LinkDownloader {
          to ffmpeg, which does not use --proxy and is not stopped with yt-dlp. */
       "--downloader", "native", "--ffmpeg-location", path.join(dir, ".no-ffmpeg"), "--fixup", "never",
       "--socket-timeout", "30", "--proxy", this.o.proxy,
+      ...(this.o.identify && identifyTo(url) ? ["--user-agent", this.o.identify] : []),
       "-o", path.join(dir, "media.%(ext)s"), "--", url
     ];
     return new Promise((resolve, reject) => {

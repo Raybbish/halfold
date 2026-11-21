@@ -28,4 +28,7 @@ export async function findOrphan() { let m: Mark | null = null; try { m = JSON.p
   const id = m ? m.id : all[0].id, chunks = all.filter(c => c.id === id).sort((a, b) => a.seq - b.seq);
   S.orphan = { id, code: m ? m.code : (chunks[0] && chunks[0].code) || "", sec: Math.max(m ? m.sec : 0, ...chunks.map(c => c.sec || 0)), chunks }; }
 export function recoverOrphan() { const o = S.orphan!; S.orphan = null; o.chunks.forEach(c => outbox.push(c)); bump(); finishAfterUpload(o.id, o.sec); }
-export async function dropOrphan() { const o = S.orphan!; S.orphan = null; unmark(); for (const c of o.chunks) await idb.del(c.key); api.deleteLecture(o.id).catch(() => {}); toast("Recording discarded"); bump(); }
+/* Forgets the interrupted recording on this device: the notice, the mark and its saved audio. Also used when its lecture
+   is deleted from the lecture page (pages/lecture/actions.tsx). */
+export async function forgetOrphan() { const o = S.orphan!; S.orphan = null; unmark(); for (const c of o.chunks) await idb.del(c.key); }
+export async function dropOrphan() { const o = S.orphan!; await forgetOrphan(); api.deleteLecture(o.id).catch(() => {}); toast("Recording discarded"); bump(); }

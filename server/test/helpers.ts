@@ -312,9 +312,9 @@ export function fileForm(content: string | Uint8Array, filename: string, field =
 }
 
 /* Creates a course and an upload lecture, uploads a fake recording (and slides), and returns the lecture id. */
-export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string } = {}) {
+export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string; title?: string; autoTitle?: boolean } = {}) {
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body;
-  const lec = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Week 9", language: o.language || "en-yue", source: "upload" } })).body;
+  const lec = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: o.title ?? "Week 9", language: o.language || "en-yue", source: "upload", ...(o.autoTitle !== undefined ? { autoTitle: o.autoTitle } : {}) } })).body;
   const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
   if (up.status !== 204) throw new Error("upload failed: " + up.text);
   if (o.slides) { const sl = await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") }); if (sl.status !== 204) throw new Error("slides failed: " + sl.text); }

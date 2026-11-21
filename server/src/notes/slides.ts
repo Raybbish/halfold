@@ -3,7 +3,7 @@
    page a title. The text and order of the points, the student's edits and the student's own points (t null) stay as
    they are. Points are numbered 1, 2, 3... across the lecture in the prompt, so the reply refers to them unambiguously. */
 import type { Detail, Point } from "../../../src/types";
-import { slideLabel, slideList } from "./normalize";
+import { slideLabels, slideList } from "./normalize";
 
 export interface SlidesInput {
   courseCode: string;
@@ -29,7 +29,7 @@ export function slidesInput(detail: Detail, head: { courseCode: string; title: s
 }
 
 export function slidesPrompt(input: SlidesInput) {
-  const system = `You match lecture notes to the lecture slides for Sidenote, an app for university students. The notes were written from a recording of the lecture before the slides were available. You get the text of each slide page and the numbered points of the notes. Reply with one JSON object and nothing else.
+  const system = `You match lecture notes to the lecture slides for Halfold, an app for university students. The notes were written from a recording of the lecture before the slides were available. You get the text of each slide page and the numbered points of the notes. Reply with one JSON object and nothing else.
 
 - For each point: "slide" is the number of the slide page it belongs to (null if none fits), and "off" is true when the lecturer said it but it is NOT on the slides: an extra example, an explanation, a hint about the exam, a correction. This is what the student most needs, so judge it carefully against the slide text.
 - "slides": one entry per slide page, with a short title (at most 8 words).
@@ -82,8 +82,8 @@ export function fileUnder(detail: Detail, pages: { n: number; text: string }[], 
       return { ...p, slide: f && f.slide !== null && valid.has(f.slide) ? f.slide : null, off: !!f?.off };
     });
     const { slides: _old, ...rest } = s;
-    const label = slideLabel(points.map(p => p.slide).filter((x): x is number => x != null));
-    return { ...rest, ...(label ? { slides: label } : {}), points };
+    return { ...rest, points };
   });
-  return { ...detail, sections, slides: slideList(pages, filing.slides) };
+  const labels = slideLabels(sections);
+  return { ...detail, sections: sections.map((s, i) => labels[i] ? { ...s, slides: labels[i] } : s), slides: slideList(pages, filing.slides) };
 }

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { ErrorReplySchema, HomeSchema, PlansSchema, UrlReplySchema } from "../src/shapes";
 import { addDays, sweepAudio } from "../src/audio";
 import { localDate, monthOf, shortDate } from "../src/time";
-import { readyLecture, setup, type TestServer } from "./helpers";
+import { readyLecture, setup, uploadedLecture, type TestServer } from "./helpers";
 
 const isError = (r: { body: unknown }) => ErrorReplySchema.parse(r.body);
 const ORIGIN = "https://app.example.com";
@@ -36,7 +36,7 @@ test("GET /plans: Free, Plus every month and Plus for a semester, as plans.json 
     { id: "plus-semester", name: "Plus for a semester", priceText: "HK$348 for 120 days", features: ["240 minutes of live recording a day", "40 lectures a month", "Unlimited review packs",
       "Recordings kept for good", "Pay once by card, Alipay or WeChat Pay. Does not renew."] }
   ] });
-  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 90, audioDays: 30 });
+  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 90, audioDays: 30, lecturesThisMonth: 0, lecturesLimit: 4 });
 });
 
 test("Plus every month: Stripe Checkout; the plan starts when Stripe says it is paid; cancelling on the billing page; back to Free", async t => {
@@ -45,7 +45,7 @@ test("Plus every month: Stripe Checkout; the plan starts when Stripe says it is 
   const r = await choose(s, token, "plus");
   assert.equal(r.status, 200); assert.deepEqual(UrlReplySchema.parse(r.body), { url: "https://checkout.stripe.test/cs_test_1" });
   assert.deepEqual(s.payments.requests[0], {
-    mode: "subscription", productName: "Sidenote Plus, monthly", currency: "hkd", amount: 9800,
+    mode: "subscription", productName: "Halfold Plus, monthly", currency: "hkd", amount: 9800,
     successUrl: ORIGIN + "/#/settings", cancelUrl: ORIGIN + "/#/settings", userId: me, customer: null, email: null,
     metadata: { user: me, plan: "plus", card: "plus" }
   });
@@ -54,7 +54,7 @@ test("Plus every month: Stripe Checkout; the plan starts when Stripe says it is 
 
   /* Paid. No webhook yet: coming back to the settings page, the server asks Stripe about the open Checkout. */
   s.payments.pay("cs_test_1");
-  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 240 });
+  assert.deepEqual((await home(s, token)).usage, { minutesToday: 0, minutesLimit: 240, lecturesThisMonth: 0, lecturesLimit: 40 });
   const sub = [...s.payments.subs.values()][0];
   const paid = await plansOf(s, token);
   assert.equal(paid.current, "plus");
@@ -92,7 +92,7 @@ test("Plus for a semester: paid once (the webhook may come twice); 120 days, the
   s.store.bindEmail(me, "ann@example.edu");
   assert.equal((await choose(s, token, "plus-semester")).body.url, "https://checkout.stripe.test/cs_test_1");
   const q = s.payments.requests[0];
-  assert.deepEqual([q.mode, q.amount, q.productName, q.email, q.metadata], ["payment", 34800, "Sidenote Plus for a semester, 120 days", "ann@example.edu", { user: me, plan: "plus", card: "plus-semester" }]);
+  assert.deepEqual([q.mode, q.amount, q.productName, q.email, q.metadata], ["payment", 34800, "Halfold Plus for a semester, 120 days", "ann@example.edu", { user: me, plan: "plus", card: "plus-semester" }]);
   s.payments.pay("cs_test_1");
   for (let i = 0; i < 2; i++) assert.equal((await webhook(s, "checkout.session.completed", session(s, "cs_test_1"))).status, 200);
   const until = s.store.pass(me)!.until;
@@ -142,7 +142,7 @@ test("POST /checkout: what goes to Stripe, what to the billing page, what is ref
   assert.equal(already.status, 409); assert.equal(isError(already).message, "Free is already your plan.");
   s.payments.error = new Error("Stripe 500");
   const down = await choose(s, token, "plus");
-  assert.equal(down.status, 502); assert.equal(isError(down).message, "Sidenote could not start the payment just now. Try again in a moment.");
+  assert.equal(down.status, 502); assert.equal(isError(down).message, "Halfold could not start the payment just now. Try again in a moment.");
   s.payments.error = null;
 
   await choose(s, token, "plus"); s.payments.pay("cs_test_1"); await plansOf(s, token);
@@ -156,7 +156,7 @@ test("POST /checkout: what goes to Stripe, what to the billing page, what is ref
   assert.equal((await plansOf(s, token)).current, "free");
   assert.equal((await choose(s, token, "plus")).body.url, `https://billing.stripe.test/${sub.customer}`);
   s.payments.error = new Error("Stripe 500");
-  assert.equal(isError(await choose(s, token, "plus")).message, "Sidenote could not open the billing page just now. Try again in a moment.");
+  assert.equal(isError(await choose(s, token, "plus")).message, "Halfold could not open the billing page just now. Try again in a moment.");
   assert.equal(s.store.subscription(me)!.status, "past_due");
 
   const off = setup({ realPlans: true, payments: false }); t.after(() => off.close());
@@ -228,6 +228,24 @@ test("a paid period that passed without a webhook: GET /home asks Stripe; when S
   assert.equal((await s.call("GET", "/home", { token })).status, 200);
 });
 
+test("a lecture that fails is not one of the month's lectures; a retry counts it again, and so does a later delete", async t => {
+  const s = setup({ realPlans: true }); t.after(() => s.close());
+  const token = await s.signIn();
+  const used = async () => (await home(s, token)).usage!.lecturesThisMonth;
+  const id = await uploadedLecture(s, token);
+  s.stt.error = new Error("elevenlabs replied 500: busy");
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 600 } }); await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "failed");
+  assert.equal(await used(), 0, "the failed lecture does not count");
+  s.stt.error = null;
+  assert.equal((await s.call("POST", `/lectures/${id}/retry`, { token })).status, 200);
+  assert.equal(await used(), 1, "tried again: it counts while it is made");
+  await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  await s.call("DELETE", `/lectures/${id}`, { token });
+  assert.equal(await used(), 1, "notes were written: deleting it does not give it back");
+});
+
 test("the free plan's limits: lectures a month (copies of shared notes are free), review packs a month, live minutes a day; Plus lifts them", async t => {
   const s = setup({ realPlans: true }); t.after(() => s.close());
   const token = await s.signIn(), me = uid(s), next = shortDate(monthOf(new Date(), s.config.timezone).next);
@@ -238,6 +256,8 @@ test("the free plan's limits: lectures a month (copies of shared notes are free)
   /* The fourth is being uploaded: it counts already. */
   const fourth = await add();
   assert.equal(fourth.status, 200);
+  const usage = (await home(s, token)).usage!;
+  assert.deepEqual([usage.lecturesThisMonth, usage.lecturesLimit], [4, 4], "home shows 4 of 4 lectures used");
   const over = await add();
   assert.equal(over.status, 429);
   assert.equal(isError(over).message, `You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until ${next}.`);

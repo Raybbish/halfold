@@ -4,8 +4,9 @@
    arrives during a round is covered by the next one. Rounds of all lectures together are limited (LIVE_CONCURRENCY).
    Everything a round needs is in the database and the chunk files, so a restart loses nothing: the next chunk starts
    a round from where the last one stopped.
-   The notes are not written from these lines: after the lecture the whole recording is transcribed in one go
-   (pipeline.ts), which is more accurate than 15-second windows (see DESIGN.md). */
+   The notes are written from these lines, so a live recording is transcribed once (DESIGN.md, 现场录只转写一次): when it
+   ends, the pipeline transcribes only what no round reached, the stretches skipped after an outage (live_gaps), the
+   sentence held back and the audio after the last round (pipeline.ts transcribeLive). */
 import type { Config } from "../config";
 import type { Store } from "../db";
 import type { FileStore } from "../files";
@@ -35,7 +36,8 @@ export function heldWords(json: string | null): Word[] {
 }
 
 /* After a long outage of the speech-to-text service, only this much of the latest audio is transcribed: the live
-   transcript skips the gap rather than sending an hour of audio in one round. The notes still cover all of it. */
+   transcript skips the gap rather than sending an hour of audio in one round. The skipped stretch is kept (live_gaps)
+   and transcribed when the recording ends, so the notes still cover all of it. */
 const CATCH_UP_WINDOW = 30;
 
 export class LiveTranscriber implements LiveJobs {
@@ -102,7 +104,8 @@ export class LiveTranscriber implements LiveJobs {
       const end = from + len;
       store.setLiveAudio(id, end);
       if (len < MIN_WINDOW || signal.aborted) return;
-      if (len > MAX_WINDOW) { from = end - CATCH_UP_WINDOW; len = await media.cutSpeech(dir, parts, tmp, { from, signal }); }
+      let gap: [number, number] | undefined;
+      if (len > MAX_WINDOW) { gap = [from, end - CATCH_UP_WINDOW]; from = gap[1]; len = await media.cutSpeech(dir, parts, tmp, { from, signal }); }
       const t = await stt.transcribe(tmp, l.language, signal);
       /* Logged before checking for a deletion: the audio was sent and is paid for. */
       store.logCost({ lectureId: id, userId: l.user_id, stage: "live", provider: stt.provider, model: stt.model, audioSeconds: len, usd: stt.usd(len, l.language),
@@ -112,7 +115,7 @@ export class LiveTranscriber implements LiveJobs {
       const { send, held } = holdUnfinished([...heldWords(l.live_held), ...keep], from + len);
       let lines = wordsToLines(send);
       if (l.language === "en-yue" || (l.language === "auto" && t.detectedLanguage === "yue")) lines = lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) }));
-      if (store.saveLiveRound(id, { from: l.live_from, next: cut.next, audioEnd: end, lines, alerts: findAlerts(lines, store.liveAlerts(id)), held }) && keep.length)
+      if (store.saveLiveRound(id, { from: l.live_from, next: cut.next, audioEnd: end, lines, alerts: findAlerts(lines, store.liveAlerts(id)), held, gap }) && keep.length)
         this.lastWord.set(id, keep[keep.length - 1]);
     } catch (e) {
       /* The next chunk tries again with the same audio and more. */

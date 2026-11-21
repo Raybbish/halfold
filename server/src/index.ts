@@ -29,7 +29,9 @@ const stt = createTranscriber(config), notes = createNotesWriter(config);
 /* Video links need yt-dlp; every download goes through the proxy that only reaches public addresses (links/guard.ts). */
 const ytdlp = await ytDlpVersion(config.links.ytdlp);
 const guard = ytdlp ? new GuardProxy() : null;
-const links = guard ? new YtDlp({ bin: config.links.ytdlp, proxy: await guard.listen(), timeoutMs: config.links.downloadMs }) : null;
+/* How the server names itself to sites that ask for it (ytdlp.ts, Wikimedia): only with a contact address to give. */
+const identify = config.contactEmail ? `Halfold/1.0 (${[config.publicUrl, config.contactEmail].filter(Boolean).join("; ")})` : null;
+const links = guard ? new YtDlp({ bin: config.links.ytdlp, proxy: await guard.listen(), timeoutMs: config.links.downloadMs, identify }) : null;
 const pipeline = new Pipeline({ config, store, files, media, stt, notes, links });
 const live = new LiveTranscriber({ config, store, files, media, stt });
 const packs = new ReviewPacks({ config, store, notes });
@@ -56,7 +58,7 @@ else if (!payments) console.warn("[sidenote] STRIPE_SECRET_KEY is not set: plans
 else if (!config.stripe.webhookSecret) console.warn("[sidenote] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but renewals and cancellations need the webhook.");
 
 /* Node ends a request after 5 minutes by default, which cuts off a 500 MB upload on a slow connection. */
-const server = serve({ fetch: app.fetch, port: config.port, serverOptions: { requestTimeout: 3 * 3600_000 } }, info => {
+const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host, serverOptions: { requestTimeout: 3 * 3600_000 } }, info => {
   console.log(`[sidenote] http://localhost:${info.port}  sign-in: ${config.signIn === "email" ? "email code (" + mailer.provider + ")" : "invite code"}  payments: ${payments ? "Stripe " + (config.stripe.secretKey.includes("_test_") ? "test mode" : "LIVE") : "off"}` +
     `  speech-to-text: ${stt.provider} ${stt.model}  notes: ${notes.provider} ${notes.model}` +
     `  links: ${ytdlp ? "yt-dlp " + ytdlp : "off"}` +

@@ -5,15 +5,16 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
 (async () => {
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--no-sandbox'] });
   const bad = [], errors = [];
-  for (const [w, zh] of [[320, 0], [320, 1], [360, 0], [390, 1], [430, 0], [768, 1], [900, 0], [901, 1], [1280, 0]]) {
+  for (const [w, zh] of [[320, 0], [320, 1], [360, 0], [390, 1], [430, 0], [768, 1], [900, 0], [901, 1], [1280, 0], [320, 2], [768, 2], [1280, 2]]) {
     const ctx = await browser.newContext({ viewport: { width: w, height: 760 }, isMobile: w < 900, hasTouch: w < 900, permissions: ['microphone'] });
     const page = await ctx.newPage(); page.on('pageerror', e => errors.push(w + ': ' + e.message)); await ctx.addInitScript(() => { try { localStorage.setItem('sidenote.recTip', '1'); } catch (e) {} });
     const probe = async name => { await page.waitForTimeout(250); const r = await page.evaluate(() => {
         const sw = document.documentElement.scrollWidth, iw = innerWidth, wide = [];
         if (sw > iw) document.querySelectorAll('#app *').forEach(el => { const b = el.getBoundingClientRect(); if (b.right > iw + 1 && b.width > 0 && !el.closest('.tabs') && !el.closest('.stream')) wide.push(el.tagName + '.' + String(el.className).slice(0, 30) + ' right=' + Math.round(b.right)); });
         return { sw, iw, wide: wide.slice(0, 4) }; });
-      if (r.sw > r.iw) bad.push(`${w}px ${zh ? 'zh' : 'en'} ${name}: page is ${r.sw}px wide -> ${r.wide.join(' | ')}`); };
-    await page.goto(FILE + '#/'); if (zh) await page.click('.lang'); await probe('landing');
+      if (r.sw > r.iw) bad.push(`${w}px ${['en', 'zh', 'zh-Hans'][zh]} ${name}: page is ${r.sw}px wide -> ${r.wide.join(' | ')}`); };
+    await page.goto(FILE + '#/'); if (zh) await page.selectOption('.lang', zh === 2 ? 'zh-Hans' : 'zh-Hant'); await probe('landing');
+    await page.goto(FILE + '#/help'); await probe('help'); await page.goto(FILE + '#/privacy'); await probe('privacy');
     await page.goto(FILE + '#/signin'); await probe('signin'); await page.fill('input[name=code]', 'x'); await page.click('form.auth button'); await page.waitForSelector('.shell'); await probe('home');
     await page.goto(FILE + '#/courses'); await probe('courses'); await page.goto(FILE + '#/course/econ1001'); await probe('course'); await page.goto(FILE + '#/pack/econ1001'); await page.waitForSelector('.page-h'); await page.click('.main .card button.btn.primary'); await page.waitForSelector('.pk', { timeout: 20000 }); await probe('pack');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs');
@@ -27,7 +28,7 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     await page.goto(FILE + '#/s/econ-w9'); await page.waitForSelector('.shared-bar'); await probe('shared, signed in');
     await ctx.close();
   }
-  console.log(bad.length ? bad.join('\n') : 'no sideways scrolling at 320, 360, 390, 430, 768, 900, 901, 1280 px (English and Chinese)');
+  console.log(bad.length ? bad.join('\n') : 'no sideways scrolling at 320, 360, 390, 430, 768, 900, 901, 1280 px (English, Traditional and Simplified)');
   console.log(errors.length ? errors.join('\n') : 'no page errors');
   await browser.close();
 })().catch(e => { console.error('SCRIPT ERROR', String(e.message).slice(0, 600)); process.exit(1); });

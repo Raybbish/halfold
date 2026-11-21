@@ -8,34 +8,37 @@ import { fmt, plural } from "../lib/helpers";
 import { bump } from "../lib/bus";
 import { R, S, colorOf, course, nf } from "../state/app";
 import { act, closeModal, toast } from "../state/overlay";
-import { LANG, setLang, t } from "../i18n";
+import { LANG, isZh, setLang, t } from "../i18n";
 import { live } from "../features/recording/recorder";
 import { recoverOrphan, dropOrphan } from "../features/recording/orphan";
-import { ICON, Logo, Sid } from "./icons";
+import { up, upPct } from "../features/upload/upload";
+import { ICON, Logo, Hal } from "./icons";
 import { openModal } from "./Overlay";
 import { css } from "./css";
 import { val } from "./form";
 
 /* The button's text is the name of the other language, so it stays as it is (data-notr); its label is translated. */
-export const LangBtn = () => <button className="lang" data-notr="" onClick={() => setLang(LANG === "en" ? "zh" : "en")} aria-label={t("Switch language")}>{LANG === "en" ? "中文" : "EN"}</button>;
+export const LangBtn = () => <select className="lang" data-notr="" value={LANG} onChange={e => setLang(e.currentTarget.value)} aria-label={t("Switch language")}><option value="en">EN</option><option value="zh-Hans">简体</option><option value="zh-Hant">繁體</option></select>;
 
 export function Shell({ active, children }: { active: string; children: ReactNode }) {
-  const dn = LANG === "zh" ? ["一", "二", "三", "四", "五"] : ["M", "T", "W", "T", "F"], w = S.week, recOn = live.active && R.a !== "live";
+  const dn = isZh() ? ["一", "二", "三", "四", "五"] : ["M", "T", "W", "T", "F"], w = S.week, recOn = live.active && R.a !== "live";
   return <div className="shell">
     <aside className="side">
       <div style={css("display:flex;align-items:center;justify-content:space-between;gap:8px")}><Logo href="#/home" /><LangBtn /></div>
       <a className="btn primary new" href="#/new">{t("New lecture")}</a>
       <a className={`n ${active === "home" ? "on" : ""}`} href="#/home">{t("Home")}</a>
       <a className={`n ${active === "settings" ? "on" : ""}`} href="#/settings">{t("Settings")}</a>
+      <a className="n" href="#/help">{t("Help")}</a>
       <div className="lbl">{t("Courses")}</div>
       {S.courses.map(c => <a key={c.id} className={`n c ${active === c.id ? "on" : ""}`} href={"#/course/" + encodeURIComponent(c.id)}><i className="cdot" style={{ background: colorOf(c) }}></i>{c.code}<span className="ct num">{S.lectures.filter(l => l.course === c.id).length}</span></a>)}
       <button className="n c addc" onClick={addCourseModal}>{t("Add a course")}</button>
-      {w ? <div className="streak"><b className="num">{t(plural(w.lectures, "lecture") + " this week")}</b><div className="small">{t("One more and Sid gets a gold corner.")}</div>
+      {w ? <div className="streak"><b className="num">{t(plural(w.lectures, "lecture") + " this week")}</b><div className="small">{t("One more and Hal gets a gold corner.")}</div>
         <div className="days" data-notr="">{dn.map((x, i) => <span key={i} className={w.days && w.days[i] ? "d" : ""}>{x}</span>)}</div></div> : null}
     </aside>
     <header className="mtop"><Logo href="#/home" />{CONFIG.USE_MOCK ? <span className="mtag">{t("Sample data")}</span> : null}<span className="sp"></span><LangBtn /><a className={`ico ${active === "settings" ? "on" : ""}`} href="#/settings" aria-label={t("Settings")}>{ICON.settings}</a></header>
     <main className="main"><div className="inner">
       {live.active && R.a !== "live" ? <a className="pill-rec" href="#/live"><i></i>{t("Recording " + live.courseCode + " ")}<span className="clk num">{fmt(live.sec)}</span>{t(" Return")}</a> : null}
+      <UploadPill />
       <OrphanNotice />
       {children}</div></main>
     {R.a === "live" ? null : <nav className="mnav" aria-label={t("Main")}>
@@ -48,7 +51,16 @@ export function Shell({ active, children }: { active: string; children: ReactNod
 export const Skeleton = () => <><div className="sk" style={css("width:40%;height:30px")}></div><div className="sk" style={css("width:65%")}></div><div className="card" style={css("padding:22px;margin-top:20px")}><div className="sk"></div><div className="sk" style={css("width:80%")}></div><div className="sk" style={css("width:55%;margin:0")}></div></div></>;
 
 export function Problem({ title, text, btn }: { title: string; text: string; btn?: ReactNode }) {
-  return <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Sid size={52} mood="sad" /><div className="grow"><h3>{t(title)}</h3><p className="muted" style={css("margin:8px 0 16px")}>{t(text)}</p>{btn || <a className="btn primary" href="#/home">{t("Go to home")}</a>}</div></div>;
+  return <div className="card" style={css("padding:28px;display:flex;gap:18px;align-items:center;flex-wrap:wrap")}><Hal size={52} mood="sad" /><div className="grow"><h3>{t(title)}</h3><p className="muted" style={css("margin:8px 0 16px")}>{t(text)}</p>{btn || <a className="btn primary" href="#/home">{t("Go to home")}</a>}</div></div>;
+}
+
+/* An upload going on in the background (features/upload/upload.ts), on every page but its lecture's, phones included:
+   "Uploading 45%" (the percentage moves without a redraw), or red when it failed. Both open the lecture. */
+function UploadPill() {
+  if (!up.id || !up.state || (R.a === "lecture" && R.b === up.id)) return null;
+  const href = "#/lecture/" + encodeURIComponent(up.id);
+  return up.state === "failed" ? <a className="pill-rec bad" href={href}>{t("The upload did not finish. Open")}</a>
+    : <a className="pill-rec up" href={href}><i></i>{t("Uploading") + " "}<span className="num upPct" data-notr="">{upPct() + "%"}</span></a>;
 }
 
 /* A recording cut off by a closed tab (see features/recording/orphan.ts). */

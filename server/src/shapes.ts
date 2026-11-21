@@ -14,16 +14,18 @@ const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const id = z.string().regex(/^[A-Za-z0-9_-]+$/);   // INTEGRATION.md section 1
 export const StatusSchema = z.enum(["recording", "processing", "ready", "failed"]);
 
+export const SourceSchema = z.enum(["record", "tab", "upload", "link"]);
 export const UserSchema: z.ZodType<User> = z.strictObject({ name: z.string() });
 export const CourseSchema: z.ZodType<Course> = z.strictObject({ id, code: z.string().min(1), name: z.string().optional(), color: z.string().optional() });
 export const LectureSchema: z.ZodType<Lecture> = z.strictObject({
   id, course: id, title: z.string(), week: z.number().int().optional(), date: z.string(), duration: seconds.optional(),
-  status: StatusSchema.optional(), shareUrl: z.string().nullable().optional(), link: z.string().nullable().optional(), error: z.string().min(1).optional()
+  status: StatusSchema.optional(), shareUrl: z.string().nullable().optional(), link: z.string().nullable().optional(), source: SourceSchema.optional(), error: z.string().min(1).optional()
 });
 export const UpcomingSchema: z.ZodType<Upcoming> = z.strictObject({ date: ymd, kind: z.string(), text: z.string(), course: z.string(), lecture: id, t: seconds });
 export const WeekSchema: z.ZodType<Week> = z.strictObject({ lectures: z.number(), known: z.number(), quiz: z.number(), days: z.array(z.number()).optional() });
 export const SettingsSchema: z.ZodType<Settings> = z.strictObject({ classLanguage: z.string(), zhDefault: z.boolean(), zhScript: z.enum(["hant", "hans"]).optional() });
-export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.number().nonnegative(), minutesLimit: z.number().nonnegative(), audioDays: z.number().optional() });
+export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.number().nonnegative(), minutesLimit: z.number().nonnegative(), audioDays: z.number().optional(),
+  lecturesThisMonth: z.number().int().nonnegative().optional(), lecturesLimit: z.number().int().positive().optional() });
 export const HomeSchema: z.ZodType<Home> = z.strictObject({
   user: UserSchema, courses: z.array(CourseSchema), lectures: z.array(LectureSchema), upcoming: z.array(UpcomingSchema),
   week: WeekSchema.optional(), settings: SettingsSchema.optional(), usage: UsageSchema.optional(), today: ymd.optional()
@@ -47,6 +49,7 @@ const quizFields = {
 const answerIsAnOption = (q: { a: number; opts: string[] }) => q.a < q.opts.length;
 export const QuizSchema: z.ZodType<QuizQuestion> = z.strictObject(quizFields).refine(answerIsAnOption, "the answer index is not one of the options");
 export const DetailSchema: z.ZodType<Detail> = z.strictObject({
+  summary: z.array(z.string().min(1)).min(1).max(5).optional(),
   audio: AudioSchema.nullable().optional(), progress: z.strictObject({ known: z.array(z.number().int().nonnegative()) }).optional(),
   alerts: z.array(AlertSchema), sections: z.array(SectionSchema).min(1), slides: z.array(SlideSchema), transcript: z.array(LineSchema),
   flashcards: z.array(FlashcardSchema), quiz: z.array(QuizSchema)

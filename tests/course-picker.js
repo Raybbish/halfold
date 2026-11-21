@@ -22,7 +22,7 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
     const ctx = await browser.newContext(phone ? { viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 800 } });
     await setConfig(ctx, { USE_MOCK: false }); await ctx.route('**/*', backend(be));
     const page = await ctx.newPage(); page.on('pageerror', e => errs.push(e.message));
-    await page.goto(ORIGIN + '/#/'); if (zh) await page.click('.lang');
+    await page.goto(ORIGIN + '/#/'); if (zh) await page.selectOption('.lang', 'zh-Hant');
     await page.goto(ORIGIN + '/#/signin'); await page.fill('input[name=code]', 'abc'); await page.click('form.auth button'); await page.waitForSelector('.shell');
     await page.evaluate(() => { location.hash = '#/new'; }); await page.waitForSelector('form.card'); await page.waitForTimeout(300);
     return { ctx, page };

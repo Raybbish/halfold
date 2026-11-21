@@ -10,6 +10,7 @@ import { courseFields, newCourse, str, type AppEnv, type Deps } from "./routes";
 import { courseView, lectureView } from "./views";
 import { lectureKey, notedLectures } from "./packs";
 import type { StoredPack } from "./notes/pack";
+import { mixQuiz } from "./notes/mix";
 import { webBase } from "./account";
 
 const NOT_SHARED = "This link is no longer shared.";
@@ -28,7 +29,7 @@ export function sharedRoutes(deps: Deps) {
     const course = store.courseById(l!.course_id), owner = store.user(l!.user_id);
     /* No recording (INTEGRATION.md 4.3: the shared page plays none), nor the video link it came from, and not the owner's
        progress: detail is the notes as stored. The lecture goes by the share id, so readers never learn its own id. */
-    const { link: _link, error: _error, ...shown } = lectureView(l!, config.timezone);
+    const { link: _link, error: _error, source: _source, ...shown } = lectureView(l!, config.timezone);
     return c.json<SharedReply>({
       lecture: { ...shown, id, status: "ready", shareUrl: null },
       ...(course ? { course: courseView(course) } : {}), detail: detail!, sharedBy: owner?.name.trim() || "A classmate"
@@ -64,7 +65,7 @@ export function libraryRoutes(deps: Deps) {
      A point is found by its section and its place in that section (INTEGRATION.md section 2), so the order is kept:
      an added point goes last in its section, and a section whose points were all deleted stays (empty). */
   const editable = (l: LectureRow) => {
-    if (l.status === "processing" && l.refile) fail(409, "Sid is putting the notes under the slides. Try again in a minute.");
+    if (l.status === "processing" && l.refile) fail(409, "Hal is putting the notes under the slides. Try again in a minute.");
     if (l.status !== "ready" || !store.detail(l.id)) fail(409, "This lecture has no notes yet.");
   };
   const place = (v: unknown) => typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : fail(400, "The note to change was not given.");
@@ -170,7 +171,7 @@ export function libraryRoutes(deps: Deps) {
     const course = myCourse(c), p = store.pack(course.id);
     if (!p) return c.json({ status: "none" });
     if (p.status === "processing") return c.json({ status: "processing" });
-    if (p.status === "failed") { store.dropPack(course.id); fail(502, "Sid could not make the review pack just now. Try again in a moment."); }
+    if (p.status === "failed") { store.dropPack(course.id); fail(502, "Hal could not make the review pack just now. Try again in a moment."); }
     const lectures = notedLectures(store, course.id);
     if (lectureKey(lectures.map(l => l.id)) !== lectureKey(p.lecture_ids.split(" ").filter(Boolean))) return c.json({ status: "none" });
     /* Lecture titles as they are now. */
@@ -179,7 +180,7 @@ export function libraryRoutes(deps: Deps) {
       status: "ready",
       hints: pack.hints.map(h => ({ ...h, lecture: title.get(h.lectureId) || "" })),
       sheet: pack.sheet.map(s => ({ topic: s.topic, points: s.points.map(x => ({ ...x, lecture: title.get(x.lectureId) || "" })) })),
-      exam: pack.exam
+      exam: mixQuiz(pack.exam)
     });
   });
   /* Starts making the pack (again), unless it is being made. -> {status} */

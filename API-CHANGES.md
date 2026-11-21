@@ -74,7 +74,7 @@
 前端的流程：
 
 1. 上传 PDF，有进度条，可以取消。取消只中止上传，不删除这堂课。
-2. 上传成功后轮询 `GET /lectures/:id/status`，直到不再是 `processing`。轮询间隔是 `POLL_MS`，最多 100 次。
+2. 上传成功后窗口就关掉，在后台轮询 `GET /lectures/:id/status`，直到不再是 `processing`（第 12 节）。轮询间隔是 `POLL_MS`，最多 200 次。这期间笔记照常显示，课堂页顶部有一条提示；刷新页面后，课堂是 `processing` 而且已经有笔记，就接着轮询。
 3. 重新读取 `GET /lectures/:id`：
    - `detail.slides` 不为空：提示已加入；
    - 仍然为空：提示未能加入、笔记维持原样；
@@ -86,7 +86,7 @@
 - **在这个请求返回之前，就把状态设为 `processing`。** 否则前端第一次轮询拿到 `ready`，会以为已经处理完。
 - **把已有的要点归到课件页下：**
   - 给每个要点填 `slide`，并判断 `off`（老师讲了但课件上没有）；
-  - 给每个 section 填 `slides`（例如 `"Slides 3 to 6"`）；
+  - 给每个 section 填 `slides`（例如 `"Slides 3 to 6"`；页码不连续时逐个列出，见第 13 节）；
   - 返回 `detail.slides`。
 - **不要重写笔记。** 要点的文字和顺序、学生改过的内容、学生自己加的要点（`mine: true`）都保持原样。前端在等待时会告诉学生“你自己加的笔记和修改都会保留”。
 - **处理失败时，不要把课堂状态改成 `failed`。** 那会让讲座页显示“笔记未能完成”，原来的笔记反而看不到。请把状态改回 `ready`，笔记保持原样、`slides` 仍为空，前端据此提示失败。
@@ -337,10 +337,10 @@
 | 每月复习包 | 1 | 不限 |
 | 录音保留 | 30 天 | 一直保留 |
 
-- `GET /home` 的 `usage.minutesLimit` 和 `usage.audioDays` 跟着方案变（Plus 不给 `audioDays`）。
-- `createLecture` 超出每月课堂数：429，`You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until 1 Dec.`。还在录或在上传的课也算；笔记写好以后删掉的课仍然算；笔记写好之前删掉的不算；`saveShared` 存的副本不算。
+- `GET /home` 的 `usage.minutesLimit` 和 `usage.audioDays` 跟着方案变（Plus 不给 `audioDays`）。`usage.lecturesThisMonth` 和 `usage.lecturesLimit` 是本月已算的课堂数和方案的上限，方案不限课堂数时两个都不给（第 11 节）。
+- `createLecture` 超出每月课堂数：429，`You have used the 4 lectures that Free includes this month. Choose Plus in Settings for more lectures, or wait until 1 Dec.`。还在录或在上传的课也算；笔记写好以后删掉的课仍然算；笔记写好之前删掉的不算；失败的课不算（重试时又算上）；`saveShared` 存的副本不算。
 - `makeReviewPack` 超出每月复习包数：429，说明类似。正在做时再点不算；课程里还没有笔记（空复习包）不算。
-- 这两句都由前端的 `act()` 用提示条显示（2.6 秒后消失）。**建议（前端）**：这类说明比较长，可以显示久一点，或者在新建课堂页和复习包页用 `.err` 显示。
+- 前端遇到这两个 429（或 402）时弹一个窗口：标题 “You have reached the limit of your plan”，下面是这句话、本月已用几堂课，按钮 “See the plans” 去设置页（`src/ui/limit.tsx`，第 11 节）。新建课堂页、首页一键录音、复习包页都一样。
 - 每天现场录音的分钟数照第 6 节的规则，只是上限按方案。
 - 付费到期、取消或续费失败：马上回到 Free，笔记、闪卡、测验、分享都在。录音按 Free 的 30 天算，但从付费结束那天算起，所以前端会照 INTEGRATION.md 4.4 显示 “Recording kept until …”。开启方案之前录的课，从开启那天算起，不会一上线就被删。
 
@@ -391,3 +391,77 @@
   - `submitNew` 里 `attachLink` 失败时（第 1257 行）：关掉“Saving the link”对话框，`api.deleteLecture(lec.id)`，从 `S.lectures` 里拿掉，错误显示在表单里，链接留着。
   - “Try again” 在 halfnote 里调用的是 `finishLecture`，不是 `retryLecture`。后端对失败的链接课两个都接受，都会重新下载，所以不用改。
 - 分享页（`GET /shared/:id`）不带 `lecture.link`。
+
+## 10. 课堂的来源（`lecture.source`）和新建课时的 `autoTitle`
+
+### 新字段
+
+- `lecture.source`：`"record" | "tab" | "upload" | "link"`，这堂课是怎么做出来的（现场录音、录网上课堂、上传、视频链接）。`GET /home` 的每堂课和 `GET /lectures/:id` 都带。前端可以用它决定卡住的课堂显示哪些按钮。
+- 分享页（`GET /shared/:id`）不带 `lecture.source`，和 `link`、`error` 一样。
+- 字段是可选的：旧的前端不认识它也不会出错，没有这个字段时按没有来源处理。
+
+### 前端发的新字段
+
+- `createLecture` 现在多发一个 `autoTitle: boolean`：学生没写标题、标题是前端用日期填的就是 `true`。后端记下它，笔记写好时换成模型起的标题（第 12 节）。
+
+## 11. 设计师 11 月 19 日的改动，第一批（2026-11-20）
+
+设计师 11 月 18 日测试 halfold.app 后发来的 `halfold.html` 没有直接部署（它没有本仓库后来的修复，课堂语言的取值也和后端对不上），其中第一批改动按本工程的写法搬了进来。
+
+### 后端
+
+- `GET /home` 的 `usage` 多了 `lecturesThisMonth`、`lecturesLimit`：本月已算的课堂数（和 `createLecture` 判断 429 用的是同一个数）和方案的每月上限。方案不限课堂数时两个都不给。
+- 测验选项打乱：模型常把正确答案放在第一个（测试时 13 题有 12 题）。`detail.quiz` 和复习包的 `exam` 在读出时按“题目加选项”的哈希排列（`server/src/notes/mix.ts`）：同一道题每次顺序相同（分享页也一样），打乱两次结果不变，所以以前存的笔记也一起打乱，数据库不用改。`a` 跟着改，仍然指向正确的选项。
+- 写笔记和复习包的提示词多了一句：选项会被打乱，所以不能写 “all of the above”、“both A and B” 这类指向别的选项的选项。
+
+### 前端（请求不变）
+
+- 额度上限弹窗，见第 8 节“方案的限制”。新建课堂页和设置页显示 “4 of 4 lectures used this month”（有 `lecturesThisMonth` 时）。
+- 公式：笔记、中文解释、闪卡、测验、复习包里的 `x^{2}`、`a_{k}`、`x^2` 显示成上下标（`src/ui/Fx.tsx`）。模型照旧用这种写法即可。
+- 中文解释的繁简：学生没选过时，界面是简体就显示简体，界面是繁体就显示繁体；界面是英文时才看浏览器语言。
+- 自动标题带上时间（“Lecture, Fri 20 Nov, 14:05”），同一天两堂课不再同名。
+- 分享：第一次点 “Share with class” 先说明链接是什么，点 “Make the link” 才调 `createShareLink`。已经有链接时直接显示链接。
+- 邮箱登录：邀请码一栏从第一步就在表单上（以前用这个邮箱登录过的人留空）。`POST /session` 的请求体不变。服务器对新邮箱回 403 时，这一栏被标出来，服务器那句话显示成说明而不是红字，并说明刚才的登录码仍然有效（后端本来就不会作废它）。
+- 简体字表补了 15 个字和“电邮”几个词。`tests/zh-hans.js` 改用 OpenCC 判断繁体字，不再拿字表检查字表自己，所以以后漏字会直接报出来。
+
+## 12. 设计师 11 月 19 日的改动，第二批（2026-11-20）
+
+### 后端
+
+- **失败的课不算本月课堂数。** 课堂变成 `failed` 时，这堂课的额度记录被删掉；`retry` 或对它再调 `finishLecture` 时又算上。笔记写好以后再删的课仍然算，和以前一样。
+- **闪卡和测验的数量随录音长短变化。** 提示词里写明上限：大约每 6 分钟一张闪卡、每 10 分钟一道题，最少 2 张和 1 题，最多 15 张和 10 题（90 分钟的课是 15 张、9 题；1 分钟的录音是 2 张、1 题），内容少时可以更少或没有。不许考课堂怎么上（点名、休息、课件放在哪）、老师的习惯和口头禅。模型多给的部分在 `buildDetail` 里截掉（`server/src/notes/prompt.ts` 的 `studyCounts`）。
+- **`detail.summary`：** 模型写的 3 到 5 句摘要（短录音 1 到 2 句），可以没有。字段本来就在 INTEGRATION.md 3.2 里，现在后端真的会给。
+- **模型起的标题：** 模型同时写一个标题（最多 8 个词，英文，不带日期和课程编号）。`createLecture` 带 `autoTitle: true` 时后端记下来（`lectures.auto_title`），笔记写好时把标题换成模型的；这之前学生改过名字（`PATCH /lectures/:id` 带 `title`），就不换。
+
+### 前端（请求不变）
+
+- 笔记最上面是 “In short”（`detail.summary`），打印时也保留；Markdown 导出也带上。
+- 设置页的套餐卡片跟着界面语言显示：后端写的名字、价格和句子都是固定的几种（`server/src/billing.ts` 的 `plans()`），翻译在 `src/i18n/zh.ts` 里，句子带数字和日期的用规则翻译。认不出的句子原样显示。后端以后加了新句子，要在那里补翻译。
+- 补传课件：只有上传时有窗口（可以取消）；把笔记放到课件下的过程在后台检查，笔记照常可读，课堂页顶部有提示，完成后提示 “Your notes are now under the slides.”（在别的页面时可以点过去）。见第 3 节。
+- 复习包：点 “Make review pack” 后不再锁屏，页面显示正在制作，在后台每 `POLL_MS` 查一次（最多 300 次），学生可以离开；做好时在别的页面弹一条可以点过去的提示。刷新页面后，`GET` 回 `processing` 就接着查。`GET` 回 502 时显示这句话，页面回到 “Make review pack”。
+
+## 13. 设计师 11 月 19 日的改动，第三批：小修和调查（2026-11-20）
+
+### 后端
+
+- **课件页码标签。** 线上那堂带课件的课，第一节只讲第 1 页，却标成 “Slides 1 to 3”。原因：标签取这一节要点页码的最小到最大，而这一节有一个要点（31 秒）被放到了第 3 页，是提前讲到后面的内容。现在每一页只算在要点最多的那一节（并列时都算），页码不连续时逐个列出（“Slides 1 and 3”、“Slides 1 to 3 and 5”）。要点自己的 `slide` 不变。标签在读出时重新计算（`Store.detail`），以前存的笔记也一起改好。
+- **现场录音拼接。** 下课后把各段拼成一个文件时，每段都在同一个写入流上多挂一组监听器，日志里有 `MaxListenersExceededWarning`，90 分钟的课会挂 360 组。改成逐段写进同一个文件句柄。
+- `server/test/zh-messages.test.ts`：服务器写的每一句视频链接失败原因，前端都要有中文（`src/i18n/zh.ts` 的 `SERVER`）。以后后端加了新句子而前端没补，这个测试会失败。
+
+### 前端（请求不变）
+
+- 付款没开通（`startCheckout` 回 `{ url: null }`）时，点 “Choose this plan” 弹一个窗口说明，而且没有扣费。
+- 下课后等笔记的页面显示刚才的实时转写（只在这次访问里有，刷新就没了）。
+- 失败课堂的原因（`lecture.error`）如果是我们服务器自己写的那几句链接失败原因，中文界面显示中文；其他后端文字照旧原样显示。
+
+### 查过、没有改的
+
+- **维基共享资源的音频直链**（`https://upload.wikimedia.org/.../Velocity_of_money.ogg`）：服务器日志里，维基媒体对第一个请求就回了 HTTP 429（“Too many requests. Please contact the Wikimedia SRE team”）。我们只请求了一次，所以多半是维基媒体对没有说明身份的程序化请求的拦截（它要求带上能识别身份、有联系方式的 User-Agent）。已改：设了 `CONTACT_EMAIL` 时，下载 `wikimedia.org`、`wikipedia.org` 的链接会给 yt-dlp 加 `--user-agent "Halfold/1.0 (<PUBLIC_URL>; <CONTACT_EMAIL>)"`，其他网站不变（YouTube 等靠 yt-dlp 自己的请求头）。这个原因还没在线上确认：部署后贴一次这条链接，能写出笔记就说明是这个原因。
+- **从分享页注册时自动填邀请码**：做不了。邀请码是一个码对应一个账户、只能用一次（`server/scripts/invite.ts`），分享者自己的码已经绑定了邮箱。要做的话需要另外一套可以给多人用的推荐码。
+
+### 联系邮箱（`CONTACT_EMAIL`）
+
+- 后端的新设置 `CONTACT_EMAIL`（见 `server/.env.example`）：隐私页的联系邮箱，也用来向维基媒体说明身份（见上）。不设时隐私页仍显示“待定”。
+- 后端把它放进页面的 `window.SIDENOTE_CONFIG.CONTACT_EMAIL`（只在设了时）；前端的 `CONFIG.CONTACT_EMAIL` 默认是 `null`。
+- 线上定为 `support@halfold.app`，用 Cloudflare Email Routing 转发。转发设好、能收到信之后，再在服务器上设这个值（`halfold env`）。
+- 隐私页的“谁处理你的数据”改为按服务类别和所在地写（语音转文字服务在美国，AI 模型服务在中国内地，付款服务、邮件发送服务），不写服务商名字；服务器写成“新加坡的云服务商”。换服务商时只要所在地没变，这一页就不用改；所在地变了要同步改 `src/pages/Privacy.tsx`。

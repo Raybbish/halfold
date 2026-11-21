@@ -15,7 +15,7 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     // Waits until the page has not scrolled for 10 frames in a row. A timestamp starts a smooth scroll to its line; clicking
     // Play while that runs made Playwright scroll the button into view mid-way, so where the page stopped depended on timing.
     const scrolled = () => page.evaluate(() => new Promise(done => { let y = scrollY, still = 0; const f = () => { if (scrollY !== y) { y = scrollY; still = 0; } else if (++still >= 10) return done(); requestAnimationFrame(f); }; requestAnimationFrame(f); }));
-    await page.goto(FILE + '#/'); if (zh) await page.click('.lang'); await shot('01-landing');
+    await page.goto(FILE + '#/'); if (zh) await page.selectOption('.lang', 'zh-Hant'); await shot('01-landing');
     await page.goto(FILE + '#/signin'); await shot('02-signin');
     await page.fill('input[name=code]', 'a3f9c2'); await page.click('form.auth button'); await page.waitForSelector('.shell'); await shot('03-home');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await shot('04-notes');
@@ -25,8 +25,8 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     await page.click('.tabs button:nth-child(2)'); await shot('06-slides');
     await page.click('.tabs button:nth-child(4)'); await shot('07-cards');
     await page.click('.tabs button:nth-child(5)'); await page.click('.qz .opt:nth-of-type(1)'); await shot('08-quiz');
-    await page.evaluate(() => window.scrollTo(0, 0)); await page.click('.page-h button >> nth=0'); await shot('09-more'); await page.keyboard.press('Escape');
-    await page.click('.page-h button >> nth=1'); await shot('10-share'); await page.keyboard.press('Escape');
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.click('.page-h button.btn.plain'); await shot('09-more'); await page.keyboard.press('Escape');
+    await page.click('.page-h button.btn.primary'); await shot('10-share'); await page.keyboard.press('Escape');
     await page.goto(FILE + '#/courses'); await shot('11-courses');
     await page.goto(FILE + '#/course/econ1001'); await shot('12-course');
     await page.goto(FILE + '#/pack/econ1001'); await page.waitForSelector('.page-h'); await page.click('.main .card button.btn.primary'); await page.waitForSelector('.pk', { timeout: 20000 }); await shot('13-pack'); await page.evaluate(() => window.scrollTo(0, 99999)); await shot('13b-pack-bottom');

@@ -1,18 +1,18 @@
 /* Recording -> notes, for lectures in status "processing". Runs in this process with a small queue. Each step keeps
    its result (audio.m4a, the transcript), so a retry after a failure only redoes what failed: a second transcription
    would be paid for twice. Deleting a lecture aborts its run, and a run never writes notes for a lecture that is gone. */
-import fs from "node:fs";
 import path from "node:path";
 import fsp from "node:fs/promises";
-import { pipeline as pump } from "node:stream/promises";
 import type { Config } from "./config";
-import type { Store, LectureRow } from "./db";
+import { liveGaps, type Store, type LectureRow } from "./db";
 import type { FileStore } from "./files";
 import type { Media } from "./media";
 import type { Jobs } from "./routes";
-import type { Transcriber } from "./stt/types";
+import type { Transcriber, Word } from "./stt/types";
 import { wordsToLines } from "./stt/lines";
-import type { Detail } from "../../src/types";
+import { heldWords } from "./live/transcriber";
+import { cutWindow, dropRepeat, shift } from "./live/windows";
+import type { Detail, Line } from "../../src/types";
 import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "./notes/types";
 import { buildDetail, parseModelNotes } from "./notes/normalize";
 import { fileUnder, readFiling, slidesInput } from "./notes/slides";
@@ -32,7 +32,12 @@ const AUDIO = "audio.m4a";
 export const isLive = (l: Pick<LectureRow, "source">) => l.source === "record" || l.source === "tab";
 const NOTES_ATTEMPTS = 2;
 const MAX_LINK_SECONDS = 5 * 3600;
+const MIN_SPAN = 0.5;   // a stretch of a live recording shorter than this is not sent to be transcribed
 class Gone extends Error {}
+
+/* A Cantonese class reads in Traditional characters, as students in Hong Kong write. */
+const traditionalForCantonese = (l: LectureRow, lines: Line[], detected?: string) =>
+  l.language === "en-yue" || (l.language === "auto" && detected === "yue") ? lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) })) : lines;
 
 /* Two lanes. A link lecture whose file is not here yet is downloaded first, at most LINK_CONCURRENCY at a time, and
    queued again for the rest once the file is in: a slow download (up to LINK_DOWNLOAD_MINUTES) never holds up the notes
@@ -143,17 +148,7 @@ export class Pipeline implements Jobs {
     /* 2. Transcript, kept so that a retry does not pay for it again. */
     let lines = store.transcript(id);
     if (!lines) {
-      const bytes = (await fsp.stat(audio)).size;
-      const t = await stt.transcribe(audio, l.language, signal);
-      const seconds = t.durationSec ?? info.duration;
-      /* Logged before checking for a deletion: the transcription is paid for either way. */
-      store.logCost({ lectureId: id, userId: l.user_id, stage: "stt", provider: stt.provider, model: stt.model, audioSeconds: seconds, usd: stt.usd(seconds, l.language),
-        meta: { language: l.language, detectedLanguage: t.detectedLanguage, words: t.words.length, audioBytes: bytes, audioBytesPerHour: Math.round(bytes / seconds * 3600) } });
-      this.check(id, signal);
-      await fsp.writeFile(path.join(path.dirname(audio), `transcript.${stt.provider}.json`), JSON.stringify(t.raw));
-      lines = wordsToLines(t.words);
-      /* A Cantonese class reads in Traditional characters, as students in Hong Kong write. */
-      if (l.language === "en-yue" || (l.language === "auto" && t.detectedLanguage === "yue")) lines = lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) }));
+      lines = isLive(l) ? await this.transcribeLive(l, audio, info.duration, signal) : await this.transcribeWhole(l, audio, info.duration, signal);
       if (!lines.length) throw new Error("no speech was recognised in the recording");
       store.saveTranscript(id, stt.provider, stt.model, lines);
     }
@@ -193,12 +188,57 @@ export class Pipeline implements Jobs {
 
     /* 5. Save; does nothing if the lecture was deleted meanwhile. */
     this.check(id, signal);
-    store.saveNotes(id, detailOut.detail, detailOut.dated);
+    store.saveNotes(id, detailOut.detail, detailOut.dated, detailOut.title);
 
     /* 6. The original file was only read to make audio.m4a, which is what is played, downloaded and kept: deleted now that
        the notes are written (it is about twice the size). A lecture that failed keeps it, so a retry can convert it again.
        If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way. */
     if (files.exists(id, AUDIO)) await files.remove(id, l.recording_file).catch(e => console.warn(`[pipeline] ${id} original not deleted: ${(e as Error).message}`));
+  }
+
+  /* An upload or a video link: the whole recording in one request. */
+  private async transcribeWhole(l: LectureRow, audio: string, duration: number, signal: AbortSignal): Promise<Line[]> {
+    const { store, stt } = this.d, id = l.id;
+    const bytes = (await fsp.stat(audio)).size;
+    const t = await stt.transcribe(audio, l.language, signal);
+    const seconds = t.durationSec ?? duration;
+    /* Logged before checking for a deletion: the transcription is paid for either way. */
+    store.logCost({ lectureId: id, userId: l.user_id, stage: "stt", provider: stt.provider, model: stt.model, audioSeconds: seconds, usd: stt.usd(seconds, l.language),
+      meta: { language: l.language, detectedLanguage: t.detectedLanguage, words: t.words.length, audioBytes: bytes, audioBytesPerHour: Math.round(bytes / seconds * 3600) } });
+    this.check(id, signal);
+    await fsp.writeFile(path.join(path.dirname(audio), `transcript.${stt.provider}.json`), JSON.stringify(t.raw));
+    return traditionalForCantonese(l, wordsToLines(t.words), t.detectedLanguage);
+  }
+
+  /* A live recording is transcribed once (DESIGN.md, 现场录只转写一次): the notes are written from the lines the live
+     rounds kept, and only what no round reached is transcribed now: the stretches skipped after an outage, then the
+     audio from where the last round stopped to the end (all of it when there was no live transcript), joined to the
+     sentence held back at the end of that round. */
+  private async transcribeLive(l: LectureRow, audio: string, duration: number, signal: AbortSignal): Promise<Line[]> {
+    const { store, files, media, stt } = this.d, id = l.id;
+    const held = heldWords(l.live_held), tail: [number, number] = [l.live_from, duration];
+    const spans = [...liveGaps(l.live_gaps), tail].filter(([from, to]) => to - from >= MIN_SPAN);
+    const words: Word[] = [], raw: unknown[] = [];
+    let detected: string | undefined;
+    for (const span of spans) {
+      const [from, to] = span, tmp = files.tempPath() + ".m4a";
+      try {
+        const len = await media.cutSpeech(path.dirname(audio), [AUDIO], tmp, { from, to, signal });
+        if (len <= 0) continue;
+        const t = await stt.transcribe(tmp, l.language, signal);
+        /* Logged before checking for a deletion: the transcription is paid for either way. */
+        store.logCost({ lectureId: id, userId: l.user_id, stage: "stt", provider: stt.provider, model: stt.model, audioSeconds: len, usd: stt.usd(len, l.language),
+          meta: { language: l.language, detectedLanguage: t.detectedLanguage, words: t.words.length, from, to: from + len, recordingSeconds: duration, live: true } });
+        this.check(id, signal);
+        detected ??= t.detectedLanguage;
+        raw.push({ from, to: from + len, reply: t.raw });
+        const got = cutWindow(shift(t.words, from), from, from + len, true).keep;
+        words.push(...(span === tail ? dropRepeat(got, held[held.length - 1]) : got));
+      } finally { await files.discard(tmp); }
+    }
+    if (raw.length) await fsp.writeFile(path.join(path.dirname(audio), `transcript.${stt.provider}.json`), JSON.stringify(raw));
+    const added = traditionalForCantonese(l, wordsToLines([...held, ...words]), detected);
+    return [...store.liveLines(id), ...added].sort((a, b) => a.t - b.t);
   }
 
   /* Slides sent after the notes were written (API-CHANGES.md section 3): each point the lecturer said is placed under
@@ -245,17 +285,20 @@ export class Pipeline implements Jobs {
     if (seqs[0] !== 0) throw new Error(seqs.length ? "the first piece of the live recording never arrived" : "no audio was received");
     const missing = seqs[seqs.length - 1] + 1 - seqs.length;
     if (missing) console.warn(`[pipeline] ${id}: ${missing} piece(s) of the live recording never arrived; they become silence`);
-    const tmp = files.tempPath(), out = fs.createWriteStream(tmp);
+    /* Piece by piece onto one file handle. (A stream pipeline for each piece into one write stream left listeners behind
+       on it, one set per piece: MaxListenersExceededWarning in the log after 10 pieces, and a 90-minute lecture has 360.) */
+    const tmp = files.tempPath(), out = await fsp.open(tmp, "w");
+    let open = true;
     try {
       for (const seq of seqs) {
         this.check(id, signal);
-        await pump(fs.createReadStream(path.join(files.chunkDir(id), files.chunkName(seq))), out, { end: false });
+        await out.appendFile(await fsp.readFile(path.join(files.chunkDir(id), files.chunkName(seq))));
       }
-      await new Promise<void>((ok, bad) => { out.once("error", bad); out.end(() => ok()); });
+      await out.close(); open = false;
       this.check(id, signal);
       await files.commit(tmp, id, "recording");
       store.setRecording(id, "recording");
-    } finally { out.destroy(); await files.discard(tmp); }
+    } finally { if (open) await out.close().catch(() => {}); await files.discard(tmp); }
     await files.removeChunks(id);
   }
 

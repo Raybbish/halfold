@@ -13,12 +13,21 @@ const signIn = (s: TestServer, json: Record<string, unknown>) => s.call("POST", 
 /* Every code sent a minute earlier than it was: lets a test ask for another code without waiting. */
 const aMinuteLater = (s: TestServer) => s.store.db.exec("UPDATE code_sends SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '-61 seconds')");
 
+test("the sign-in email says Halfold in English and Chinese, never Halfnote or Sidenote", async t => {
+  const s = setup(); t.after(() => s.close());
+  await askCode(s, "ann@example.edu");
+  const mail = s.mailer.sent[0];
+  for (const part of [mail.subject, mail.text, mail.html]) { assert.ok(part.includes("Halfold")); assert.ok(!part.includes("Sidenote") && !part.includes("Halfnote")); }
+  assert.ok(mail.text.includes("你的 Halfold 登入碼是") && mail.text.includes("如果你沒有登入 Halfold"));
+  assert.ok(mail.html.includes("你的 Halfold 登入碼是") && mail.html.includes("如果你沒有登入 Halfold"));
+});
+
 test("a new address: the code is emailed; signing in asks for an invite code once, and the address is bound to it", async t => {
   const s = setup(); t.after(() => s.close());
   assert.equal((await askCode(s, "  Ann@Example.EDU ")).status, 204);
   const mail = s.mailer.sent[0];
   assert.equal(mail.to, "ann@example.edu");
-  assert.match(mail.subject, /^\d{6} is your Sidenote code$/);
+  assert.match(mail.subject, /^\d{6} is your Halfold code$/);
   const code = s.mailer.code("ann@example.edu")!;
   assert.ok(mail.text.includes(code) && mail.html.includes(code) && mail.text.includes("10 minutes") && mail.text.includes("登入碼"));
   /* Only a keyed hash of the code is stored. */
@@ -75,7 +84,7 @@ test("wrong, expired and missing codes are refused with a message; five wrong tr
   ] as const) { const r = await signIn(s, body); assert.equal(r.status, 400); assert.equal(isError(r).message, msg); }
   for (let i = 1; i <= 4; i++) {
     const r = await signIn(s, { email: "ann@example.edu", code: wrong, inviteCode: "CODE-A" });
-    assert.equal(r.status, 401); assert.equal(isError(r).message, "That code is not right. Check the latest email from Sidenote.");
+    assert.equal(r.status, 401); assert.equal(isError(r).message, "That code is not right. Check the latest email from Halfold.");
   }
   const fifth = await signIn(s, { email: "ann@example.edu", code: wrong, inviteCode: "CODE-A" });
   assert.equal(isError(fifth).message, "That code is not right, and it has now stopped working. Ask for a new one.");
@@ -109,7 +118,7 @@ test("sending codes: one a minute and five an hour to an address, LOGIN_CODES_PE
   const f = setup(); t.after(() => f.close());
   f.mailer.error = new Error("Resend 500");
   const failed = await askCode(f, "a@example.edu");
-  assert.equal(failed.status, 502); assert.equal(isError(failed).message, "Sidenote could not send the email just now. Try again in a moment.");
+  assert.equal(failed.status, 502); assert.equal(isError(failed).message, "Halfold could not send the email just now. Try again in a moment.");
   assert.equal(f.store.loginCode("a@example.edu"), undefined);
 });
 
