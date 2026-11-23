@@ -46,6 +46,9 @@ test("holdUnfinished: the words after the last sentence end wait for the next ro
   assert.deepEqual(holdUnfinished([w("價格上升。", 1, 2)], 15), { send: [w("價格上升。", 1, 2)], held: [] });
   assert.deepEqual(holdUnfinished([w("no", 1, 2), w("end", 2, 3)], 15).send, []);
   assert.deepEqual(holdUnfinished([w("no", 1, 2), w("end", 2, 3)], 1 + MAX_HELD + 1), { send: [w("no", 1, 2), w("end", 2, 3)], held: [] });
+  /* No punctuation (Deepgram multi): a word marked endsSentence is a sentence end too. */
+  const marked = [w("首先", 1, 1.5), { ...w("我哋", 1.5, 2), endsSentence: true }, w("好多", 3, 3.5)];
+  assert.deepEqual(holdUnfinished(marked, 15), { send: marked.slice(0, 2), held: marked.slice(2) });
 });
 
 test("shift: window times become recording times", () => {

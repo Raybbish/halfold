@@ -97,7 +97,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const deepseekModel = env.DEEPSEEK_MODEL || "deepseek-v4-pro", catchUpModel = env.CATCHUP_MODEL || "deepseek-flash";
   const deepseekKey = env.DEEPSEEK_API_KEY || "", deepseekBase = (env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
   const web = env.WEB_DIR === undefined ? path.resolve(SERVER_DIR, "../dist") : env.WEB_DIR.trim() ? path.resolve(SERVER_DIR, env.WEB_DIR) : null;
-  const provider = (env.STT_PROVIDER || "elevenlabs").trim();
+  const provider = (env.STT_PROVIDER || "deepgram").trim();
   if (provider !== "elevenlabs" && provider !== "deepgram") throw new Error(`STT_PROVIDER must be elevenlabs or deepgram, not "${provider}"`);
   return {
     port: num(env.PORT, 8787),
@@ -144,7 +144,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       elevenlabs: { apiKey: env.ELEVENLABS_API_KEY || "", model: env.ELEVENLABS_MODEL || "scribe_v3", usdPerHour: num(env.ELEVENLABS_USD_PER_HOUR, 0.2) },
       deepgram: {
         apiKey: env.DEEPGRAM_API_KEY || "", model: env.DEEPGRAM_MODEL || "nova-3",
-        languages: languageMap(env.DEEPGRAM_LANGUAGES, { en: "en", "en-yue": "zh-HK", "en-zh": "multi", auto: "multi" }),
+        /* Mixed classes go to "multi": monolingual zh-HK or zh drops most of the English (README.md "对比转写服务"). */
+        languages: languageMap(env.DEEPGRAM_LANGUAGES, { en: "en", "en-yue": "multi", "en-zh": "multi", auto: "multi" }),
         usdPerHourMono: num(env.DEEPGRAM_USD_PER_HOUR, 0.258), usdPerHourMulti: num(env.DEEPGRAM_USD_PER_HOUR_MULTI, 0.312)
       }
     },

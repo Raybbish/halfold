@@ -42,7 +42,7 @@ ssh ubuntu@<IP>
 halfold env
 ```
 
-打开的是 `server/.env.example` 的内容，`PUBLIC_URL` 和 `WEB_URL` 已经填成你的域名。要填的和本机一样（见 `server/README.md`）：`ELEVENLABS_API_KEY`、`DEEPSEEK_API_KEY`；给别人用之前一定要填 `RESEND_API_KEY`，`MAIL_FROM` 换成在 Resend 验证过的域名（没填时登录码打印在日志里）；付款用 `STRIPE_SECRET_KEY`，webhook 在 Stripe 后台建 `https://<你的域名>/api/stripe/webhook`，把 Signing secret 填进 `STRIPE_WEBHOOK_SECRET`。存盘退出后自动重启。`HOST` 和 `PORT` 在这里写了也不生效，由 `halfold.service` 定。
+打开的是 `server/.env.example` 的内容，`PUBLIC_URL` 和 `WEB_URL` 已经填成你的域名。要填的和本机一样（见 `server/README.md`）：`DEEPGRAM_API_KEY`（转写，默认用 Deepgram；`STT_PROVIDER=elevenlabs` 时填 `ELEVENLABS_API_KEY`）、`DEEPSEEK_API_KEY`；给别人用之前一定要填 `RESEND_API_KEY`，`MAIL_FROM` 换成在 Resend 验证过的域名（没填时登录码打印在日志里）；付款用 `STRIPE_SECRET_KEY`，webhook 在 Stripe 后台建 `https://<你的域名>/api/stripe/webhook`，把 Signing secret 填进 `STRIPE_WEBHOOK_SECRET`。存盘退出后自动重启。`HOST` 和 `PORT` 在这里写了也不生效，由 `halfold.service` 定。
 
 然后发邀请码，打开 `https://<你的域名>` 登录：
 

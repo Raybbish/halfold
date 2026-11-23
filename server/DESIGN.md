@@ -37,7 +37,7 @@
 | 项 | 选择 | 谁定的 |
 |---|---|---|
 | 技术栈 | TypeScript + Hono，放在本仓库 `server/`，直接 `import type` 前端的 `src/types.ts` | 用户 |
-| 转写 | ElevenLabs Scribe 和 Deepgram Nova-3，放在同一个 `Transcriber` 接口后面，由 `.env` 的 `STT_PROVIDER` 选 | 用户 |
+| 转写 | ElevenLabs Scribe 和 Deepgram Nova-3，放在同一个 `Transcriber` 接口后面，由 `.env` 的 `STT_PROVIDER` 选。2026-11-23 起默认 Deepgram（ElevenLabs 额度用完），对比见 README.md“对比转写服务” | 用户 |
 | 写笔记 | DeepSeek，放在 `NotesWriter` 接口后面，模型 id 写在 `.env` | 用户 |
 | 每日分钟上限 | 只管现场录音（`record`、`tab`），上传不计入也不拦 | 用户 |
 | API key | 用户自己写进 `server/.env`（gitignore），仓库里只有 `.env.example` | 用户 |

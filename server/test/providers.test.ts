@@ -76,10 +76,37 @@ test("Deepgram: the class language maps to a Deepgram language; punctuated words
   assert.deepEqual(r.words, [{ text: "Hello,", start: 0, end: 0.4, language: "en" }, { text: "機會", start: 0.5, end: 1, language: "zh-HK" }]);
   const u = new URL(srv.url + srv.seen[0].url);
   assert.equal(u.pathname, "/v1/listen");
-  assert.deepEqual(Object.fromEntries(u.searchParams), { model: "nova-3", language: "zh-HK", smart_format: "true", punctuate: "true" });
+  assert.deepEqual(Object.fromEntries(u.searchParams), { model: "nova-3", language: "zh-HK", smart_format: "true", punctuate: "true", utterances: "true", utt_split: "0.6" });
   assert.equal(srv.seen[0].headers.authorization, "Token dg-key"); assert.equal(srv.seen[0].headers["content-type"], "audio/mp4");
   assert.equal(srv.seen[0].body.toString(), "m4a-bytes");
   assert.ok(Math.abs(dg.usd(3600, "en-zh") - 0.312) < 1e-12); assert.ok(Math.abs(dg.usd(3600, "en") - 0.258) < 1e-12);
+});
+
+test("Deepgram: without punctuation (multi, Chinese), each utterance's last word ends a sentence; Cantonese is reported as yue", async t => {
+  const word = (w: string, start: number, end: number, language = "zh-HK") => ({ word: w, punctuated_word: w, start, end, language });
+  const replies = [
+    { results: { channels: [{ alternatives: [{ languages: ["zh-HK", "en"], words: [word("首先", 0, 0.5), word("我哋", 0.5, 1), word("remember", 1.6, 2, "en"), word("concept", 3, 3.5, "en")] }] }],
+      utterances: [{ start: 0, end: 1 }, { start: 1.6, end: 2.02 }, { start: 3, end: 3.5 }] } },
+    { results: { channels: [{ alternatives: [{ languages: ["en"], words: [{ word: "hi", punctuated_word: "Hi.", start: 0, end: 0.4 }, { word: "so", punctuated_word: "So", start: 1, end: 1.3 }] }] }],
+      utterances: [{ start: 0, end: 0.4 }, { start: 1, end: 1.3 }] } }
+  ];
+  const srv = await fakeServer((_, n) => ({ body: JSON.stringify(replies[n - 1]) }));
+  t.after(srv.close);
+  const dg = new DeepgramNova("k", "nova-3", { en: "en", "en-yue": "multi", "en-zh": "multi", auto: "multi" }, 0.258, 0.312, srv.url);
+  const mixed = await dg.transcribe(audioFile(), "auto");
+  assert.deepEqual(mixed.words.map(w => [w.text, !!w.endsSentence]), [["首先", false], ["我哋", true], ["remember", true], ["concept", true]]);
+  assert.equal(mixed.detectedLanguage, "yue");
+  /* Punctuated (English): the marks decide, utterances are not used. */
+  const english = await dg.transcribe(audioFile(), "en");
+  assert.deepEqual(english.words.map(w => !!w.endsSentence), [false, false]);
+  assert.equal(english.detectedLanguage, "en");
+});
+
+test("config: Deepgram is the default speech-to-text service, mixed classes on multi", () => {
+  const c = loadConfig({});
+  assert.equal(c.stt.provider, "deepgram");
+  assert.deepEqual(c.stt.deepgram.languages, { en: "en", "en-yue": "multi", "en-zh": "multi", auto: "multi" });
+  assert.equal(loadConfig({ STT_PROVIDER: "elevenlabs" }).stt.provider, "elevenlabs");
 });
 
 const input: NotesInput = { courseCode: "ECON 1001", courseName: "Micro", title: "W9", date: "Tuesday 2026-11-10", language: "en-yue", duration: 600,

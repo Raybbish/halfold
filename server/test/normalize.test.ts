@@ -111,6 +111,12 @@ test("wordsToLines: a line ends at a sentence end after 3 seconds, at a pause, o
   assert.ok(lines[1].text.startsWith("After a pause on"));
 });
 
+test("wordsToLines: a word marked endsSentence ends a line like a full stop (Deepgram without punctuation)", () => {
+  const w = (text: string, start: number, endsSentence = false) => ({ text, start, end: start + 0.9, endsSentence });
+  const lines = wordsToLines([w("首先", 0), w("我哋", 1), w("要明白", 2.2, true), w("好多", 3.2), w("同學", 4.1), w("都會", 5), w("搞亂", 6, true)]);
+  assert.deepEqual(lines, [{ t: 0, text: "首先我哋要明白" }, { t: 3, text: "好多同學都會搞亂" }]);
+});
+
 test("mixedErrorRate: English by word, Chinese by character, 繁 and 简 the same, punctuation ignored", async () => {
   const { mixedErrorRate, tokens, mix } = await import("../src/stt/compare");
   assert.deepEqual(tokens("機會成本 is the Opportunity cost, 對嗎?"), ["机", "会", "成", "本", "is", "the", "opportunity", "cost", "对", "吗"]);

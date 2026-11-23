@@ -1,5 +1,6 @@
 /* Recognised words -> transcript lines ({t, text}), the shape of detail.transcript and of the notes prompt.
-   A line ends at a sentence-ending mark once it is at least MIN_LEN seconds long, at a pause, or when it gets too long. */
+   A line ends at a sentence end (a mark, or Word.endsSentence) once it is at least MIN_LEN seconds long, at a pause, or
+   when it gets too long. */
 import type { Line } from "../../../src/types";
 import type { Word } from "./types";
 
@@ -32,7 +33,7 @@ export function wordsToLines(words: Word[]): Line[] {
       if (w.start - end > PAUSE || w.start - first.start > MAX_LEN) close();
     }
     cur.push(w);
-    if (ENDS_SENTENCE.test(w.text.trim()) && (Number.isFinite(w.end) ? w.end : w.start) - cur[0].start >= MIN_LEN) close();
+    if ((w.endsSentence || ENDS_SENTENCE.test(w.text.trim())) && (Number.isFinite(w.end) ? w.end : w.start) - cur[0].start >= MIN_LEN) close();
   }
   close();
   return lines;

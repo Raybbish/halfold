@@ -51,12 +51,13 @@ export function dropRepeat(keep: Word[], last: Word | undefined): Word[] {
 
 /* A round usually stops in the middle of a sentence. Sent as it is, the live transcript shows half a sentence, then the
    rest as a new line in the next round. So the words after the last sentence end are held back and sent at the start of
-   the next round, whole. A sentence that never ends (MAX_HELD seconds) is sent anyway. */
+   the next round, whole. A sentence ends at a mark or at Word.endsSentence (Deepgram without punctuation). A sentence
+   that never ends (MAX_HELD seconds) is sent anyway. */
 const ENDS_SENTENCE = /[.?!。？！…]["'”’)）]*$/;
 export const MAX_HELD = 30;
 export function holdUnfinished(words: Word[], now: number): { send: Word[]; held: Word[] } {
   let i = words.length - 1;
-  while (i >= 0 && !ENDS_SENTENCE.test(words[i].text.trim())) i--;
+  while (i >= 0 && !words[i].endsSentence && !ENDS_SENTENCE.test(words[i].text.trim())) i--;
   const held = words.slice(i + 1);
   if (held.length && now - held[0].start > MAX_HELD) return { send: words, held: [] };
   return { send: words.slice(0, i + 1), held };
