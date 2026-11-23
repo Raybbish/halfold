@@ -69,6 +69,22 @@ npm start                 # http://localhost:8787
 
 所以粤语夹英文的课先不要用 Deepgram。普通话夹英文还没试。真实课堂有口音、噪音和更快的语速，请用真实录音再比一次。
 
+2026-11-23 ElevenLabs 额度用完，默认改成 Deepgram，又试了一次（Deepgram 这时已换成 55 种语言的 `multi`）。错误率按字和词算；后两段没有人工稿，拿 ElevenLabs `scribe_v3` 当时的转写当参考，所以英文那段的差别大多是 ElevenLabs 保留的 uh、um：
+
+| 录音 | Deepgram `nova-3` 设置 | 错误率 | 说明 |
+|---|---|---|---|
+| 35 秒粤语夹英文（macOS 语音合成，人工稿） | `zh-HK` | 52% | 英文几乎全丢，粤语写成书面语（我們、為什麼） |
+| | `multi` | 34% | 三句纯英文丢了两句；粤语和夹在粤语里的英文词都对 |
+| | `multi` 加 `language_hint=zh-HK,en` | 34% | 和不加一样 |
+| 3 分钟普通话广告夹英文（播客） | `zh` | 70% | 英文全丢 |
+| | `multi`（加不加 hint 一样） | 20% | |
+| 5 分钟英文真实课堂 | `en` | 14% | |
+| | `multi` | 15% | |
+
+所以混合语言的课默认用 `multi`（`DEEPGRAM_LANGUAGES`）。粤语夹英文仍然比 ElevenLabs 差很多（会整句丢英文），ElevenLabs 有额度时可以 `STT_PROVIDER=elevenlabs` 换回去。
+
+Deepgram 只给英文（`en`）加标点，`multi` 和中文都没有标点，整段只有一个段落。所以请求里加 `utterances=true&utt_split=0.6`（按音频里的停顿切，平均 3 到 4 秒一段），回复没有标点时把每段的最后一个词当作句末（`Word.endsSentence`），逐字稿照样按句分行，现场录音的“未说完的句子留到下一轮”也照样按句。
+
 ## 现场录音的设置
 
 都在 `.env` 里，都有默认值（见 `.env.example`）：
@@ -134,7 +150,7 @@ npm start                 # http://localhost:8787
 
 ## 最后一次端到端检查
 
-一次走完第一到四阶段的所有功能。用真实的课堂录音（最好 5 到 10 分钟以上，粤语或普通话夹英文），手机和电脑各试一部分。每项后面是要的 key（`EL` = `ELEVENLABS_API_KEY`，`DS` = `DEEPSEEK_API_KEY`，`RS` = `RESEND_API_KEY`，`ST` = `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`）。开始前 `npm run costs` 记一下总数，结束后再看一次。
+一次走完第一到四阶段的所有功能。用真实的课堂录音（最好 5 到 10 分钟以上，粤语或普通话夹英文），手机和电脑各试一部分。每项后面是要的 key（`EL` = 转写服务的 key：默认 `DEEPGRAM_API_KEY`，`STT_PROVIDER=elevenlabs` 时 `ELEVENLABS_API_KEY`；`DS` = `DEEPSEEK_API_KEY`，`RS` = `RESEND_API_KEY`，`ST` = `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`）。开始前 `npm run costs` 记一下总数，结束后再看一次。
 
 **准备**：仓库根目录 `npm run build`；`server/` 里 `npm start`；`npm run invite -- new` 生成两个邀请码；Stripe 按上面 1 到 6 步配好。
 

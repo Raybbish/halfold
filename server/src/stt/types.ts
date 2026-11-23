@@ -2,8 +2,9 @@
 import { Agent } from "undici";
 import type { ClassLanguage } from "../config";
 
-/* A recognised word (or Chinese character run) with its time in seconds from the start of the audio. */
-export interface Word { text: string; start: number; end: number; language?: string }
+/* A recognised word (or Chinese character run) with its time in seconds from the start of the audio. endsSentence: the
+   service marked a sentence end here without a punctuation mark (Deepgram utterances, stt/deepgram.ts). */
+export interface Word { text: string; start: number; end: number; language?: string; endsSentence?: boolean }
 export interface Transcript { words: Word[]; durationSec: number | null; detectedLanguage?: string; raw: unknown }
 
 export interface Transcriber {
