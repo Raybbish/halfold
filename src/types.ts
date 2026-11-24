@@ -5,7 +5,9 @@ export type ZhScript = "hant" | "hans";
 export type Source = "record" | "tab" | "upload" | "link";   // language is "en" | "en-yue" | "en-zh" | "auto" (state/app.ts LANGS)
 
 /* 3.1 GET /home */
-export interface User { name: string }
+/* profile: the student's profile and consents (API-CHANGES.md 14), null until saved once; left out by a server that does not
+   know about profiles. profileSkipped: the student chose "Skip for now" (on any device) and has not saved one since. */
+export interface User { name: string; profile?: Profile | null; profileSkipped?: boolean }
 export interface Course { id: string; code: string; name?: string; color?: string }
 export interface Lecture {
   id: string;
@@ -35,7 +37,26 @@ export interface Home {
   usage?: Usage;
   today?: string;
   reviewCount?: number;      // flashcards not marked as known yet, in all the student's lectures (Review in the sidebar)
+  schoolGuess?: SchoolGuess;   // the school the email address points to, while the student has not saved one
 }
+
+/* The student's profile and the two consents (handoff of 2026-11-23, item 4; the designers' draft of 2026-11-24; API-CHANGES.md
+   14). Every field is optional: "" (and gradYear null) is not given; origin "" is also "Prefer not to say". consent...At: when
+   the current choice was made (given, withdrawn, or first left unticked); null = never answered. */
+export type YearOfStudy = "y1" | "y2" | "y3" | "y4" | "tpg" | "rpg" | "other";   // y4 is "Year 4 or above"; tpg taught master's; rpg research postgraduate
+export type Origin = "hk" | "cn" | "tw" | "mo" | "other";                         // where the student studied before university
+export interface Profile {
+  school: string; major: string; yearOfStudy: YearOfStudy | ""; gradYear: number | null; origin: Origin | "";
+  consentMarketing: boolean; consentSurvey: boolean; consentMarketingAt: string | null; consentSurveyAt: string | null;
+}
+export interface SchoolGuess { en: string; zhHant: string; zhHans: string }
+/* PUT /profile: the fields given are saved, the rest kept. The profile form sends all seven, as the draft's readProfile:
+   the text of each field, gradYear "" or "2028". */
+export interface ProfileUpdate {
+  school?: string; major?: string; yearOfStudy?: YearOfStudy | ""; gradYear?: number | string | null; origin?: Origin | "";
+  consentMarketing?: boolean; consentSurvey?: boolean;
+}
+export interface ProfileReply { profile: Profile }
 
 /* 3.2 detail: everything about one lecture */
 export interface Audio { url?: string | null; keptUntil?: string; expired?: boolean }

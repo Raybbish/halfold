@@ -4,9 +4,9 @@
    every reply. Objects are strict: a misspelt field is an error, not something the front end silently ignores. */
 import { z } from "zod";
 import type {
-  Alert, AskReply, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, Mark, NoteHit, PackHint, PackPoint, PackQuestion,
-  PackTopic, Plan, Plans, Point, QuizQuestion, ReviewCard, ReviewPack, ReviewReply, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply,
-  Upcoming, UrlReply, Usage, User, Week
+  Alert, AskReply, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, Mark, NoteHit, PackHint, PackPoint,
+  PackQuestion, PackTopic, Plan, Plans, Point, Profile, ProfileReply, QuizQuestion, ReviewCard, ReviewPack, ReviewReply, SchoolGuess, SearchReply,
+  Section, SessionReply, Settings, SharedReply, Slide, StatusReply, Upcoming, UrlReply, Usage, User, Week
 } from "../../src/types";
 
 const seconds = z.number().finite().nonnegative();
@@ -15,7 +15,15 @@ const id = z.string().regex(/^[A-Za-z0-9_-]+$/);   // INTEGRATION.md section 1
 export const StatusSchema = z.enum(["recording", "processing", "ready", "failed"]);
 
 export const SourceSchema = z.enum(["record", "tab", "upload", "link"]);
-export const UserSchema: z.ZodType<User> = z.strictObject({ name: z.string() });
+/* The profile and consents (API-CHANGES.md 14), in GET /home's user. */
+const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+export const ProfileSchema: z.ZodType<Profile> = z.strictObject({
+  school: z.string().max(80), major: z.string().max(80), yearOfStudy: z.enum(["", "y1", "y2", "y3", "y4", "tpg", "rpg", "other"]),
+  gradYear: z.number().int().min(1000).max(9999).nullable(), origin: z.enum(["", "hk", "cn", "tw", "mo", "other"]),
+  consentMarketing: z.boolean(), consentSurvey: z.boolean(), consentMarketingAt: instant.nullable(), consentSurveyAt: instant.nullable()
+});
+export const ProfileReplySchema: z.ZodType<ProfileReply> = z.strictObject({ profile: ProfileSchema });
+export const UserSchema: z.ZodType<User> = z.strictObject({ name: z.string(), profile: ProfileSchema.nullable().optional(), profileSkipped: z.literal(true).optional() });
 export const CourseSchema: z.ZodType<Course> = z.strictObject({ id, code: z.string().min(1), name: z.string().optional(), color: z.string().optional() });
 export const LectureSchema: z.ZodType<Lecture> = z.strictObject({
   id, course: id, title: z.string(), week: z.number().int().optional(), date: z.string(), duration: seconds.optional(),
@@ -26,10 +34,12 @@ export const WeekSchema: z.ZodType<Week> = z.strictObject({ lectures: z.number()
 export const SettingsSchema: z.ZodType<Settings> = z.strictObject({ classLanguage: z.string(), zhDefault: z.boolean(), zhScript: z.enum(["hant", "hans"]).optional() });
 export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.number().nonnegative(), minutesLimit: z.number().nonnegative(), audioDays: z.number().optional(),
   lecturesThisMonth: z.number().int().nonnegative().optional(), lecturesLimit: z.number().int().positive().optional() });
+export const SchoolGuessSchema: z.ZodType<SchoolGuess> = z.strictObject({ en: z.string().min(1), zhHant: z.string().min(1), zhHans: z.string().min(1) });
 export const HomeSchema: z.ZodType<Home> = z.strictObject({
   user: UserSchema, courses: z.array(CourseSchema), lectures: z.array(LectureSchema), upcoming: z.array(UpcomingSchema),
   week: WeekSchema.optional(), settings: SettingsSchema.optional(), usage: UsageSchema.optional(), today: ymd.optional(),
-  reviewCount: z.number().int().nonnegative().optional()
+  reviewCount: z.number().int().nonnegative().optional(),
+  schoolGuess: SchoolGuessSchema.optional()
 });
 
 export const AudioSchema: z.ZodType<Audio> = z.strictObject({ url: z.string().nullable().optional(), keptUntil: ymd.optional(), expired: z.boolean().optional() });
@@ -86,7 +96,7 @@ export const ReviewPackSchema: z.ZodType<ReviewPack> = z.union([
   z.strictObject({ status: z.enum(["none", "processing"]) }),
   z.strictObject({ status: z.literal("ready"), hints: z.array(PackHintSchema), sheet: z.array(PackTopicSchema), exam: z.array(PackQuestionSchema) })
 ]);
-/* Marks, questions and review across lectures (API-CHANGES.md section 14). */
+/* Marks, questions and review across lectures (API-CHANGES.md section 15). */
 export const AskReplySchema: z.ZodType<AskReply> = z.strictObject({ answer: z.string().min(1), refs: z.array(LineSchema).max(4) });
 export const ReviewCardSchema: z.ZodType<ReviewCard> = z.strictObject({ lectureId: id, lecture: z.string(), index: z.number().int().nonnegative(), q: z.string().min(1), a: z.string().min(1) });
 export const ReviewReplySchema: z.ZodType<ReviewReply> = z.strictObject({ cards: z.array(ReviewCardSchema) });

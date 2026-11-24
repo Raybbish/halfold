@@ -501,3 +501,12 @@ sup,sub{font-size:.72em;line-height:0}
 .marks h3{font-size:16px;margin-bottom:4px}
 .askbox{display:flex;gap:10px;flex-wrap:wrap}
 @media print{.marks .ts,.askbox{display:none!important}}
+
+/* The profile form and the home page's reminder for someone who skipped it (pages/Profile.tsx; the designers' draft of 2026-11-24). */
+.consent{display:grid;gap:10px;margin:4px 0 18px;padding:14px 16px;background:var(--bg);border-radius:var(--r)}
+.consent label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:15px}
+.consent input{margin-top:4px;flex:none;width:17px;height:17px}
+.nudge{display:flex;gap:14px;align-items:center;padding:12px 18px;margin-bottom:16px;color:inherit}
+.nudge:hover{text-decoration:none;border-color:var(--ink)}
+.nudge b{display:block;color:var(--ink)}
+.nudge .grow{flex:1}

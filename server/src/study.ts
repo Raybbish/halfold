@@ -1,4 +1,4 @@
-/* Marks made in class, questions about a lecture, and flashcard review across lectures (API-CHANGES.md section 14, the
+/* Marks made in class, questions about a lecture, and flashcard review across lectures (API-CHANGES.md section 15, the
    designer's INTEGRATION.md 2026-11-19 section 0.1). Paths are under /api; every one needs a token. */
 import { Hono, type Context } from "hono";
 import type { AskReply, Line, MarkKind, ReviewReply } from "../../src/types";

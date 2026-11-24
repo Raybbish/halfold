@@ -1,7 +1,9 @@
 /* ---------- router ----------
    Hash routes, the same addresses as sidenote.html: #/, #/signin, #/home, #/courses, #/course/:id, #/lecture/:id,
    #/s/:id, #/new, #/live, #/pack/:id, #/review, #/settings, and the public #/help and #/privacy. route() keeps the original sign-in guard, data loading and
-   race handling: routeSeq makes sure only the newest navigation draws its result. */
+   race handling: routeSeq makes sure only the newest navigation draws its result.
+   #/welcome is the profile and consents asked once after the first sign-in (pages/Profile.tsx): as in the designers'
+   draft, a visit to the home page leads there while needsWelcome() says so. */
 import { api } from "../api/api";
 import { bump } from "../lib/bus";
 import { plStop } from "../features/player/player";
@@ -10,6 +12,7 @@ import { resumeWatch, watchSlides } from "../features/notes/watch";
 import { watchPack } from "../features/packWatch";
 import { closeModal } from "./overlay";
 import { R, S, findPoint, lecture, rv, session, setPendingPoint, setPendingPos, pendingPoint, pendingPos, state, view } from "./app";
+import { needsWelcome } from "../pages/Profile";
 
 export const PUBLIC = ["", "s", "signin", "help", "privacy"];
 let routeSeq = 0;
@@ -29,6 +32,7 @@ export async function route() {
   try {
     /* reviewCount comes with it when the server counts the cards; a count made by the Review page stays when it does not. */
     if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault;
+      S.schoolGuess = r.schoolGuess || null;
       S.lectures.forEach(l => { if (l.status === "processing") resumeWatch(l.id); }); }   // notes still being written (after a reload, say) are checked in the background
     if (needLec) { const r = await api.getLecture(b); S.detail[b] = r.detail; const i = S.lectures.findIndex(x => x.id === b); if (i < 0) S.lectures.unshift(r.lecture); else S.lectures[i] = r.lecture; }
     /* Processing with notes already there: slides added later are being matched to them (the notes stay readable). */
@@ -41,5 +45,6 @@ export async function route() {
     if (changed && a === "lecture" && S.detail[b] && S.detail[b]!.progress) state.known = new Set(S.detail[b]!.progress!.known || []);
     if (hit && S.detail[b]) { state.found = findPoint(S.detail[b]!, hit); state.goFound = !!state.found; }
   } catch (e) { S.error = (e as Error).message || String(e); }
+  if (a === "home" && !S.error && needsWelcome() && seq === routeSeq) { location.hash = "#/welcome"; return; }   // first visit to the home page: ask who they are, once
   if (seq === routeSeq) { view.loader = null; bump(); }
 }
