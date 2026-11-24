@@ -8,7 +8,7 @@ import { http, form1, upload, type UploadOptions } from "./http";
 import { DATA, fakeUpload, fileUnderSlides, mockSlides, withoutSlides } from "./mock";
 import type {
   CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, NewLecture, Plans, Point, ProgressUpdate,
-  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, UrlReply, PackHint, PackTopic, PackQuestion
+  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, UrlReply, PackHint, PackTopic, PackQuestion, Profile, ProfileUpdate
 } from "../types";
 
 export const api = {
@@ -34,7 +34,7 @@ export const api = {
     if (!CONFIG.USE_MOCK) return http("GET", "/home");
     await wait(250);
     return { user: S.user || DATA.user, courses: DATA.courses.slice(), lectures: DATA.lectures.slice(), upcoming: DATA.upcoming.slice() as Home["upcoming"], week: DATA.week, settings: { ...DATA.settings },
-      usage: { minutesToday: DATA.user.minutesToday, minutesLimit: DATA.user.minutesLimit }, today: "2026-11-11" };
+      usage: { minutesToday: DATA.user.minutesToday, minutesLimit: DATA.user.minutesLimit }, today: "2026-11-11", profile: { ...DATA.profile } };
   },
   /* POST /courses {code, name} -> course */
   async addCourse(code: string, name: string): Promise<Course> {
@@ -151,6 +151,15 @@ export const api = {
   async makeReviewPack(courseId: string): Promise<{ status: string }> { if (!CONFIG.USE_MOCK) return http("POST", "/courses/" + courseId + "/review-pack"); await wait(400); DATA.packs[courseId] = "ready"; return { status: "processing" }; },
   /* PUT /lectures/:id/progress {known:[cardIndex], quizScore} */
   async saveProgress(id: string, p: ProgressUpdate): Promise<null> { if (!CONFIG.USE_MOCK) return http("PUT", "/lectures/" + id + "/progress", p); return null; },
+  /* PUT /profile {school?, major?, yearOfStudy?, gradYear?, origin?, consentMarketing?, consentSurvey?} -> profile   the fields
+     given are saved, the rest kept; answering the one-time question needs all of them (API-CHANGES.md 14) */
+  async updateProfile(p: ProfileUpdate): Promise<Profile> { if (!CONFIG.USE_MOCK) return http("PUT", "/profile", p); await wait(300);
+    const was = DATA.profile, at = new Date().toISOString();
+    DATA.profile = { ...was, ...p, consentMarketingAt: p.consentMarketing !== undefined && p.consentMarketing !== was.consentMarketing ? at : was.consentMarketingAt,
+      consentSurveyAt: p.consentSurvey !== undefined && p.consentSurvey !== was.consentSurvey ? at : was.consentSurveyAt };
+    return { ...DATA.profile }; },
+  /* POST /profile/later   "Not now" to the one-time question, for an account from before the question */
+  async profileLater(): Promise<null> { if (!CONFIG.USE_MOCK) return http("POST", "/profile/later"); await wait(200); return null; },
   /* PUT /settings {name, classLanguage, zhDefault, zhScript:"hant"|"hans"} */
   async updateSettings(p: SettingsUpdate): Promise<null> { if (!CONFIG.USE_MOCK) return http("PUT", "/settings", p); Object.assign(DATA.settings, { classLanguage: p.classLanguage, zhDefault: p.zhDefault, zhScript: p.zhScript }); await wait(300); return null; }
 };

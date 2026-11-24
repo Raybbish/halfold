@@ -17,6 +17,7 @@ import { openModal } from "../ui/Overlay";
 import { css } from "../ui/css";
 import { lecturesLine } from "../ui/limit";
 import { checked, val } from "../ui/form";
+import { ConsentCard, ProfileCard } from "./Profile";
 
 export function Settings() {
   const u = S.usage, s = S.settings;
@@ -31,6 +32,7 @@ export function Settings() {
       <label className="field"><span>{t("Show 中文解釋 in")}</span><select name="zs" data-notr="" defaultValue={zhScript() === "hans" ? "hans" : "hant"}><option value="hant">繁體中文</option><option value="hans">简体中文</option></select></label>
       <label className="field"><span>{t("Interface language")}</span><select onChange={e => setLang(e.currentTarget.value)} data-notr="" value={LANG}><option value="en">English</option><option value="zh-Hans">简体中文</option><option value="zh-Hant">繁體中文</option></select></label>
       <button className="btn primary">{t("Save settings")}</button></form>
+    <ProfileCard /><ConsentCard />
     <div className="card" style={css("padding:22px;max-width:640px;margin-bottom:18px")}>
       <h2 style={css("font-size:18px;margin-bottom:10px")}>{t("Plan and usage")}</h2>
       {u ? <><p className="num" style={css("margin-bottom:8px")}>{t(u.minutesToday + " of " + u.minutesLimit + " recording minutes used today")}</p>{lecturesLine(u) ? <p className="num" style={css("margin-bottom:8px")}>{t(lecturesLine(u)!)}</p> : null}<div className="ubar"><b style={css(`width:${Math.min(100, u.minutesToday / u.minutesLimit * 100)}%`)}></b></div></> : null}

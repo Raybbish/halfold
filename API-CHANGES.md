@@ -465,3 +465,47 @@
 - 后端把它放进页面的 `window.SIDENOTE_CONFIG.CONTACT_EMAIL`（只在设了时）；前端的 `CONFIG.CONTACT_EMAIL` 默认是 `null`。
 - 线上定为 `support@halfold.app`，用 Cloudflare Email Routing 转发。转发设好、能收到信之后，再在服务器上设这个值（`halfold env`）。
 - 隐私页的“谁处理你的数据”改为按服务类别和所在地写（语音转文字服务在美国，AI 模型服务在中国内地，付款服务、邮件发送服务），不写服务商名字；服务器写成“新加坡的云服务商”。换服务商时只要所在地没变，这一页就不用改；所在地变了要同步改 `src/pages/Privacy.tsx`。
+
+## 14. 注册时的资料和两个同意（2026-11-24，交接文档第 4 项）
+
+注册后马上问资料和两个同意；以前注册的用户问一次；设置页随时可改资料、取消同意。登录接口（`/session`）没有改。
+
+### 字段名（`src/types.ts` 的 `Profile`）
+
+| 字段 | 值 |
+|---|---|
+| `school` | 文本，最长 100 字。前端按邮箱域名预填（见下面 `schoolGuess`） |
+| `major` | 文本，最长 100 字 |
+| `yearOfStudy` | `year1`、`year2`、`year3`、`year4`、`year5`、`masters`、`phd` |
+| `gradYear` | 四位数，今年往前 30 年到往后 10 年 |
+| `origin` | `mainland`（内地）、`hk-local`（香港本地）、`taiwan`（台湾）、`other`（其他） |
+| `consentMarketing` | 布尔值：愿意接收招聘、升学和学生优惠信息。默认不勾 |
+| `consentSurvey` | 布尔值：愿意参加有偿问卷调研。默认不勾 |
+| `consentMarketingAt`、`consentSurveyAt` | 这个选择是什么时候做的（ISO 时间）：同意、取消，或第一次回答时没勾；没回答过是 `null`。只读 |
+
+### `getHome` 的新字段
+
+- `profile`：上面的 `Profile`，没填过时是空字符串、`null` 和 `false`。
+- `askProfile`：还没回答那一次的提问时才有。`"signup"`：新注册的账户（2026-11-24 起绑定邮箱的），必须填完，没有“暂时不要”。`"once"`：之前就有的账户，问一次，可以选“暂时不要”，之后不再问。前端在有 `askProfile` 时，任何登录后的页面都先跳到 `#/welcome`，答完再回到原来要去的页面。
+- `schoolGuess`：`{ en, zhHant, zhHans }`，邮箱域名对得上学校、而且还没存学校时才有（`server/src/schools.ts`，内地、港澳台和海外常见学校）。海外学校三种语言都是英文名。
+
+### `updateProfile`：`PUT /profile`
+
+- body 是上面七个可写字段的任意几个：给了的存，没给的不动。设置页的“你的学业”只发五个资料字段，“信息和问卷”只发两个同意，所以取消同意不用填资料。
+- 回答那一次的提问（有 `askProfile` 时）七个字段都要给，否则 400 `Fill in every field.`。
+- 值不对回 400，`message` 可以直接显示（中文在 `src/i18n/zh.ts`）。成功回 200 和存好的 `Profile`。
+- 同意第一次回答或改变时，记下时间，并在 `consents` 表另记一行（同意/不同意、显示的文字版本 `CONSENT_WORDING`、来源 `signup`/`prompt`/`settings`、时间），所以每次同意和取消都查得到。存同样的值不记、时间不变。
+
+### `profileLater`：`POST /profile/later`
+
+- “暂时不要”。只给 `"once"` 的账户；`"signup"` 回 409 `Fill in these details to finish signing up.`。成功回 204，之后 `getHome` 不再有 `askProfile`。
+
+### 同意的文字
+
+- 现在是交接文档表里的占位写法，中英文都有（`src/pages/Profile.tsx`、`src/i18n/zh.ts`）。定稿来了改这两处，并改 `server/src/profile.ts` 的 `CONSENT_WORDING`，这样每个回答都对得上当时看到的文字。
+- 两个勾选框各自独立，不和服务条款合在一起（现在登录流程里没有服务条款的勾选）。
+
+### 数字（交接文档第 8 项）
+
+- `cd server && npm run signups`：最近 30 天每天注册数（按 `APP_TIMEZONE`），填了资料、选了“暂时不要”、还没问到的人数，以及两个同意各占回答过的人多少、同意后又取消的人数。`-- --days=90` 换天数，`-- --json` 出 JSON。
+- 注册时间是邮箱绑定到账户的时间（`users.signed_up_at`）。2026-11-24 之前注册的账户没有这个时间，单独计数。

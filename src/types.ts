@@ -34,7 +34,24 @@ export interface Home {
   settings?: Settings;
   usage?: Usage;
   today?: string;
+  profile?: Profile;
+  askProfile?: AskProfile;     // the one-time question after signing in is still to be answered (API-CHANGES.md 14)
+  schoolGuess?: SchoolGuess;   // the school the email address points to, while the student has not saved one
 }
+
+/* The student's profile and the two consents (handoff of 2026-11-23, item 4; API-CHANGES.md 14). Empty and null until
+   given. consent...At: when the current choice was made (given, withdrawn, or first left unticked); null = never answered. */
+export type YearOfStudy = "year1" | "year2" | "year3" | "year4" | "year5" | "masters" | "phd";
+export type Origin = "mainland" | "hk-local" | "taiwan" | "other";
+export interface Profile {
+  school: string; major: string; yearOfStudy: YearOfStudy | null; gradYear: number | null; origin: Origin | null;
+  consentMarketing: boolean; consentSurvey: boolean; consentMarketingAt: string | null; consentSurveyAt: string | null;
+}
+/* "signup": a new account, the form has to be filled in; "once": an account from before, asked once and free to say Not now. */
+export type AskProfile = "signup" | "once";
+export interface SchoolGuess { en: string; zhHant: string; zhHans: string }
+/* PUT /profile: the fields given are saved, the rest kept. */
+export type ProfileUpdate = Partial<Pick<Profile, "school" | "major" | "yearOfStudy" | "gradYear" | "origin" | "consentMarketing" | "consentSurvey">>;
 
 /* 3.2 detail: everything about one lecture */
 export interface Audio { url?: string | null; keptUntil?: string; expired?: boolean }

@@ -1,6 +1,6 @@
 /* SAMPLE DATA: used only by the mock branches of `api`. Times are seconds from the start of the recording.
    The literal below is lines 460-537 of sidenote.html, copied as they are. */
-import type { Course, Detail, Lecture, Settings, Slide, Upcoming, Week } from "../types";
+import type { Course, Detail, Lecture, Profile, Settings, Slide, Upcoming, Week } from "../types";
 import { abortError, type UploadOptions } from "./http";
 
 interface MockLecture extends Lecture { full?: boolean; unshared?: boolean }
@@ -16,6 +16,7 @@ export interface MockData {
   details: Record<string, Detail>;
   week: Week;
   settings: Settings;
+  profile: Profile;
   feed: number;
   packs: Record<string, string>;
 }
@@ -126,6 +127,7 @@ export const mockDb = {
     DATA.details = { "econ-w9": d };
     DATA.week = { lectures: 4, known: 23, quiz: 86, days: [1, 1, 1, 0, 0] };
     DATA.settings = { classLanguage: "en", zhDefault: false };
+    DATA.profile = { school: "", major: "", yearOfStudy: null, gradYear: null, origin: null, consentMarketing: false, consentSurvey: false, consentMarketingAt: null, consentSurveyAt: null };
     DATA.feed = 0; DATA.packs = {};
   }
 };
