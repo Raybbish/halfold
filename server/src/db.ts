@@ -57,6 +57,21 @@ export interface LectureRow {
   /* auto_title: 1 while the title is the dated one the front end filled in (createLecture autoTitle) and nobody renamed
      the lecture; the notes then give it the title the model wrote (saveNotes). */
   auto_title: number;
+  /* The same class recorded by several students (dedupe.ts). content_key: what the recording is, "file:<sha256>" for an
+     upload or "youtube:<id>" for a link, null when it is never matched; reused_from: the lecture whose transcript this
+     one copied instead of transcribing (null when it was transcribed for this lecture). */
+  content_key: string | null; reused_from: string | null;
+}
+/* A dated alert of the notes (the upcoming table). */
+export interface Dated { date: string; kind: string; text: string; t: number }
+/* The notes as the model wrote them, kept next to the notes the student edits, so that the next student with the same
+   recording gets these and not this student's edits (dedupe.ts). zh: the Chinese script they were written with. */
+export interface OriginalNotes { detail: Detail; dated: Dated[]; title: string | null; zh: string | null }
+/* class_recordings: one row per lecture whose notes were written, kept after the lecture is deleted (npm run costs).
+   class_id: the lecture that was transcribed for this class (the lecture itself when nothing was reused); match_on:
+   "file", "link" or null (a live recording, or a link that is never matched); reused: what was copied. */
+export interface ClassRecordingRow {
+  lecture_id: string; user_id: string; class_id: string; match_on: string | null; reused: "none" | "transcript" | "notes"; created_at: string;
 }
 export interface UpcomingRow { lecture_id: string; date: string; kind: string; text: string; t: number; course_code: string }
 export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
@@ -142,6 +157,8 @@ CREATE TABLE IF NOT EXISTS costs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, lecture_id TEXT NOT NULL, user_id TEXT, stage TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
   audio_seconds REAL, input_tokens INTEGER, cached_input_tokens INTEGER, output_tokens INTEGER, reasoning_tokens INTEGER, usd REAL,
   meta_json TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS class_recordings (
+  lecture_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, class_id TEXT NOT NULL, match_on TEXT, reused TEXT NOT NULL, created_at TEXT NOT NULL);
 `;
 
 const now = () => new Date().toISOString();
@@ -158,6 +175,7 @@ const ADDED: [string, string, string][] = [
   ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"], ["lectures", "live_gaps", "TEXT"],
   ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
   ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"], ["lectures", "auto_title", "INTEGER NOT NULL DEFAULT 0"],
+  ["lectures", "content_key", "TEXT"], ["lectures", "reused_from", "TEXT"], ["details", "original_json", "TEXT"],
   ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"], ["users", "signed_up_at", "TEXT"],
   ["profiles", "saved_at", "TEXT"], ["profiles", "skipped_at", "TEXT"]   // a database made with the first version of PR 22 (never deployed)
 ];
@@ -184,6 +202,7 @@ export class Store {
     }
     this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS lectures_share ON lectures(share_id)");
     this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email)");
+    this.db.exec("CREATE INDEX IF NOT EXISTS lectures_content ON lectures(content_key) WHERE content_key IS NOT NULL");
   }
   close() { this.db.close(); }
   private tx<T>(fn: () => T): T {
@@ -408,7 +427,10 @@ export class Store {
   }
   renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ?, auto_title = 0 WHERE id = ?").run(title, id); }
   moveLecture(id: string, courseId: string) { this.db.prepare("UPDATE lectures SET course_id = ? WHERE id = ?").run(courseId, id); }
-  setLink(id: string, url: string) { this.db.prepare("UPDATE lectures SET link = ? WHERE id = ?").run(url, id); }
+  /* contentKey: the video the link is to, when it can be matched (dedupe.ts linkKey). */
+  setLink(id: string, url: string, contentKey: string | null = null) { this.db.prepare("UPDATE lectures SET link = ?, content_key = ? WHERE id = ?").run(url, contentKey, id); }
+  /* The file uploaded (dedupe.ts fileKey): set with each upload, which replaces the one before. */
+  setContentKey(id: string, contentKey: string) { this.db.prepare("UPDATE lectures SET content_key = ? WHERE id = ?").run(contentKey, id); }
   /* A lecture that could not be made into notes is not one of the month's lectures: the student got nothing from it. */
   setFailed(id: string, error: string, publicError: string | null = null) {
     this.tx(() => {
@@ -522,18 +544,56 @@ export class Store {
     const r = this.db.prepare("SELECT lines_json FROM transcripts WHERE lecture_id = ?").get(lectureId) as { lines_json: string } | undefined;
     return r ? JSON.parse(r.lines_json) as Line[] : null;
   }
+
+  /* ---- the same recording, already transcribed for another lecture (dedupe.ts) ---- */
+  /* Other lectures of the recording `contentKey` in the class language `language` that have a transcript: those with
+     notes that can be copied (original_json) first, then the oldest first. */
+  sameRecording(contentKey: string, language: string, notId: string) {
+    return this.db.prepare(`SELECT lectures.*, details.original_json IS NOT NULL AS has_original FROM lectures
+      JOIN transcripts ON transcripts.lecture_id = lectures.id LEFT JOIN details ON details.lecture_id = lectures.id
+      WHERE lectures.content_key = ? AND lectures.language = ? AND lectures.id <> ?
+      ORDER BY has_original DESC, lectures.created_at, lectures.rowid`).all(contentKey, language, notId) as unknown as (LectureRow & { has_original: number })[];
+  }
+  /* Copies another lecture's transcript as this lecture's own and notes where it came from. null when either lecture is gone. */
+  reuseTranscript(lectureId: string, fromId: string) {
+    return this.tx(() => {
+      if (!this.lecture(lectureId)) return null;
+      const r = this.db.prepare("INSERT OR REPLACE INTO transcripts (lecture_id, provider, model, lines_json, created_at) SELECT ?, provider, model, lines_json, ? FROM transcripts WHERE lecture_id = ?")
+        .run(lectureId, now(), fromId);
+      if (!Number(r.changes)) return null;
+      this.db.prepare("UPDATE lectures SET reused_from = ? WHERE id = ?").run(fromId, lectureId);
+      return this.transcript(lectureId);
+    });
+  }
+  originalNotes(lectureId: string) {
+    const r = this.db.prepare("SELECT original_json FROM details WHERE lecture_id = ?").get(lectureId) as { original_json: string | null } | undefined;
+    return r?.original_json ? JSON.parse(r.original_json) as OriginalNotes : null;
+  }
+  classRecordings() { return this.db.prepare("SELECT * FROM class_recordings ORDER BY created_at, rowid").all() as unknown as ClassRecordingRow[]; }
+
   /* Notes, the dated alerts and status ready in one transaction. Does nothing when the lecture was deleted meanwhile. */
-  /* title: the model's title for the lecture; it replaces the title only while that is still the automatic one. */
-  saveNotes(lectureId: string, detail: Detail, dated: { date: string; kind: string; text: string; t: number }[], title: string | null = null) {
+  /* title: the model's title for the lecture; it replaces the title only while that is still the automatic one.
+     original: the notes as the model wrote them, kept for the next lecture of the same recording (dedupe.ts); null when
+     they cannot be copied (no content key, or written with slides). notesFrom: the lecture of the same recording the
+     notes were copied from, when they were not written for this one. */
+  saveNotes(lectureId: string, detail: Detail, dated: Dated[], title: string | null = null, o: { original?: OriginalNotes | null; notesFrom?: string } = {}) {
     this.db.exec("BEGIN");
     try {
-      if (!this.lecture(lectureId)) { this.db.exec("ROLLBACK"); return false; }
-      this.db.prepare("INSERT OR REPLACE INTO details (lecture_id, detail_json, created_at) VALUES (?, ?, ?)").run(lectureId, JSON.stringify(detail), now());
+      const l = this.lecture(lectureId);
+      if (!l) { this.db.exec("ROLLBACK"); return false; }
+      this.db.prepare("INSERT OR REPLACE INTO details (lecture_id, detail_json, original_json, created_at) VALUES (?, ?, ?, ?)")
+        .run(lectureId, JSON.stringify(detail), o.original ? JSON.stringify(o.original) : null, now());
       this.db.prepare("DELETE FROM upcoming WHERE lecture_id = ?").run(lectureId);
       const ins = this.db.prepare("INSERT INTO upcoming (lecture_id, date, kind, text, t) VALUES (?, ?, ?, ?, ?)");
       for (const u of dated) ins.run(lectureId, u.date, u.kind, u.text, u.t);
       this.db.prepare("UPDATE lectures SET status = 'ready', error = NULL WHERE id = ?").run(lectureId);
       if (title) this.db.prepare("UPDATE lectures SET title = ?, auto_title = 0 WHERE id = ? AND auto_title = 1").run(title.slice(0, 200), lectureId);
+      /* The class this recording belongs to: that of the lecture it reused, or its own. */
+      const from = l.reused_from ?? o.notesFrom;
+      const classId = from ? (this.db.prepare("SELECT class_id FROM class_recordings WHERE lecture_id = ?").get(from) as { class_id: string } | undefined)?.class_id ?? from : l.id;
+      this.db.prepare(`INSERT INTO class_recordings (lecture_id, user_id, class_id, match_on, reused, created_at) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(lecture_id) DO UPDATE SET class_id = excluded.class_id, match_on = excluded.match_on, reused = excluded.reused`)
+        .run(lectureId, l.user_id, classId, l.content_key ? l.content_key.startsWith("file:") ? "file" : "link" : null, o.notesFrom ? "notes" : from ? "transcript" : "none", now());
       this.db.exec("COMMIT"); return true;
     } catch (e) { this.db.exec("ROLLBACK"); throw e; }
   }

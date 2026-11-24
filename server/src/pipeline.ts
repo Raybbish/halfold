@@ -21,6 +21,7 @@ import { DetailSchema } from "./shapes";
 import { readSlides } from "./slides";
 import { promptDate } from "./time";
 import { LinkError, STUDENT_MESSAGE, type LinkDownloader } from "./links/ytdlp";
+import { matchKey, sameLength, SameRecording } from "./dedupe";
 
 export interface PipelineDeps {
   config: Config; store: Store; files: FileStore; media: Media; stt: Transcriber; notes: NotesWriter;
@@ -47,10 +48,11 @@ export class Pipeline implements Jobs {
   private running = new Map<string, AbortController>();    // both lanes
   private downloading = new Set<string>();                  // the ones in `running` that are downloading their link
   private waiters: (() => void)[] = [];
+  private same = new SameRecording();                       // lectures of the same recording waiting for the one transcribing it (dedupe.ts)
   constructor(private readonly d: PipelineDeps) {}
 
   enqueue(id: string) { if (!this.running.has(id) && !this.queue.includes(id)) { this.queue.push(id); this.pump(); } }
-  cancel(id: string) { this.queue = this.queue.filter(x => x !== id); this.running.get(id)?.abort(); }
+  cancel(id: string) { this.queue = this.queue.filter(x => x !== id); this.running.get(id)?.abort(); this.same.forget(id); }
   /* After a restart: lectures left in "processing" are queued again. */
   resume() { for (const l of this.d.store.lecturesWithStatus("processing")) this.enqueue(l.id); }
   /* Resolves when nothing is queued or running (tests, shutdown). */
@@ -126,7 +128,7 @@ export class Pipeline implements Jobs {
   private check(id: string, signal: AbortSignal) { if (signal.aborted || !this.d.store.lecture(id)) throw new Gone(); }
 
   private async process(l: LectureRow, signal: AbortSignal) {
-    const { store, files, media, stt, config } = this.d, id = l.id;
+    const { store, files, media } = this.d, id = l.id;
     /* 0. A live recording: the pieces the browser sent, joined in order into one file. */
     if (!l.recording_file && isLive(l)) { await this.assemble(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
     /* 0. A video link: the file behind it. Kept until the notes are written (step 6), so a retry after a later step failed does not download again. */
@@ -145,10 +147,25 @@ export class Pipeline implements Jobs {
     store.setDuration(id, info.duration);
     this.check(id, signal);
 
-    /* 2. Transcript, kept so that a retry does not pay for it again. */
+    /* The same recording as another lecture's (dedupe.ts): while that one is being transcribed, this one waits for it,
+       still processing, and runs again when that run ends. */
+    const key = matchKey(l);
+    if (key && !this.same.claim(key, id)) return;
+    try { await this.write(l, audio, info.duration, signal); }
+    finally { if (key) for (const next of this.same.release(key, id)) this.enqueue(next); }
+  }
+
+  /* Steps 2 to 6: the transcript, the notes, and the original file deleted once they are written. */
+  private async write(l: LectureRow, audio: string, duration: number, signal: AbortSignal) {
+    const { store, files, stt, config } = this.d, id = l.id;
+    /* Other lectures of the same recording already transcribed, that this one can copy from (dedupe.ts). */
+    const same = () => l.content_key ? store.sameRecording(l.content_key, l.language, id).filter(x => sameLength(x.duration, duration)) : [];
+
+    /* 2. Transcript, kept so that a retry does not pay for it again; copied from the same recording when there is one. */
     let lines = store.transcript(id);
+    if (!lines) { const from = same()[0]; if (from) { lines = store.reuseTranscript(id, from.id); this.check(id, signal); } }
     if (!lines) {
-      lines = isLive(l) ? await this.transcribeLive(l, audio, info.duration, signal) : await this.transcribeWhole(l, audio, info.duration, signal);
+      lines = isLive(l) ? await this.transcribeLive(l, audio, duration, signal) : await this.transcribeWhole(l, audio, duration, signal);
       if (!lines.length) throw new Error("no speech was recognised in the recording");
       store.saveTranscript(id, stt.provider, stt.model, lines);
     }
@@ -162,19 +179,27 @@ export class Pipeline implements Jobs {
     }
     this.check(id, signal);
 
-    /* 4. Notes. A reply that cannot be used is shown back to the model once to be corrected. */
-    const course = store.course(l.user_id, l.course_id);
+    /* 4. Notes. Without slides, the notes of the same recording as the model wrote them, when there are some; otherwise
+       written for this lecture. A reply that cannot be used is shown back to the model once to be corrected. */
     const zh = config.zhExplanations ? (l.language === "en-zh" ? "hans" : "hant") : null;
+    if (l.content_key && !slidePages.length) for (const from of same()) {
+      const original = from.has_original ? store.originalNotes(from.id) : null;
+      if (!original || original.zh !== zh) continue;
+      this.check(id, signal);
+      store.saveNotes(id, original.detail, original.dated, original.title, { original, notesFrom: from.id });
+      return this.dropOriginal(l);
+    }
+    const course = store.course(l.user_id, l.course_id);
     const input: NotesInput = {
       courseCode: course?.code || "", courseName: course?.name || "", title: l.title, date: promptDate(new Date(l.created_at), config.timezone),
-      language: l.language, duration: info.duration, lines, slides: slidePages, zh
+      language: l.language, duration, lines, slides: slidePages, zh
     };
     let detailOut: ReturnType<typeof buildDetail> | null = null, repair: { reply: string; problem: string } | undefined, problem = "";
     for (let attempt = 1; attempt <= NOTES_ATTEMPTS && !detailOut; attempt++) {
       const call = await this.callNotes(l, input, attempt, slidePages.length, signal, repair);
       this.check(id, signal);
       try {
-        const out = buildDetail(parseModelNotes(call.text), { duration: info.duration, lines, slidePages, zh });
+        const out = buildDetail(parseModelNotes(call.text), { duration, lines, slidePages, zh });
         const checked = DetailSchema.safeParse(out.detail);
         if (!checked.success) throw new Error("the notes break these rules: " + checked.error.issues.slice(0, 8).map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
         detailOut = out;
@@ -186,14 +211,20 @@ export class Pipeline implements Jobs {
     }
     if (!detailOut) throw new Error("the notes model did not write usable notes: " + problem);
 
-    /* 5. Save; does nothing if the lecture was deleted meanwhile. */
+    /* 5. Save; does nothing if the lecture was deleted meanwhile. Notes written without slides for a recording that can be
+       matched are kept as written too, for the next lecture of the same recording (dedupe.ts). */
     this.check(id, signal);
-    store.saveNotes(id, detailOut.detail, detailOut.dated, detailOut.title);
+    const { detail, dated, title } = detailOut;
+    store.saveNotes(id, detail, dated, title, { original: l.content_key && !slidePages.length ? { detail, dated, title, zh } : null });
+    await this.dropOriginal(l);
+  }
 
-    /* 6. The original file was only read to make audio.m4a, which is what is played, downloaded and kept: deleted now that
-       the notes are written (it is about twice the size). A lecture that failed keeps it, so a retry can convert it again.
-       If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way. */
-    if (files.exists(id, AUDIO)) await files.remove(id, l.recording_file).catch(e => console.warn(`[pipeline] ${id} original not deleted: ${(e as Error).message}`));
+  /* 6. The original file was only read to make audio.m4a, which is what is played, downloaded and kept: deleted now that
+     the notes are written (it is about twice the size). A lecture that failed keeps it, so a retry can convert it again.
+     If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way. */
+  private async dropOriginal(l: LectureRow) {
+    const { files } = this.d, id = l.id;
+    if (files.exists(id, AUDIO) && l.recording_file) await files.remove(id, l.recording_file).catch(e => console.warn(`[pipeline] ${id} original not deleted: ${(e as Error).message}`));
   }
 
   /* An upload or a video link: the whole recording in one request. */
