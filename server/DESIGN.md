@@ -635,6 +635,7 @@ React 前端（本仓库）：失败的课堂页有 `lecture.error` 时显示它
 - 只收一次性付款，不自动续费。
 - 档位和价格之后给，不能写死；这次不改档位、价格和额度。
 - 要处理退款（规则由我定，见下面）。
+- 支付方式：卡（连带 Apple Pay、Google Pay）、支付宝、微信支付。请求里不写 `payment_method_types`，所以这只是在 Stripe 后台打开，代码不用改；设置页卡片上的那句 “Pay once by card, Alipay or WeChat Pay” 照这个写。
 
 ## 改了什么
 

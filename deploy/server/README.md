@@ -57,7 +57,7 @@ halfold invite new
 先用测试模式（`sk_test_` 开头的 key，测试卡 `4242 4242 4242 4242`）在服务器上走一遍，再换成收真钱：
 
 1. **Stripe 账户**：在 [dashboard.stripe.com](https://dashboard.stripe.com) 用香港的商户资料激活账户（Activate payments）：公司或个人的资料、负责人身份证明、收款的香港银行账户。“Public business name” 和 “Statement descriptor” 会出现在学生的收据和信用卡账单上，写 Halfold。
-2. **支付方式**：关掉 Test mode，Settings → Payment methods，打开要的（卡默认开着，Apple Pay 和 Google Pay 跟着卡；支付宝、微信支付要另外打开，有的要先审核）。设置页的卡片上写着 “Pay once by card, Alipay or WeChat Pay”；不开支付宝或微信支付的话要改 `server/src/billing.ts` 里这句（和 `src/i18n/zh.ts` 的中文）。
+2. **支付方式**（2026-11-24 定的：卡、支付宝、微信支付）：关掉 Test mode，Settings → Payment methods，确认卡开着（Apple Pay 和 Google Pay 跟着卡），再打开 Alipay 和 WeChat Pay（要另外打开，有的要先审核，审核过了才会出现在付款页）。设置页的卡片上写着 “Pay once by card, Alipay or WeChat Pay”；以后去掉其中一种的话要改 `server/src/billing.ts` 里这句（和 `src/i18n/zh.ts` 的中文）。
 3. **收据**：Settings → Customer emails，打开 Successful payments 和 Refunds，学生付款和退款后收到 Stripe 的邮件。
 4. **Webhook**（正式模式下）：Developers → Webhooks → Add endpoint，地址 `https://<你的域名>/api/stripe/webhook`，事件选 `checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`charge.refunded`、`charge.dispute.closed`。建好后复制 Signing secret（`whsec_` 开头；正式模式和测试模式的不一样）。
 5. **Key**：Developers → API keys 的 Secret key（`sk_live_` 开头）。服务器只用它建、查、关 Checkout，所以也可以建一个只开 Checkout Sessions 权限的 Restricted key（`rk_live_` 开头），用测试模式的同样一个先试通。
