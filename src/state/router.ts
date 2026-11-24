@@ -2,8 +2,8 @@
    Hash routes, the same addresses as sidenote.html: #/, #/signin, #/home, #/courses, #/course/:id, #/lecture/:id,
    #/s/:id, #/new, #/live, #/pack/:id, #/settings, and the public #/help and #/privacy. route() keeps the original sign-in guard, data loading and
    race handling: routeSeq makes sure only the newest navigation draws its result.
-   #/welcome is the profile and consents asked once after signing in (pages/Profile.tsx): while GET /home says it waits
-   for an answer (askProfile), every other signed-in page leads there first, and then on to the page that was asked for. */
+   #/welcome is the profile and consents asked once after the first sign-in (pages/Profile.tsx): as in the designers'
+   draft, a visit to the home page leads there while needsWelcome() says so. */
 import { api } from "../api/api";
 import { bump } from "../lib/bus";
 import { plStop } from "../features/player/player";
@@ -12,11 +12,10 @@ import { resumeWatch, watchSlides } from "../features/notes/watch";
 import { watchPack } from "../features/packWatch";
 import { closeModal } from "./overlay";
 import { R, S, findPoint, lecture, session, setPendingPoint, setPendingPos, pendingPoint, pendingPos, state, view } from "./app";
+import { needsWelcome } from "../pages/Profile";
 
 export const PUBLIC = ["", "s", "signin", "help", "privacy"];
 let routeSeq = 0;
-const toWelcome = (a: string) => !!S.askProfile && a !== "welcome" && !PUBLIC.includes(a);
-function goWelcome() { S.next = location.hash; location.hash = "#/welcome"; }
 
 export async function route() {
   closeModal();
@@ -24,8 +23,6 @@ export async function route() {
   if (!PUBLIC.includes(a) && !S.token) { S.next = location.hash; location.hash = "#/signin"; return; }
   if (a === "signin" && S.token) { location.hash = "#/home"; return; }
   if (a === "live" && !live.active) { location.hash = "#/new"; return; }
-  if (S.homeLoaded && toWelcome(a)) { goWelcome(); return; }
-  if (S.homeLoaded && a === "welcome" && !S.askProfile) { location.hash = "#/home"; return; }
   const changed = R.a !== a || R.b !== b; Object.assign(R, { a, b }); const seq = ++routeSeq; S.error = null;
   if (changed) { plStop(); window.scrollTo(0, 0); if (a === "lecture" || a === "s") Object.assign(state, { tab: "notes", hit: null, pos: pendingPos || 0, fc: 0, flip: false, known: new Set(), qi: 0, picked: null, score: 0, done: false, onlyOff: false, zh: !!S.settings.zhDefault, tq: "", edit: false, order: null, wrong: [], found: null, goFound: false, closed: new Set() }); setPendingPos(0); }
   const hit = changed && a === "lecture" && pendingPoint && pendingPoint.lecture === b ? pendingPoint : null; setPendingPoint(null);
@@ -34,10 +31,8 @@ export async function route() {
   if (needHome || needLec || needSh || needPack || needPlans) { view.loader = S.homeLoaded && !PUBLIC.includes(a) ? "shell" : "center"; bump(); }
   try {
     if (needHome) { const r = await api.getHome(); Object.assign(S, r); S.settings = r.settings || S.settings; S.homeLoaded = true; session.save(); if (a === "lecture" || a === "s") state.zh = !!S.settings.zhDefault;
-      S.profile = r.profile || null; S.askProfile = r.askProfile || null; S.schoolGuess = r.schoolGuess || null;
-      S.lectures.forEach(l => { if (l.status === "processing") resumeWatch(l.id); });   // notes still being written (after a reload, say) are checked in the background
-      if (toWelcome(a)) { goWelcome(); return; }
-      if (a === "welcome" && !S.askProfile) { location.hash = "#/home"; return; } }
+      S.schoolGuess = r.schoolGuess || null;
+      S.lectures.forEach(l => { if (l.status === "processing") resumeWatch(l.id); }); }   // notes still being written (after a reload, say) are checked in the background
     if (needLec) { const r = await api.getLecture(b); S.detail[b] = r.detail; const i = S.lectures.findIndex(x => x.id === b); if (i < 0) S.lectures.unshift(r.lecture); else S.lectures[i] = r.lecture; }
     /* Processing with notes already there: slides added later are being matched to them (the notes stay readable). */
     if (a === "lecture") { const l = lecture(b); if (l && l.status === "processing") { if (S.detail[b]) watchSlides(b); else resumeWatch(b); } }
@@ -47,5 +42,6 @@ export async function route() {
     if (changed && a === "lecture" && S.detail[b] && S.detail[b]!.progress) state.known = new Set(S.detail[b]!.progress!.known || []);
     if (hit && S.detail[b]) { state.found = findPoint(S.detail[b]!, hit); state.goFound = !!state.found; }
   } catch (e) { S.error = (e as Error).message || String(e); }
+  if (a === "home" && !S.error && needsWelcome() && seq === routeSeq) { location.hash = "#/welcome"; return; }   // first visit to the home page: ask who they are, once
   if (seq === routeSeq) { view.loader = null; bump(); }
 }

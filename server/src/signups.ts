@@ -2,8 +2,8 @@
    scripts/signups.ts. A sign-up is an email bound to an account (db.ts bindEmail), counted on the day it happened in
    APP_TIMEZONE. Accounts that signed up before 2026-11-24 have no recorded day: they are counted apart.
 
-   The share of a consent is of the students who answered the question (the form at sign-up, the one-time question, or
-   Settings), ticked now; a student who withdrew counts as not ticked, and is counted under withdrawn as well. */
+   The share of a consent is of the students who answered it (the form after the first sign-in, or Settings), ticked now;
+   a student who withdrew counts as not ticked, and is counted under withdrawn as well. */
 import type { Store } from "./db";
 import { localDate } from "./time";
 
@@ -12,7 +12,7 @@ export interface SignUpReport {
   days: { date: string; signUps: number }[];
   accounts: number;          // every account that has signed in with an email
   undated: number;           // of those, signed up before sign-up days were recorded
-  profiles: { filledIn: number; putOff: number; notAskedYet: number };
+  profiles: { saved: number; skipped: number; neither: number };   // saved once / chose Skip for now and saved nothing / neither yet
   marketing: ConsentShare;
   survey: ConsentShare;
 }
@@ -35,9 +35,9 @@ export function signUpReport(store: Store, timeZone: string, o: { days?: number;
   return {
     days, accounts: accounts.length, undated: accounts.filter(a => !a.signed_up_at).length,
     profiles: {
-      filledIn: accounts.filter(a => a.school !== null).length,
-      putOff: accounts.filter(a => a.asked_at !== null && a.school === null).length,
-      notAskedYet: accounts.filter(a => a.asked_at === null && a.school === null).length
+      saved: accounts.filter(a => a.saved_at !== null).length,
+      skipped: accounts.filter(a => a.saved_at === null && a.skipped_at !== null).length,
+      neither: accounts.filter(a => a.saved_at === null && a.skipped_at === null).length
     },
     marketing: share("marketing"), survey: share("survey")
   };

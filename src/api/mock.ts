@@ -16,7 +16,7 @@ export interface MockData {
   details: Record<string, Detail>;
   week: Week;
   settings: Settings;
-  profile: Profile;
+  profile: Profile | null;   // the sample student's profile, already saved, so the sample build does not stop at the profile step
   feed: number;
   packs: Record<string, string>;
 }
@@ -127,7 +127,7 @@ export const mockDb = {
     DATA.details = { "econ-w9": d };
     DATA.week = { lectures: 4, known: 23, quiz: 86, days: [1, 1, 1, 0, 0] };
     DATA.settings = { classLanguage: "en", zhDefault: false };
-    DATA.profile = { school: "", major: "", yearOfStudy: null, gradYear: null, origin: null, consentMarketing: false, consentSurvey: false, consentMarketingAt: null, consentSurveyAt: null };
+    DATA.profile = { school: "HKUST", major: "Economics", yearOfStudy: "y2", gradYear: new Date().getFullYear() + 2, origin: "", consentMarketing: false, consentSurvey: false, consentMarketingAt: null, consentSurveyAt: null };
     DATA.feed = 0; DATA.packs = {};
   }
 };

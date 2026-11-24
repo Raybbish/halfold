@@ -22,7 +22,7 @@ const pct = (x: number | null) => x === null ? "-" : (x * 100).toFixed(1) + "%";
 console.log(`每天注册数（${config.timezone}，最近 ${r.days.length} 天）\n`);
 for (const d of r.days) console.log(`${d.date}\t${d.signUps}`);
 console.log(`\n共 ${r.days.reduce((n, d) => n + d.signUps, 0)} 个；用邮箱登录过的账户一共 ${r.accounts} 个，其中 ${r.undated} 个是 2026-11-24 之前注册的，没有注册日期。`);
-console.log(`\n资料：填了 ${r.profiles.filledIn} 个，选了“暂时不要”${r.profiles.putOff} 个，还没问到 ${r.profiles.notAskedYet} 个。`);
+console.log(`\n资料：存过的 ${r.profiles.saved} 个，选了“暂时跳过”而没存的 ${r.profiles.skipped} 个，两样都还没有的 ${r.profiles.neither} 个。`);
 console.log(`\n同意（占回答过的人）`);
 for (const [name, c] of [["接收招聘、升学和学生优惠信息", r.marketing], ["参加有偿问卷调研", r.survey]] as const)
   console.log(`${name}：${c.ticked} / ${c.answered}，${pct(c.share)}；同意后又取消的 ${c.withdrawn} 个`);

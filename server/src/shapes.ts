@@ -5,7 +5,7 @@
 import { z } from "zod";
 import type {
   Alert, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, NoteHit, PackHint, PackPoint, PackQuestion,
-  PackTopic, Plan, Plans, Point, Profile, QuizQuestion, ReviewPack, SchoolGuess, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply, Upcoming, UrlReply,
+  PackTopic, Plan, Plans, Point, Profile, ProfileReply, QuizQuestion, ReviewPack, SchoolGuess, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply, Upcoming, UrlReply,
   Usage, User, Week
 } from "../../src/types";
 
@@ -15,7 +15,15 @@ const id = z.string().regex(/^[A-Za-z0-9_-]+$/);   // INTEGRATION.md section 1
 export const StatusSchema = z.enum(["recording", "processing", "ready", "failed"]);
 
 export const SourceSchema = z.enum(["record", "tab", "upload", "link"]);
-export const UserSchema: z.ZodType<User> = z.strictObject({ name: z.string() });
+/* The profile and consents (API-CHANGES.md 14), in GET /home's user. */
+const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+export const ProfileSchema: z.ZodType<Profile> = z.strictObject({
+  school: z.string().max(80), major: z.string().max(80), yearOfStudy: z.enum(["", "y1", "y2", "y3", "y4", "tpg", "rpg", "other"]),
+  gradYear: z.number().int().min(1000).max(9999).nullable(), origin: z.enum(["", "hk", "cn", "tw", "mo", "other"]),
+  consentMarketing: z.boolean(), consentSurvey: z.boolean(), consentMarketingAt: instant.nullable(), consentSurveyAt: instant.nullable()
+});
+export const ProfileReplySchema: z.ZodType<ProfileReply> = z.strictObject({ profile: ProfileSchema });
+export const UserSchema: z.ZodType<User> = z.strictObject({ name: z.string(), profile: ProfileSchema.nullable().optional(), profileSkipped: z.literal(true).optional() });
 export const CourseSchema: z.ZodType<Course> = z.strictObject({ id, code: z.string().min(1), name: z.string().optional(), color: z.string().optional() });
 export const LectureSchema: z.ZodType<Lecture> = z.strictObject({
   id, course: id, title: z.string(), week: z.number().int().optional(), date: z.string(), duration: seconds.optional(),
@@ -26,18 +34,11 @@ export const WeekSchema: z.ZodType<Week> = z.strictObject({ lectures: z.number()
 export const SettingsSchema: z.ZodType<Settings> = z.strictObject({ classLanguage: z.string(), zhDefault: z.boolean(), zhScript: z.enum(["hant", "hans"]).optional() });
 export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.number().nonnegative(), minutesLimit: z.number().nonnegative(), audioDays: z.number().optional(),
   lecturesThisMonth: z.number().int().nonnegative().optional(), lecturesLimit: z.number().int().positive().optional() });
-/* The profile and consents (API-CHANGES.md 14). */
-const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-export const ProfileSchema: z.ZodType<Profile> = z.strictObject({
-  school: z.string(), major: z.string(), yearOfStudy: z.enum(["year1", "year2", "year3", "year4", "year5", "masters", "phd"]).nullable(),
-  gradYear: z.number().int().min(1000).max(9999).nullable(), origin: z.enum(["mainland", "hk-local", "taiwan", "other"]).nullable(),
-  consentMarketing: z.boolean(), consentSurvey: z.boolean(), consentMarketingAt: instant.nullable(), consentSurveyAt: instant.nullable()
-});
 export const SchoolGuessSchema: z.ZodType<SchoolGuess> = z.strictObject({ en: z.string().min(1), zhHant: z.string().min(1), zhHans: z.string().min(1) });
 export const HomeSchema: z.ZodType<Home> = z.strictObject({
   user: UserSchema, courses: z.array(CourseSchema), lectures: z.array(LectureSchema), upcoming: z.array(UpcomingSchema),
   week: WeekSchema.optional(), settings: SettingsSchema.optional(), usage: UsageSchema.optional(), today: ymd.optional(),
-  profile: ProfileSchema.optional(), askProfile: z.enum(["signup", "once"]).optional(), schoolGuess: SchoolGuessSchema.optional()
+  schoolGuess: SchoolGuessSchema.optional()
 });
 
 export const AudioSchema: z.ZodType<Audio> = z.strictObject({ url: z.string().nullable().optional(), keptUntil: ymd.optional(), expired: z.boolean().optional() });

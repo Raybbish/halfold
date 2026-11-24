@@ -14,15 +14,16 @@ export interface UserRow {
   email: string | null; stripe_customer: string | null;
   signed_up_at: string | null;   // when the email was bound to the account: a sign-up; null for accounts from before 2026-11-24
 }
-/* The profile and consents asked for at sign-up (profile.ts). consent_*: 1 given, 0 not, null never answered; consent_*_at:
-   when that choice was made. asked_at: when the one-time question was answered or put off (Not now). */
+/* The profile and consents asked for after the first sign-in (profile.ts). Fields "" or null: not given (origin "" is also
+   "Prefer not to say"). consent_*: 1 given, 0 not, null never answered; consent_*_at: when that choice was made.
+   saved_at: when the profile was first saved (the student is not asked again); skipped_at: when "Skip for now" was chosen. */
 export interface ProfileRow {
   user_id: string; school: string | null; major: string | null; year_of_study: string | null; grad_year: number | null; origin: string | null;
   consent_marketing: number | null; consent_marketing_at: string | null; consent_survey: number | null; consent_survey_at: string | null;
-  asked_at: string | null; updated_at: string;
+  saved_at: string | null; skipped_at: string | null; updated_at: string;
 }
 /* Every consent answer and change, kept: given 1 or 0; wording: which text was shown (profile.ts CONSENT_WORDING);
-   source: signup (a new account), prompt (an account from before, asked once) or settings. */
+   source: first (the first time the profile was saved) or change (a later save, in Settings or on the form again). */
 export interface ConsentRow { id: number; user_id: string; kind: "marketing" | "survey"; given: number; wording: string; source: string; created_at: string }
 export type ProfileFields = Partial<Pick<ProfileRow, "school" | "major" | "year_of_study" | "grad_year" | "origin">>;
 export interface LoginCodeRow { email: string; code_hash: string; expires_at: string; tries: number; created_at: string }
@@ -128,7 +129,7 @@ CREATE TABLE IF NOT EXISTS quota (
 CREATE INDEX IF NOT EXISTS quota_user ON quota(user_id, kind, created_at);
 CREATE TABLE IF NOT EXISTS profiles (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, school TEXT, major TEXT, year_of_study TEXT, grad_year INTEGER, origin TEXT,
-  consent_marketing INTEGER, consent_marketing_at TEXT, consent_survey INTEGER, consent_survey_at TEXT, asked_at TEXT, updated_at TEXT NOT NULL);
+  consent_marketing INTEGER, consent_marketing_at TEXT, consent_survey INTEGER, consent_survey_at TEXT, saved_at TEXT, skipped_at TEXT, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS consents (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, kind TEXT NOT NULL, given INTEGER NOT NULL,
   wording TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -153,7 +154,8 @@ const ADDED: [string, string, string][] = [
   ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"], ["lectures", "live_gaps", "TEXT"],
   ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
   ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"], ["lectures", "auto_title", "INTEGER NOT NULL DEFAULT 0"],
-  ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"], ["users", "signed_up_at", "TEXT"]
+  ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"], ["users", "signed_up_at", "TEXT"],
+  ["profiles", "saved_at", "TEXT"], ["profiles", "skipped_at", "TEXT"]   // a database made with the first version of PR 22 (never deployed)
 ];
 
 /* gap: the stretch [from, to] this round skipped to catch up after an outage (live/transcriber.ts CATCH_UP_WINDOW). */
@@ -243,14 +245,15 @@ export class Store {
       .run(s.name, s.classLanguage, s.zhDefault ? 1 : 0, s.zhScript ?? null, id);
   }
 
-  /* ---- the profile and consents asked for at sign-up (profile.ts) ---- */
+  /* ---- the profile and consents asked for after the first sign-in (profile.ts) ---- */
   profile(userId: string) { return this.db.prepare("SELECT * FROM profiles WHERE user_id = ?").get(userId) as ProfileRow | undefined; }
   /* Saves the fields given and the consents given, in one go. A consent is logged (consents) when it is answered the first
-     time or changes; saving it unchanged keeps its time. answered: this is the answer to the one-time question. */
-  saveProfile(userId: string, fields: ProfileFields, consents: { marketing?: boolean; survey?: boolean }, o: { wording: string; source: string; answered: boolean }) {
+     time or changes; saving it unchanged keeps its time. */
+  saveProfile(userId: string, fields: ProfileFields, consents: { marketing?: boolean; survey?: boolean }, o: { wording: string }) {
     this.tx(() => {
       const at = now();
       this.db.prepare("INSERT OR IGNORE INTO profiles (user_id, updated_at) VALUES (?, ?)").run(userId, at);
+      const source = this.profile(userId)!.saved_at ? "change" : "first";
       const cols = (Object.keys(fields) as (keyof ProfileFields)[]).filter(k => fields[k] !== undefined);
       if (cols.length) this.db.prepare(`UPDATE profiles SET ${cols.map(c => c + " = ?").join(", ")}, updated_at = ? WHERE user_id = ?`).run(...cols.map(c => fields[c] ?? null), at, userId);
       const row = this.profile(userId)!;
@@ -258,26 +261,26 @@ export class Store {
         const want = consents[kind];
         if (want === undefined || row[`consent_${kind}`] === (want ? 1 : 0)) continue;
         this.db.prepare(`UPDATE profiles SET consent_${kind} = ?, consent_${kind}_at = ? WHERE user_id = ?`).run(want ? 1 : 0, at, userId);
-        this.db.prepare("INSERT INTO consents (user_id, kind, given, wording, source, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(userId, kind, want ? 1 : 0, o.wording, o.source, at);
+        this.db.prepare("INSERT INTO consents (user_id, kind, given, wording, source, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(userId, kind, want ? 1 : 0, o.wording, source, at);
       }
-      if (o.answered) this.db.prepare("UPDATE profiles SET asked_at = COALESCE(asked_at, ?) WHERE user_id = ?").run(at, userId);
+      this.db.prepare("UPDATE profiles SET saved_at = COALESCE(saved_at, ?), updated_at = ? WHERE user_id = ?").run(at, at, userId);
     });
     return this.profile(userId)!;
   }
-  /* "Not now" to the one-time question: not asked again. */
-  profileLater(userId: string) {
+  /* "Skip for now": kept, so the student is not asked again on another device. */
+  skipProfile(userId: string) {
     const at = now();
-    this.db.prepare(`INSERT INTO profiles (user_id, asked_at, updated_at) VALUES (?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET asked_at = COALESCE(asked_at, excluded.asked_at)`).run(userId, at, at);
+    this.db.prepare(`INSERT INTO profiles (user_id, skipped_at, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET skipped_at = COALESCE(skipped_at, excluded.skipped_at)`).run(userId, at, at);
   }
   consentLog(userId?: string) {
     return (userId ? this.db.prepare("SELECT * FROM consents WHERE user_id = ? ORDER BY id").all(userId) : this.db.prepare("SELECT * FROM consents ORDER BY id").all()) as unknown as ConsentRow[];
   }
   /* Every account that has signed in with an email, with its profile (null fields when it has none). */
   accountsWithProfiles() {
-    return this.db.prepare(`SELECT users.id, users.signed_up_at, profiles.asked_at, profiles.school, profiles.consent_marketing, profiles.consent_survey
+    return this.db.prepare(`SELECT users.id, users.signed_up_at, profiles.saved_at, profiles.skipped_at, profiles.consent_marketing, profiles.consent_survey
       FROM users LEFT JOIN profiles ON profiles.user_id = users.id WHERE users.email IS NOT NULL ORDER BY users.signed_up_at`).all() as unknown as
-      { id: string; signed_up_at: string | null; asked_at: string | null; school: string | null; consent_marketing: number | null; consent_survey: number | null }[];
+      { id: string; signed_up_at: string | null; saved_at: string | null; skipped_at: string | null; consent_marketing: number | null; consent_survey: number | null }[];
   }
 
   /* ---- codes sent by email to sign in ---- */

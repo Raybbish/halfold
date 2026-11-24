@@ -4,7 +4,7 @@ import type { Config } from "./config";
 import type { CourseRow, LectureRow, Store, UserRow } from "./db";
 import type { Billing } from "./billing";
 import { displayDate, localDate } from "./time";
-import { askProfile, profileView } from "./profile";
+import { userProfile } from "./profile";
 import { schoolGuess } from "./schools";
 
 export function courseView(c: CourseRow): Course {
@@ -33,9 +33,9 @@ export function liveMinutesToday(store: Store, userId: string, timeZone: string,
 
 export function homeView(d: { store: Store; config: Config; billing: Billing }, user: UserRow, now = new Date()): Home {
   const { store, config } = d, today = localDate(now, config.timezone), tier = d.billing.entitlement(user.id, now).tier, lectures = d.billing.lectureUsage(user.id, now);
-  const profile = store.profile(user.id), ask = askProfile(user, profile), guess = profile?.school ? null : schoolGuess(user.email);
+  const profile = store.profile(user.id), guess = profile?.school ? null : schoolGuess(user.email);
   return {
-    user: { name: user.name },
+    user: { name: user.name, ...userProfile(profile) },   // the profile and consents (profile.ts, API-CHANGES.md 14)
     courses: store.courses(user.id).map(courseView),
     lectures: store.lectures(user.id).map(l => lectureView(l, config.timezone, now)),
     upcoming: store.upcoming(user.id, today).map(u => ({ date: u.date, kind: u.kind, text: u.text, course: u.course_code, lecture: u.lecture_id, t: u.t })),
@@ -44,7 +44,6 @@ export function homeView(d: { store: Store; config: Config; billing: Billing }, 
       ...(tier.audioDays !== null ? { audioDays: tier.audioDays } : {}),
       ...(lectures ? { lecturesThisMonth: lectures.used, lecturesLimit: lectures.limit } : {}) },
     today,
-    /* The profile and consents (profile.ts, API-CHANGES.md 14). */
-    profile: profileView(profile), ...(ask ? { askProfile: ask } : {}), ...(guess ? { schoolGuess: guess } : {})
+    ...(guess ? { schoolGuess: guess } : {})
   };
 }

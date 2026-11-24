@@ -22,7 +22,7 @@ const EXPECT = { real5: 65, zhscript: 17, real3: 11, zhcheck: 10, upload: 27, 'b
 const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy', 'kept', 'limits', 'formulas', 'review-pack'];
 
 // profile.js (the profile and consents asked once after signing in, and in Settings), added on its own lines.
-EXPECT.profile = 16; SCRIPTS.splice(SCRIPTS.indexOf('signin') + 1, 0, 'profile');
+EXPECT.profile = 18; SCRIPTS.splice(SCRIPTS.indexOf('signin') + 1, 0, 'profile');
 
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });

@@ -1,104 +1,108 @@
-/* ---------- the profile and the two consents (handoff of 2026-11-23, item 4; API-CHANGES.md 14) ----------
-   #/welcome: asked once after signing in, while GET /home says askProfile (state/router.ts sends every signed-in page
-   here first). "signup", a new account: the form has to be filled in. "once", an account from before: it can be put off
-   with Not now, and is not asked again either way. Settings has the same fields (ProfileCard) and the two consents on a
-   card of their own (ConsentCard), so either can be withdrawn without touching the rest.
-   The two boxes are separate, never ticked to begin with, and not tied to anything else. Their wording is a placeholder
-   until the final text comes; the server keeps which wording each answer was given to (server/src/profile.ts). */
+/* ---------- who you are: asked once after the first sign-in, and kept in Settings ----------
+   The designers' draft of 2026-11-24 (halfold(1).html: YEARS, ORIGINS, profileFields, readProfile, needsWelcome,
+   welcomePage, saveProfile, skipProfile, profileNudge, profileCard), for the handoff of 2026-11-23, item 4. API-CHANGES.md 14.
+   - #/welcome is shown on the way to the home page while GET /home says user.profile is null, unless the student chose
+     "Skip for now" (kept in this browser as in the draft, and on the server as user.profileSkipped, so another device does
+     not ask again), or an unfinished recording is waiting (state/router.ts).
+   - Every field is optional. Both consent boxes start empty, each on its own, tied to nothing else. Their wording is the
+     draft's; the server keeps which wording each answer was given to (server/src/profile.ts CONSENT_WORDING).
+   - Someone who skipped sees one quiet line on the home page (ProfileNudge); Settings has the same form (AboutCard).
+   The draft's promo code field on this page is left out: billing is not built. */
 import type { Origin, Profile, ProfileUpdate, YearOfStudy } from "../types";
 import { api } from "../api/api";
 import { bump } from "../lib/bus";
-import { S } from "../state/app";
+import { store } from "../lib/store";
+import { CONFIG } from "../config";
+import { S, session } from "../state/app";
 import { act, toast } from "../state/overlay";
 import { LANG, t } from "../i18n";
+import { live } from "../features/recording/recorder";
 import { Logo, Hal } from "../ui/icons";
 import { LangBtn } from "../ui/Shell";
 import { css } from "../ui/css";
 
-export const YEARS: [YearOfStudy, string][] = [["year1", "Year 1"], ["year2", "Year 2"], ["year3", "Year 3"], ["year4", "Year 4"], ["year5", "Year 5"], ["masters", "Master's"], ["phd", "PhD"]];
-export const ORIGINS: [Origin, string][] = [["mainland", "Mainland China"], ["hk-local", "Hong Kong (local student)"], ["taiwan", "Taiwan"], ["other", "Somewhere else"]];
-/* Placeholder wording (handoff, item 4), the same in Chinese as the handoff's table. */
-export const CONSENT_MARKETING = "I am willing to receive recruiting, further study and student offer messages.";
-export const CONSENT_SURVEY = "I am willing to take part in paid surveys.";
+export const YEARS: [YearOfStudy, string][] = [["y1", "Year 1"], ["y2", "Year 2"], ["y3", "Year 3"], ["y4", "Year 4 or above"], ["tpg", "Taught master's"], ["rpg", "Research postgraduate"], ["other", "Other"]];
+export const ORIGINS: ["" | Origin, string][] = [["", "Prefer not to say"], ["hk", "Hong Kong"], ["cn", "Mainland China"], ["tw", "Taiwan"], ["mo", "Macau"], ["other", "Somewhere else"]];
+export const CONSENT_MARKETING = "Send me messages about jobs, further study and student offers that fit my course and year. Halfold sends them itself and does not pass my details to anyone.";
+export const CONSENT_SURVEY = "Invite me to paid student surveys.";
+
+/* Ask on the way to the home page: only when the server says there is no profile yet (a server that does not know about
+   profiles sends nothing), and not over an unfinished recording. */
+export const needsWelcome = () => !!(S.user && S.user.profile === null && !store.get("welcomed") && !S.user.profileSkipped && !S.orphan && !live.active);
+const skipped = () => !!(S.user && S.user.profile === null && (store.get("welcomed") || S.user.profileSkipped));
 
 /* What is typed, kept across redraws (every bump() draws the page anew, and a change of language too). It starts again
    from the saved profile whenever that changes. school: null until the student types in it, so the school guessed from
    the email address follows the interface language. */
-const draft = { from: undefined as Profile | null | undefined, school: null as string | null, major: "", year: "", grad: "", origin: "", mkt: false, srv: false, busy: false, err: "" };
+type Draft = { from: Profile | null | undefined; school: string | null; major: string; year: string; grad: string; origin: string; mk: boolean; sv: boolean };
+const draft: Draft = { from: undefined, school: null, major: "", year: "", grad: "", origin: "", mk: false, sv: false };
 function fresh() {
-  if (draft.from === S.profile) return draft;
-  const p = S.profile;
-  return Object.assign(draft, { from: p, school: p && p.school ? p.school : null, major: p ? p.major : "", year: (p && p.yearOfStudy) || "", grad: p && p.gradYear ? String(p.gradYear) : "",
-    origin: (p && p.origin) || "", mkt: !!(p && p.consentMarketing), srv: !!(p && p.consentSurvey), busy: false, err: "" });
+  const p = S.user ? S.user.profile : undefined;
+  if (draft.from === p) return;
+  Object.assign(draft, { from: p, school: p ? p.school : null, major: p ? p.major : "", year: p ? p.yearOfStudy : "", grad: p && p.gradYear ? String(p.gradYear) : "",
+    origin: p ? p.origin : "", mk: !!(p && p.consentMarketing), sv: !!(p && p.consentSurvey) });
 }
 const guess = () => { const g = S.schoolGuess; return !g ? "" : LANG === "zh-Hant" ? g.zhHant : LANG === "zh-Hans" ? g.zhHans : g.en; };
 const school = () => draft.school ?? guess();
-const fields = (): ProfileUpdate => ({ school: school().trim(), major: draft.major.trim(), yearOfStudy: draft.year as YearOfStudy, gradYear: Number(draft.grad), origin: draft.origin as Origin });
+/* The draft's readProfile: every field, as typed. */
+const readProfile = (): ProfileUpdate => ({ school: school().trim(), major: draft.major.trim(), yearOfStudy: draft.year as YearOfStudy | "", gradYear: draft.grad, origin: draft.origin as Origin | "", consentMarketing: draft.mk, consentSurvey: draft.sv });
 
-function Fields() {
+function ProfileFields() {
+  const y = new Date().getFullYear(), years = [0, 1, 2, 3, 4, 5, 6].map(i => String(y + i)), g = guess();
+  if (draft.grad && !years.includes(draft.grad)) years.unshift(draft.grad);   // a year saved before, no longer in the list: kept
+  const schools = [g, ...CONFIG.SCHOOLS.filter(s => s !== g)].filter(Boolean);
   return <>
-    <label className="field"><span>{t("School")}</span><input name="school" autoComplete="organization" maxLength={100} placeholder={t("Your university or college")} defaultValue={school()} onInput={e => { draft.school = e.currentTarget.value; }} required /></label>
-    <label className="field"><span>{t("Major")}</span><input name="major" maxLength={100} placeholder={t("For example Economics")} defaultValue={draft.major} onInput={e => { draft.major = e.currentTarget.value; }} required /></label>
-    <div style={css("display:flex;gap:0 12px;flex-wrap:wrap")}>
-      <label className="field" style={css("flex:1 1 150px")}><span>{t("Year of study")}</span><select name="yearOfStudy" defaultValue={draft.year} onChange={e => { draft.year = e.currentTarget.value; }} required>
-        <option value="">{t("Choose")}</option>{YEARS.map(([v, n]) => <option key={v} value={v}>{t(n)}</option>)}</select></label>
-      <label className="field" style={css("flex:1 1 150px")}><span>{t("Year you graduate")}</span><input name="gradYear" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} placeholder={t("For example 2028")} defaultValue={draft.grad} onInput={e => { draft.grad = e.currentTarget.value.trim(); }} required /></label>
+    <label className="field"><span>{t("University")}</span><input name="school" list="schools" maxLength={80} autoComplete="organization" placeholder="HKUST" data-notr="" defaultValue={school()} onInput={e => { draft.school = e.currentTarget.value; }} />
+      <datalist id="schools">{schools.map(s => <option key={s} value={s} />)}</datalist></label>
+    <label className="field"><span>{t("What you study")}</span><input name="major" maxLength={80} placeholder={t("Economics and Finance")} defaultValue={draft.major} onInput={e => { draft.major = e.currentTarget.value; }} /></label>
+    <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:12px")}>
+      <label className="field"><span>{t("Year")}</span><select name="year" defaultValue={draft.year} onChange={e => { draft.year = e.currentTarget.value; }}>
+        <option value="" data-notr=""></option>{YEARS.map(([v, n]) => <option key={v} value={v}>{t(n)}</option>)}</select></label>
+      <label className="field"><span>{t("Graduating in")}</span><select name="grad" data-notr="" defaultValue={draft.grad} onChange={e => { draft.grad = e.currentTarget.value; }}>
+        <option value=""></option>{years.map(v => <option key={v} value={v}>{v}</option>)}</select></label>
     </div>
-    <label className="field"><span>{t("Where you are from")}</span><select name="origin" defaultValue={draft.origin} onChange={e => { draft.origin = e.currentTarget.value; }} required>
-      <option value="">{t("Choose")}</option>{ORIGINS.map(([v, n]) => <option key={v} value={v}>{t(n)}</option>)}</select></label>
+    <label className="field"><span>{t("Where you studied before university (optional)")}</span><select name="origin" defaultValue={draft.origin} onChange={e => { draft.origin = e.currentTarget.value; }}>
+      {ORIGINS.map(([v, n]) => <option key={v} value={v}>{t(n)}</option>)}</select></label>
+    <div className="consent">
+      <label><input type="checkbox" name="mk" defaultChecked={draft.mk} onChange={e => { draft.mk = e.currentTarget.checked; }} /><span>{t(CONSENT_MARKETING)}</span></label>
+      <label><input type="checkbox" name="sv" defaultChecked={draft.sv} onChange={e => { draft.sv = e.currentTarget.checked; }} /><span>{t(CONSENT_SURVEY)}</span></label>
+      <p className="small muted">{t("Both are off unless you tick them, and you can change them in Settings at any time.")}</p>
+    </div>
   </>;
 }
 
-/* The two boxes, each on its own. "Agreed on" under a ticked one that was saved ticked: when the student agreed. */
-const agreed = (at: string | null | undefined, on: boolean) => on && at ? <span className="small muted consent-at" style={css("display:block;font-weight:400;margin-top:2px")}>{t("Agreed on " + new Date(at).toLocaleDateString(LANG === "zh-Hant" ? "zh-HK" : LANG === "zh-Hans" ? "zh-CN" : "en-GB", { day: "numeric", month: "short", year: "numeric" }))}</span> : null;
-function Consents({ saved }: { saved?: boolean }) {
-  const p = S.profile;
-  return <div className="consents" style={css("margin:4px 0 16px")}>
-    <label style={css("display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;font-weight:600;cursor:pointer")}><input type="checkbox" name="consentMarketing" defaultChecked={draft.mkt} onChange={e => { draft.mkt = e.currentTarget.checked; }} style={css("margin-top:4px")} />
-      <span>{t(CONSENT_MARKETING)}{saved ? agreed(p && p.consentMarketingAt, !!(p && p.consentMarketing)) : null}</span></label>
-    <label style={css("display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;font-weight:600;cursor:pointer")}><input type="checkbox" name="consentSurvey" defaultChecked={draft.srv} onChange={e => { draft.srv = e.currentTarget.checked; }} style={css("margin-top:4px")} />
-      <span>{t(CONSENT_SURVEY)}{saved ? agreed(p && p.consentSurveyAt, !!(p && p.consentSurvey)) : null}</span></label>
-    <p className="small muted">{t(saved ? "Both are up to you, and separate. Untick one and save to withdraw it." : "Both are up to you, and separate. You can untick either one at any time in Settings.")}</p>
-  </div>;
-}
-
 export function Welcome() {
-  fresh(); const once = S.askProfile === "once";
-  return <div className="pub dots" style={css("min-height:100vh")}><nav className="pub-nav"><Logo href="#/" /><span className="sp"></span><LangBtn /></nav>
-    <div className="center"><form className="auth welcome" style={css("max-width:520px")} onSubmit={e => { e.preventDefault(); answer(); }}>
-      <div style={css("display:flex;gap:12px;align-items:center;margin-bottom:6px")}><Hal size={44} mood="smile" /><h1 style={css("font-size:26px")}>{t("A few things about you")}</h1></div>
-      <p className="muted" style={css("margin-bottom:20px")}>{t(once ? "Halfold now asks every student for these. Answer once, or choose Not now and you will not be asked again. You can change them any time in Settings." : "Tell us about your studies to finish signing up. You can change this any time in Settings.")}</p>
-      <Fields /><Consents />
-      {draft.err ? <p className="err" role="alert">{t(draft.err)}</p> : null}
-      <button className="btn primary" style={css("width:100%")} disabled={draft.busy}>{t(draft.busy ? "Saving" : once ? "Save" : "Continue")}</button>
-      {once ? <button type="button" className="btn plain sm later" style={css("margin-top:12px")} onClick={putOff} disabled={draft.busy}>{t("Not now")}</button> : null}
+  fresh();
+  return <div className="pub dots" style={css("min-height:100vh")}><nav className="pub-nav"><Logo href="#/home" /><span className="sp"></span><LangBtn /></nav>
+    <div className="center"><form className="auth welcome" style={css("max-width:520px")} onSubmit={e => { e.preventDefault(); saveProfile(true); }}>
+      <div style={css("display:flex;gap:12px;align-items:center;margin-bottom:6px")}><Hal size={44} mood="smile" /><h1 style={css("font-size:26px")}>{t("One more step")}</h1></div>
+      <p className="muted" style={css("margin-bottom:18px")}>{t("This puts you with classmates on the same courses, so the notes they share are easy to find.")}</p>
+      <ProfileFields />
+      <button className="btn primary" style={css("width:100%")}>{t("Save and continue")}</button>
+      <p className="small muted" style={css("margin-top:12px;text-align:center")}><button type="button" className="ts skip" style={css("font-size:inherit")} onClick={skipProfile}>{t("Skip for now")}</button></p>
     </form></div></div>;
 }
 
-function onward() { S.askProfile = null; const n = S.next && S.next !== "#/welcome" ? S.next : "#/home"; S.next = null; location.hash = n; }
-async function answer() {
-  Object.assign(draft, { busy: true, err: "" }); bump();
-  try { const p = await api.updateProfile({ ...fields(), consentMarketing: draft.mkt, consentSurvey: draft.srv }); S.profile = p; S.schoolGuess = null; draft.busy = false; onward(); }
-  catch (e) { Object.assign(draft, { busy: false, err: (e as Error).message }); bump(); }
-}
-async function putOff() {
-  Object.assign(draft, { busy: true, err: "" }); bump();
-  try { await api.profileLater(); draft.busy = false; onward(); }
-  catch (e) { Object.assign(draft, { busy: false, err: (e as Error).message }); bump(); }
+function saveProfile(first: boolean) { act(async () => {
+  const r = await api.updateProfile(readProfile());
+  S.user!.profile = r.profile; S.user!.profileSkipped = false; S.schoolGuess = r.profile.school ? null : S.schoolGuess; session.save(); store.set("welcomed", "1");
+  if (!first) { toast("Saved"); bump(); return; }
+  location.hash = "#/home"; }); }
+/* Kept in this browser at once (as in the draft), and on the server for other devices; a failed request does not stop the student. */
+function skipProfile() { store.set("welcomed", "1"); api.profileLater().catch(() => {}); location.hash = "#/home"; }
+
+/* On the home page, for someone who skipped the step: one quiet line, not a wall. */
+export function ProfileNudge() {
+  if (!skipped()) return null;
+  return <a className="card nudge" href="#/welcome"><Hal size={30} mood="smile" /><span className="grow"><b>{t("Tell Halfold your university and year")}</b><span className="small muted">{t("It puts you with classmates on the same courses.")}</span></span><span className="ts">{t("Fill it in")}</span></a>;
 }
 
-/* ---------- Settings ---------- */
-export function ProfileCard() {
+/* Settings: the same form. A server that does not know about profiles sends none, and the card is not shown. */
+export function AboutCard() {
+  if (!S.user || S.user.profile === undefined) return null;
   fresh();
-  return <form className="card profile-card" style={css("padding:22px;max-width:640px;margin-bottom:18px")} onSubmit={e => { e.preventDefault(); act(async () => { S.profile = await api.updateProfile(fields()); S.schoolGuess = null; toast("Details saved"); bump(); }); }}>
-    <h2 style={css("font-size:18px;margin-bottom:14px")}>{t("Your studies")}</h2>
-    <Fields />
-    <button className="btn primary">{t("Save details")}</button></form>;
-}
-export function ConsentCard() {
-  fresh();
-  return <form className="card consent-card" style={css("padding:22px;max-width:640px;margin-bottom:18px")} onSubmit={e => { e.preventDefault(); act(async () => { S.profile = await api.updateProfile({ consentMarketing: draft.mkt, consentSurvey: draft.srv }); toast("Choices saved"); bump(); }); }}>
-    <h2 style={css("font-size:18px;margin-bottom:14px")}>{t("Messages and surveys")}</h2>
-    <Consents saved />
-    <button className="btn primary">{t("Save choices")}</button></form>;
+  return <form className="card about-card" style={css("padding:22px;max-width:640px;margin-bottom:18px")} onSubmit={e => { e.preventDefault(); saveProfile(false); }}>
+    <h2 style={css("font-size:18px;margin-bottom:14px")}>{t("About you")}</h2>
+    <ProfileFields />
+    <button className="btn primary">{t("Save")}</button></form>;
 }

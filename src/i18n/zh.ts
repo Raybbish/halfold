@@ -277,27 +277,24 @@ export const ZH: Record<string, string> = {
   "A lecture recording contains other people's voices. Check your course's rules, ask the lecturer if you are not sure, and keep recordings to yourself unless you have permission to share them.": "課堂錄音包含其他人的聲音。請查看課程的規定，不確定就問老師；除非得到同意，否則錄音只供自己使用。",
   "Works in the browser on a laptop or a phone. Nothing to install.": "在手提電腦或手機的瀏覽器裡就能用，不用安裝。",
   "None of this is written on the slides. Halfold listens for it and pins it to your notes.": "這些都不會寫在簡報上。Halfold 會聽著，並釘在你的筆記上。",
-  /* The profile and the two consents asked once after signing in, and in Settings (pages/Profile.tsx; handoff of
-     2026-11-23, item 4). The two consent sentences are the handoff's placeholder wording; the server's messages too. */
-  "A few things about you": "介紹一下你自己",
-  "Tell us about your studies to finish signing up. You can change this any time in Settings.": "填寫你的學業資料，就完成註冊。之後隨時可以在「設定」更改。",
-  "Halfold now asks every student for these. Answer once, or choose Not now and you will not be asked again. You can change them any time in Settings.": "Halfold 現在請每位同學填寫以下資料，只問這一次；選「暫時不要」也不會再問。之後隨時可以在「設定」更改。",
-  "School": "學校", "Your university or college": "你就讀的大學或學院", "Major": "主修", "For example Economics": "例如：經濟學",
-  "Year of study": "年級", "Choose": "請選擇", "Year 1": "一年級", "Year 2": "二年級", "Year 3": "三年級", "Year 4": "四年級", "Year 5": "五年級", "Master's": "碩士", "PhD": "博士",
-  "Year you graduate": "畢業年份", "For example 2028": "例如 2028",
-  "Where you are from": "生源地", "Mainland China": "內地", "Hong Kong (local student)": "香港本地", "Taiwan": "台灣", "Somewhere else": "其他",
-  "I am willing to receive recruiting, further study and student offer messages.": "願意接收招聘、升學和學生優惠信息",
-  "I am willing to take part in paid surveys.": "願意參加有償問卷調研",
-  "Both are up to you, and separate. You can untick either one at any time in Settings.": "兩項都由你決定，互不相關。隨時可以在「設定」取消勾選。",
-  "Both are up to you, and separate. Untick one and save to withdraw it.": "兩項都由你決定，互不相關。取消勾選再儲存，就會撤回同意。",
-  "Continue": "繼續", "Save": "儲存", "Saving": "正在儲存",
-  "Your studies": "你的學業", "Save details": "儲存資料", "Details saved": "已儲存資料",
-  "Messages and surveys": "信息和問卷", "Save choices": "儲存選擇", "Choices saved": "已儲存選擇",
-  "Your school, major, year of study, the year you graduate and where you are from, and your answers to the two optional boxes about messages and paid surveys, with when you gave or withdrew each.": "你的學校、主修、年級、畢業年份和生源地，以及你在兩個自選項目（接收信息、參加有償問卷）上的選擇，和每次同意或取消的時間。",
-  "Fill in every field.": "請填寫所有欄位。", "Fill in these details to finish signing up.": "請填寫這些資料，完成註冊。",
-  "Enter your school.": "請輸入學校。", "Enter your major.": "請輸入主修。", "The school can be at most 100 characters.": "學校名稱最多 100 個字。", "The major can be at most 100 characters.": "主修最多 100 個字。",
-  "Choose your year of study.": "請選擇年級。", "Enter the year you graduate, with four digits, such as 2028.": "請用四位數字輸入畢業年份，例如 2028。",
-  "Choose where you are from.": "請選擇生源地。", "Tick or untick each box.": "請勾選或取消勾選每一項。",
+  /* The profile step and the About you card (pages/Profile.tsx): the designers' draft of 2026-11-24, with its own Chinese
+     (halfold(1).html). The consent sentences are the draft's wording; the server's messages about the form too. */
+  "One more step": "還有一步",
+  "This puts you with classmates on the same courses, so the notes they share are easy to find.": "這樣可以把你和同一門課的同學放在一起，更容易找到他們分享的筆記。",
+  "University": "大學", "What you study": "主修科目", "Year": "年級", "Graduating in": "畢業年份",
+  "Economics and Finance": "經濟及金融",
+  "Where you studied before university (optional)": "入讀大學前在哪裡讀書（可不填）",
+  "Year 1": "一年級", "Year 2": "二年級", "Year 3": "三年級", "Year 4 or above": "四年級或以上", "Taught master's": "授課型碩士", "Research postgraduate": "研究型研究生", "Other": "其他",
+  "Prefer not to say": "不想說", "Hong Kong": "香港", "Mainland China": "中國內地", "Taiwan": "台灣", "Macau": "澳門", "Somewhere else": "其他地方",
+  "Send me messages about jobs, further study and student offers that fit my course and year. Halfold sends them itself and does not pass my details to anyone.": "把適合我的課程和年級的招聘、升學和學生優惠訊息發給我。訊息由 Halfold 自己發出，不會把我的個人資料交給任何人。",
+  "Invite me to paid student surveys.": "邀請我參加有償的學生問卷調查。",
+  "Both are off unless you tick them, and you can change them in Settings at any time.": "兩項預設都不勾選，隨時可以在設定裡更改。",
+  "Save and continue": "儲存並繼續", "Skip for now": "暫時跳過", "About you": "關於你", "Save": "儲存",
+  "Tell Halfold your university and year": "告訴 Halfold 你的大學和年級", "It puts you with classmates on the same courses.": "這樣可以把你和同一門課的同學放在一起。", "Fill it in": "去填寫",
+  "Your university, what you study, your year and when you graduate, where you studied before university if you say, and your answers to the two optional boxes about messages and paid surveys, with when you gave or withdrew each.": "你的大學、主修科目、年級和畢業年份，你願意說的話還有入讀大學前在哪裡讀書，以及你對兩個可選項目（接收訊息、參加有償問卷）的選擇，和每次同意或取消的時間。",
+  "The university can be at most 80 characters.": "大學名稱最多 80 個字。", "What you study can be at most 80 characters.": "主修科目最多 80 個字。",
+  "Choose your year from the list.": "請從清單中選擇年級。", "Choose the year you graduate from the list.": "請從清單中選擇畢業年份。",
+  "Choose where you studied before university from the list.": "請從清單中選擇入讀大學前在哪裡讀書。", "Tick or untick each box.": "請勾選或取消勾選每一項。",
 };
 /* Sentences our server writes about video links (server/src/links: ytdlp.ts STUDENT_MESSAGE, guard.ts linkProblem). A
    failed lecture's reason (lecture.error) is backend text and normally shown as it is; these exact sentences are ours,
@@ -380,7 +377,6 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^([\d.]+ MB) of ([\d.]+ MB) uploaded$/, m => "已上載 " + m[1] + "／" + m[2]],   // added after the migration
   [/^The (\d+) lectures in this course will be deleted too, with their recordings, notes, flashcards, quizzes and shared links\. This cannot be undone\.$/, m => "這門課裡的 " + m[1] + " 堂課也會一併刪除，包括錄音、筆記、閃卡、測驗和已分享的連結，而且無法復原。"],   // added after the migration
   [/^Delete (.+)\?$/, m => "刪除 " + m[1] + "？"],   // added after the migration: the course code is put back as it is
-  [/^Agreed on (.+)$/, m => "已於 " + m[1] + " 同意"],   // under a ticked consent box in Settings (pages/Profile.tsx)
   [/^(\d+) notes?$/, m => m[1] + " 條筆記"],
   [/^Moved to (.+)$/, m => "已移到 " + m[1]],   // added after the migration
   [/^\/ (.+)$/, m => "/ " + trs(m[1])],
