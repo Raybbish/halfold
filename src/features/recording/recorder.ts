@@ -1,7 +1,7 @@
 /* ---------- recording ----------
    live = what the recording screen shows; rec = the recorder's moving parts.
    The clock and the level meter write to the page directly (.clk, #lvl), several times a second, without a redraw. */
-import type { Alert, Lecture, Line, Source } from "../../types";
+import type { Alert, Lecture, Line, Mark, Source } from "../../types";
 import { CONFIG } from "../../config";
 import { api } from "../../api/api";
 import { DATA } from "../../api/mock";
@@ -15,14 +15,14 @@ import { outbox, dropped, flush, applyChunk } from "./outbox";
 import { mark } from "./orphan";
 import { tabStream } from "./tabAudio";
 
-export const live = { id: null as string | null, courseCode: "", title: "", courseId: "", savedTitle: "", savedCourse: "", sec: 0, acc: 0, paused: false, held: false, segs: [] as Line[], alert: null as Alert | null, recap: null as string[] | null, recapBusy: false, mic: "off" as "off" | "on" | "lost" | "none", micNote: "", netNote: "", active: false, offline: false };
+export const live = { id: null as string | null, courseCode: "", title: "", courseId: "", savedTitle: "", savedCourse: "", sec: 0, acc: 0, paused: false, held: false, segs: [] as Line[], alert: null as Alert | null, recap: null as string[] | null, recapBusy: false, marks: [] as Mark[], mic: "off" as "off" | "on" | "lost" | "none", micNote: "", netNote: "", active: false, offline: false };
 export const rec = { full: null as MediaStream | null, stream: null as MediaStream | null, mr: null as MediaRecorder | null, seq: 0, wake: null as WakeLockSentinel | null, ctx: null as AudioContext | null, an: null as AnalyserNode | null, tick: null as ReturnType<typeof setInterval> | null, feed: null as ReturnType<typeof setInterval> | null, lvl: null as ReturnType<typeof setInterval> | null, last: 0, beat: 0, stopped: null as Promise<unknown> | null, hiddenAt: 0 };
 export const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 export async function keepAwake() { try { rec.wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
 export function micLost() { if (!live.active || live.mic !== "on") return; live.mic = "lost"; live.micNote = "The microphone stopped. End the recording to keep what you have so far."; if (R.a === "live") bump(); else toast(live.micNote); }
 export async function beginRecording(lec: Lecture, courseCode: string, source: Source) {
-  Object.assign(live, { id: lec.id, courseCode, title: "", courseId: lec.course, savedTitle: "", savedCourse: lec.course, sec: 0, acc: 0, paused: false, held: false, segs: [], alert: null, recap: null, mic: "off", micNote: "", netNote: "", offline: false, active: true }); rec.seq = 0;
+  Object.assign(live, { id: lec.id, courseCode, title: "", courseId: lec.course, savedTitle: "", savedCourse: lec.course, sec: 0, acc: 0, paused: false, held: false, segs: [], alert: null, recap: null, marks: [], mic: "off", micNote: "", netNote: "", offline: false, active: true }); rec.seq = 0;
   try {
     if (!navigator.mediaDevices || !window.MediaRecorder) throw Object.assign(new Error(), { name: "NotSupportedError" });
     rec.stream = source === "tab" ? await tabStream() : await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });

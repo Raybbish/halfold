@@ -2,13 +2,14 @@
    The clock (.clk) and the level meter (#lvl) are written by the recorder's timers directly, without a redraw.
    New transcript lines and alerts arrive through applyChunk(), which redraws in place and scrolls #stream to the end. */
 import { CONFIG } from "../config";
-import { fmt } from "../lib/helpers";
+import { fmt, plural } from "../lib/helpers";
 import { bump } from "../lib/bus";
 import { closeModal } from "../state/overlay";
 import { t } from "../i18n";
 import { S } from "../state/app";
 import { live, togglePause, saveLiveMeta } from "../features/recording/recorder";
 import { doDiscard, endLive, recap } from "../features/recording/finish";
+import { addMark } from "../features/marks";
 import { Hal } from "../ui/icons";
 import { Shell } from "../ui/Shell";
 import { openModal } from "../ui/Overlay";
@@ -31,6 +32,8 @@ export function Live() {
     {live.micNote ? <div className="alert" style={css("margin-top:14px")}><span className="tag amber">{t("Microphone")}</span><span>{t(live.micNote + (live.mic === "none" && CONFIG.USE_MOCK ? " The sample transcript below still plays so you can see the screen." : ""))}</span></div> : null}
     {live.netNote ? <div className="alert" style={css("margin-top:14px")}><span className="tag amber">{t("Connection")}</span><span>{t(live.netNote)}</span></div> : null}
     <div id="liveAlert"><LiveAlert /></div>
+    <div className="markrow"><b>{t("Mark this moment")}</b><button className="btn sm" data-act="mark-important" onClick={() => addMark("important")}>{t("Important")}</button><button className="btn sm plain" data-act="mark-lost" onClick={() => addMark("lost")}>{t("Lost me")}</button>
+      <span className="small muted" id="markCount">{t(live.marks.length ? plural(live.marks.length, "mark") + " so far. They are waiting at the top of your notes." : "One tap. Your marks are waiting at the top of the notes after class.")}</span></div>
     <div className="live-grid">
       <div><h2 style={css("font-size:17px;margin-bottom:8px")}>{t("Live transcript")}</h2>
         <div className="card stream" id="stream"><Stream /></div>

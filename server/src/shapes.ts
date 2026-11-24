@@ -4,9 +4,9 @@
    every reply. Objects are strict: a misspelt field is an error, not something the front end silently ignores. */
 import { z } from "zod";
 import type {
-  Alert, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, NoteHit, PackHint, PackPoint, PackQuestion,
-  PackTopic, Plan, Plans, Point, QuizQuestion, ReviewPack, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply, Upcoming, UrlReply,
-  Usage, User, Week
+  Alert, AskReply, Audio, CatchUpReply, ChunkReply, Course, Detail, Flashcard, Home, Lecture, LectureReply, Line, Mark, NoteHit, PackHint, PackPoint, PackQuestion,
+  PackTopic, Plan, Plans, Point, QuizQuestion, ReviewCard, ReviewPack, ReviewReply, SearchReply, Section, SessionReply, Settings, SharedReply, Slide, StatusReply,
+  Upcoming, UrlReply, Usage, User, Week
 } from "../../src/types";
 
 const seconds = z.number().finite().nonnegative();
@@ -28,7 +28,8 @@ export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.nu
   lecturesThisMonth: z.number().int().nonnegative().optional(), lecturesLimit: z.number().int().positive().optional() });
 export const HomeSchema: z.ZodType<Home> = z.strictObject({
   user: UserSchema, courses: z.array(CourseSchema), lectures: z.array(LectureSchema), upcoming: z.array(UpcomingSchema),
-  week: WeekSchema.optional(), settings: SettingsSchema.optional(), usage: UsageSchema.optional(), today: ymd.optional()
+  week: WeekSchema.optional(), settings: SettingsSchema.optional(), usage: UsageSchema.optional(), today: ymd.optional(),
+  reviewCount: z.number().int().nonnegative().optional()
 });
 
 export const AudioSchema: z.ZodType<Audio> = z.strictObject({ url: z.string().nullable().optional(), keptUntil: ymd.optional(), expired: z.boolean().optional() });
@@ -46,10 +47,11 @@ export const FlashcardSchema: z.ZodType<Flashcard> = z.strictObject({ q: z.strin
 const quizFields = {
   q: z.string().min(1), opts: z.array(z.string().min(1)).min(2), a: z.number().int().nonnegative(), why: z.string().optional(), t: seconds.nullable().optional()
 };
+export const MarkSchema: z.ZodType<Mark> = z.strictObject({ t: seconds, kind: z.enum(["important", "lost"]) });
 const answerIsAnOption = (q: { a: number; opts: string[] }) => q.a < q.opts.length;
 export const QuizSchema: z.ZodType<QuizQuestion> = z.strictObject(quizFields).refine(answerIsAnOption, "the answer index is not one of the options");
 export const DetailSchema: z.ZodType<Detail> = z.strictObject({
-  summary: z.array(z.string().min(1)).min(1).max(5).optional(),
+  summary: z.array(z.string().min(1)).min(1).max(5).optional(), marks: z.array(MarkSchema).optional(),
   audio: AudioSchema.nullable().optional(), progress: z.strictObject({ known: z.array(z.number().int().nonnegative()) }).optional(),
   alerts: z.array(AlertSchema), sections: z.array(SectionSchema).min(1), slides: z.array(SlideSchema), transcript: z.array(LineSchema),
   flashcards: z.array(FlashcardSchema), quiz: z.array(QuizSchema)
@@ -84,6 +86,10 @@ export const ReviewPackSchema: z.ZodType<ReviewPack> = z.union([
   z.strictObject({ status: z.enum(["none", "processing"]) }),
   z.strictObject({ status: z.literal("ready"), hints: z.array(PackHintSchema), sheet: z.array(PackTopicSchema), exam: z.array(PackQuestionSchema) })
 ]);
+/* Marks, questions and review across lectures (API-CHANGES.md section 14). */
+export const AskReplySchema: z.ZodType<AskReply> = z.strictObject({ answer: z.string().min(1), refs: z.array(LineSchema).max(4) });
+export const ReviewCardSchema: z.ZodType<ReviewCard> = z.strictObject({ lectureId: id, lecture: z.string(), index: z.number().int().nonnegative(), q: z.string().min(1), a: z.string().min(1) });
+export const ReviewReplySchema: z.ZodType<ReviewReply> = z.strictObject({ cards: z.array(ReviewCardSchema) });
 export const NoteHitSchema: z.ZodType<NoteHit> = z.strictObject({ lecture: id, text: z.string().min(1), t: seconds.nullable() });
 export const SearchReplySchema: z.ZodType<SearchReply> = z.strictObject({ results: z.array(NoteHitSchema).max(20) });
 /* Phase 4: plans (INTEGRATION.md 3.4). */

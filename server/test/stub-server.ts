@@ -16,7 +16,7 @@ import { createApp } from "../src/app";
 import { LiveTranscriber } from "../src/live/transcriber";
 import { ReviewPacks } from "../src/packs";
 import { Billing } from "../src/billing";
-import { StubCatchUp, StubMailer, StubNotes, StubStt } from "./helpers";
+import { StubAsk, StubCatchUp, StubMailer, StubNotes, StubStt } from "./helpers";
 
 const port = Number(process.argv[2] || 8790);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-stub-"));
@@ -33,6 +33,6 @@ if (fixtures) app.get("/__fixtures/:name", c => {
 });
 const live = new LiveTranscriber({ config, store, files, media, stt });
 const packs = new ReviewPacks({ config, store, notes });
-app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp(), packs,
+app.route("/", createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new StubCatchUp(), ask: new StubAsk(), packs,
   billing: new Billing({ config, store, payments: null }), mailer: new StubMailer(), links: null }));
 serve({ fetch: app.fetch, port }, () => console.log(`stub server on http://localhost:${port} (data in ${dir}); invite code STUB`));

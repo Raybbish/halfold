@@ -13,6 +13,7 @@ import { Pipeline } from "../src/pipeline";
 import { createApp } from "../src/app";
 import { LiveTranscriber } from "../src/live/transcriber";
 import type { CatchUpCall, CatchUpInput, CatchUpWriter } from "../src/notes/catchup";
+import type { AskCall, AskInput, AskWriter } from "../src/notes/ask";
 import type { Transcriber, Transcript, Word } from "../src/stt/types";
 import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "../src/notes/types";
 import type { SlidesInput } from "../src/notes/slides";
@@ -105,6 +106,22 @@ export class StubCatchUp implements CatchUpWriter {
     return { points: next, usage: this.usage, startedAt: new Date() };
   }
   usd(u: TokenUsage) { return { usd: (u.inputTokens * 0.3 + u.outputTokens * 1.2) / 1e6, meta: { peak: true } }; }
+}
+
+/* Questions about a lecture: each reply is {answer, refs} (refs: places in the lines sent) or an Error. With none queued,
+   the answer names the question and rests on the first line. */
+export class StubAsk implements AskWriter {
+  readonly provider = "stub-ask"; readonly model = "stub-flash";
+  calls: AskInput[] = [];
+  replies: ({ answer: string; refs: number[] } | Error)[] = [];
+  usage: TokenUsage = { inputTokens: 9000, cachedInputTokens: 6000, outputTokens: 150, reasoningTokens: 0 };
+  async answer(input: AskInput): Promise<AskCall> {
+    this.calls.push(input);
+    const next = this.replies.length ? this.replies.shift()! : { answer: "About " + input.question, refs: [0] };
+    if (next instanceof Error) throw Object.assign(next, { usage: this.usage, startedAt: new Date() });
+    return { ...next, usage: this.usage, startedAt: new Date() };
+  }
+  usd(u: TokenUsage) { return { usd: (u.inputTokens * 0.3 + u.outputTokens * 1.2) / 1e6, meta: { peak: false } }; }
 }
 
 /* A reply as the notes model would write it, for a 600-second lecture. */
@@ -256,7 +273,7 @@ export class StubPayments implements Payments {
 
 export interface TestServer {
   dir: string; config: Config; store: Store; files: LocalFileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
-  live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks; billing: Billing; mailer: StubMailer; payments: StubPayments;
+  live: LiveTranscriber; catchUp: StubCatchUp; ask: StubAsk; packs: ReviewPacks; billing: Billing; mailer: StubMailer; payments: StubPayments;
   links: StubLinks;
   app: ReturnType<typeof createApp>;
   call(method: string, p: string, o?: { token?: string; json?: unknown; body?: FormData | string | Uint8Array; headers?: Record<string, string> }): Promise<{ status: number; body: any; text: string }>;
@@ -282,10 +299,10 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
   const slides = o.slides || (async () => [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }]);
   const links = new StubLinks(), linksOn = o.links !== false;
   const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides, links: linksOn ? links : null });
-  const live = new LiveTranscriber({ config, store, files, media, stt }), catchUp = new StubCatchUp(), packs = new ReviewPacks({ config, store, notes });
+  const live = new LiveTranscriber({ config, store, files, media, stt }), catchUp = new StubCatchUp(), ask = new StubAsk(), packs = new ReviewPacks({ config, store, notes });
   const payments = new StubPayments(), mailer = new StubMailer();
   const billing = new Billing({ config, store, payments: o.payments === false ? null : payments });
-  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, packs, billing, mailer, links: linksOn ? links : null });
+  const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, ask, packs, billing, mailer, links: linksOn ? links : null });
   const call: TestServer["call"] = async (method, p, c = {}) => {
     const headers: Record<string, string> = { ...(c.headers || {}) };
     if (c.token) headers.Authorization = "Bearer " + c.token;
@@ -297,7 +314,7 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
     return { status: r.status, body: parsed, text };
   };
   return {
-    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, packs, billing, mailer, payments, links, app, call,
+    dir, config, store, files, media, stt, notes, pipeline, live, catchUp, ask, packs, billing, mailer, payments, links, app, call,
     async signIn(code = "CODE-A", name = "") {
       const u = store.userByCode(code); if (!u) throw new Error("no invite code " + code);
       if (name) store.setUserName(u.id, name);

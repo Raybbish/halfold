@@ -14,8 +14,8 @@ export interface CatchUpWriter {
   usd(usage: TokenUsage, at: Date): { usd: number; meta: Record<string, unknown> };
 }
 
-const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-const SPOKEN: Record<ClassLanguage, string> = { en: "English", "en-yue": "English and Cantonese", "en-zh": "English and Mandarin", auto: "English, perhaps mixed with Cantonese or Mandarin" };
+export const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+export const SPOKEN: Record<ClassLanguage, string> = { en: "English", "en-yue": "English and Cantonese", "en-zh": "English and Mandarin", auto: "English, perhaps mixed with Cantonese or Mandarin" };
 
 export function catchUpPrompt(input: CatchUpInput) {
   const system = `A university lecture is happening right now and a student has lost the thread. You get the transcript of the last few minutes (spoken in ${SPOKEN[input.language]}; speech recognition makes mistakes). Reply with one JSON object and nothing else: {"points": ["...", "..."]}.

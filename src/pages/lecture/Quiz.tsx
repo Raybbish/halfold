@@ -8,7 +8,7 @@ import { css } from "../../ui/css";
 import { fx } from "../../ui/Fx";
 import { jump, nextQ, pick, restartQuiz, retryMissed } from "./actions";
 
-const Confetti = () => { const cs = ["#FFD93B", "#FF6B57", "#19B88A", "#7A5AF8", "#2B59FF"]; return <>{Array.from({ length: 26 }, (_, i) => <i key={i} className="conf" style={css(`left:${(i * 37) % 100}%;background:${cs[i % 5]};animation-delay:${(i % 7) * .08}s`)}></i>)}</>; };
+export const Confetti = () => { const cs = ["#FFD93B", "#FF6B57", "#19B88A", "#7A5AF8", "#2B59FF"]; return <>{Array.from({ length: 26 }, (_, i) => <i key={i} className="conf" style={css(`left:${(i * 37) % 100}%;background:${cs[i % 5]};animation-delay:${(i % 7) * .08}s`)}></i>)}</>; };
 
 export function Quiz({ d }: { d: Detail }) {
   const order = state.order || d.quiz.map((_, i) => i), total = order.length;

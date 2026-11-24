@@ -34,6 +34,7 @@ export interface Home {
   settings?: Settings;
   usage?: Usage;
   today?: string;
+  reviewCount?: number;      // flashcards not marked as known yet, in all the student's lectures (Review in the sidebar)
 }
 
 /* 3.2 detail: everything about one lecture */
@@ -54,8 +55,12 @@ export interface Slide { n: number; title: string; image?: string | null }
 export interface Line { t: number; text: string }
 export interface Flashcard { q: string; a: string }
 export interface QuizQuestion { q: string; opts: string[]; a: number; why?: string; t?: number | null }
+/* A moment the student marked while recording: "important", or "lost" (they did not follow). */
+export type MarkKind = "important" | "lost";
+export interface Mark { t: number; kind: MarkKind }
 export interface Detail {
   summary?: string[];   // the lecture in 3 to 5 sentences, shown above the notes
+  marks?: Mark[];       // the owner's marks from class, by time; never on the shared page
   audio?: Audio | null;
   progress?: { known: number[] };
   alerts: Alert[];
@@ -90,6 +95,11 @@ export interface UrlReply { url: string | null }
 /* GET /search?q= (added after the migration): points in the notes of every lecture that match */
 export interface NoteHit { lecture: string; text: string; t: number | null }
 export interface SearchReply { results: NoteHit[] }
+/* POST /lectures/:id/ask: the answer, and the lines of the transcript it rests on (refs), to listen to again */
+export interface AskReply { answer: string; refs: Line[] }
+/* GET /review: every flashcard not marked as known, from every lecture with notes (lecture: its title) */
+export interface ReviewCard { lectureId: string; lecture: string; index: number; q: string; a: string }
+export interface ReviewReply { cards: ReviewCard[] }
 export interface NewLecture { courseId: string; title: string; language: string; source: Source; autoTitle?: boolean }
 export interface SettingsUpdate { name: string; classLanguage: string; zhDefault: boolean; zhScript?: ZhScript }
 export interface ProgressUpdate { known: number[]; quizScore: number | null }

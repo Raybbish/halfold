@@ -40,6 +40,6 @@ export function homeView(d: { store: Store; config: Config; billing: Billing }, 
     usage: { minutesToday: liveMinutesToday(store, user.id, config.timezone, now), minutesLimit: tier.dailyLiveMinutes,
       ...(tier.audioDays !== null ? { audioDays: tier.audioDays } : {}),
       ...(lectures ? { lecturesThisMonth: lectures.used, lecturesLimit: lectures.limit } : {}) },
-    today
+    today, reviewCount: store.reviewCards(user.id).length
   };
 }
