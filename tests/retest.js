@@ -160,7 +160,8 @@ function serverExample() {
   });
 
   // 5. the example notes from our server's own code: they open, read only, without "Save to my lectures"
-  await page.goto(ORIGIN + '/#/s/econ-w9'); await page.waitForTimeout(800);
+  /* Wait for the page to draw, not a fixed time: on CI 800 ms was not always enough (2026-11-24). */
+  await page.goto(ORIGIN + '/#/s/econ-w9'); await page.waitForSelector('.shared-bar', { timeout: 15000 }).catch(() => {}); await page.waitForTimeout(200);
   const ex = { h1: await page.locator('h1').first().innerText().catch(() => ''), zh: await page.locator('.pt .zh').count(), save: await page.locator('text=Save to my lectures').count(), bar: await page.locator('.shared-bar').innerText().catch(() => '') };
   check('the example notes (GET /shared/econ-w9 as our server answers without a database row) open with 中文解釋 and no Save button', !!EXAMPLE && ex.h1 === 'Opportunity cost and comparative advantage' && ex.zh > 3 && ex.save === 0 && /Halfold shared these notes/.test(ex.bar), ex);
 
