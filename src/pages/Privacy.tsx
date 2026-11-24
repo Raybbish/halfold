@@ -9,7 +9,7 @@ import { DocPage, Todo } from "./Doc";
 const L = (xs: string[]) => xs.map(x => t(x));
 
 export const Privacy = () => <DocPage title="Privacy" lead="What Halfold does with your recordings and notes." sections={[
-  ["What is stored", L(["Your email address and the name you give.", "Your lecture recordings, transcripts, notes, flashcards and quizzes, and the slides (PDF) you add.", "Your own edits and your progress, such as the flashcards you know."])],
+  ["What is stored", L(["Your email address and the name you give.", "Your university, what you study, your year and when you graduate, where you studied before university if you say, and your answers to the two optional boxes about messages and paid surveys, with when you gave or withdrew each.", "Your lecture recordings, transcripts, notes, flashcards and quizzes, and the slides (PDF) you add.", "Your own edits and your progress, such as the flashcards you know."])],
   /* By kind of service and where it is, not by name (2026-11-20): what matters to a student is what leaves Halfold and
      for where, and a service can change without this page changing. Keep the places true when a service changes:
      speech to text (ElevenLabs or Deepgram) in the United States, the AI model (DeepSeek) in mainland China. */
