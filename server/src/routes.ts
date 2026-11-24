@@ -23,6 +23,7 @@ import type { Mailer } from "./mail";
 import type { CatchUpReply, ChunkReply, Source, StatusReply } from "../../src/types";
 import { linkProblem } from "./links/guard";
 import type { LinkDownloader } from "./links/ytdlp";
+import { fileKey, linkKey } from "./dedupe";
 
 export interface Jobs { enqueue(lectureId: string): void; cancel(lectureId: string): void }
 /* links: yt-dlp, or null when it is not on this machine (link lectures are then refused). */
@@ -137,6 +138,7 @@ export function privateRoutes(deps: Deps) {
          file name such as x.m3u8 cannot make ffmpeg treat it as a playlist of other files. */
       await files.commit(got.tempPath, id, "recording");
       store.setRecording(id, "recording");
+      store.setContentKey(id, fileKey(got.sha256));
     } finally { await files.discard(got.tempPath); }
     /* Deleted between the check above and the move: the move recreated its folder. */
     if (!store.lecture(id)) await files.removeLecture(id);
@@ -151,7 +153,7 @@ export function privateRoutes(deps: Deps) {
     if (l.status !== "recording") fail(409, "The notes for this lecture have already been started from its link.");
     const url = typeof b.url === "string" ? b.url : "", problem = linkProblem(url);
     if (problem) fail(400, problem);
-    store.setLink(id, url.trim());
+    store.setLink(id, url.trim(), linkKey(url));
     return c.body(null, 204);
   });
 
