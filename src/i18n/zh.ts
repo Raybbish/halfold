@@ -145,8 +145,7 @@ export const ZH: Record<string, string> = {
   /* settings */
   "Name": "名字", "Language usually spoken in class": "課堂通常使用的語言", "Show 中文解釋 under each point by default": "預設在每個重點下顯示中文解釋", "Interface language": "介面語言", "Save settings": "儲存設定", "Settings saved": "已儲存設定",
   /* The plan cards (server/src/billing.ts plans()): names from plans.json and the fixed sentences; the ones with numbers are rules (ZHR). */
-  "Free": "免費", "Plus for a semester": "Plus 學期版", "Unlimited lectures": "課堂數量不限", "Unlimited review packs": "溫習包數量不限", "Recordings kept for good": "錄音一直保留",
-  "Pay by card, Apple Pay or Google Pay. Renews every month; cancel any time.": "可用信用卡、Apple Pay 或 Google Pay 付款。每月自動續費，隨時可以取消。",
+  "Free": "免費", "Plus for a month": "Plus 一個月", "Plus for a semester": "Plus 學期版", "Unlimited lectures": "課堂數量不限", "Unlimited review packs": "溫習包數量不限", "Recordings kept for good": "錄音一直保留",
   "Pay once by card, Alipay or WeChat Pay. Does not renew.": "一次付清，可用信用卡、支付寶或微信支付，不會自動續費。",
   "Plan and usage": "方案與用量", "Plans and prices are not decided yet. This space is reserved for them.": "方案和價錢尚未決定，這個位置預留給它們。", "Your plan": "你的方案", "Choose this plan": "選擇這個方案", "Paying is not switched on yet": "付款功能還沒開通", "You cannot change your plan from here yet. Nothing was charged.": "目前還不能在這裡更改方案，沒有扣任何費用。", "OK": "好",
   "Sign out": "登出", "This device will no longer remember you.": "這部裝置將不再記住你。",
@@ -323,10 +322,10 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^(\d+) lectures? a month$/, m => "每月 " + m[1] + " 堂課"],
   [/^(\d+) review packs? a month$/, m => "每月 " + m[1] + " 個溫習包"],
   [/^Recordings kept for (\d+) days$/, m => "錄音保留 " + m[1] + " 天"],
-  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) \/ month$/, m => m[1] + "／月"],
-  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) for (\d+) days$/, m => m[1] + "，可用 " + m[2] + " 天"],
-  [/^(Paid until|Renews on|Ends on) (\d{1,2}) ([A-Z][a-z]{2}) (\d{4})$/, m => { const n = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[3]) / 3 + 1; if (n < 1) return null;
-    const d = m[4] + "年" + n + "月" + m[2] + "日"; return m[1] === "Paid until" ? "已付費至 " + d : m[1] === "Renews on" ? d + " 自動續費" : d + " 結束"; }],
+  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) for (\d+) days?$/, m => m[1] + "，可用 " + m[2] + " 天"],
+  /* Every paid card is paid once (2026-11-24): the card bought says until when; the other passes of that plan add after it. */
+  [/^(?:Paid until|Adds (\d+) days? after) (\d{1,2}) ([A-Z][a-z]{2}) (\d{4})$/, m => { const n = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[3]) / 3 + 1; if (n < 1) return null;
+    const d = m[4] + "年" + n + "月" + m[2] + "日"; return m[1] ? "在 " + d + " 後再加 " + m[1] + " 天" : "已付費至 " + d; }],
   /* The server's plan limits (server/src/billing.ts checkLecture, checkPack); the date it gives ("1 Dec") becomes 12月1日. */
   [/^You have (?:used|made) the (\d+) (lectures?|review packs?) that (.+?) includes this month\. (?:Choose (.+?) in Settings for more (?:lectures|review packs), or wait until (.+)|More are available from (.+))\.$/, m => {
     const day = (s: string) => { const d = /^(\d{1,2}) ([A-Z][a-z]{2})$/.exec(s), n = d ? "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(d[2]) / 3 + 1 : 0; return n >= 1 ? n + "月" + d![1] + "日" : s; };

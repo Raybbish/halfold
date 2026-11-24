@@ -1,5 +1,6 @@
 /* The requests sent to Stripe and Resend (phase 4), and how their replies are read, against a local fake server; the
-   webhook signature; refusing a live Stripe key; and checking plans.json. Nothing here reaches the real services. */
+   webhook signature; refusing a live Stripe key; and checking plans.json. Nothing here reaches the real services. The
+   whole payment flow, through the routes and against a fake Stripe that keeps state, is in stripe-flow.test.ts. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -7,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHmac } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import { StripePayments, createPayments, formBody, readSubscription, verifySignature } from "../src/pay/stripe";
+import { StripePayments, createPayments, formBody, readCharge, readDispute, verifySignature } from "../src/pay/stripe";
 import { ResendMailer, codeMail, createMailer } from "../src/mail";
 import { PlanBookSchema, cards, money, readPlans } from "../src/plans";
 import { SERVER_DIR, loadConfig } from "../src/config";
@@ -30,55 +31,59 @@ async function fakeServer(reply: (req: Seen) => { status?: number; body: unknown
 const form = (body: string) => Object.fromEntries(new URLSearchParams(body));
 const sign = (payload: string, secret: string, t: number) => `t=${t},v1=${createHmac("sha256", secret).update(`${t}.${payload}`).digest("hex")}`;
 
-test("Stripe Checkout: a monthly plan and a pass, form-encoded with the secret key; Stripe's error message is kept", async t => {
+test("Stripe Checkout: paid once (mode payment, nothing recurring), form-encoded with the secret key; Stripe's error message is kept", async t => {
   const srv = await fakeServer(s => s.url === "/v1/checkout/sessions" && form(s.body)["metadata[card]"] === "broken"
     ? { status: 400, body: { error: { message: "Invalid currency: xyz" } } } : { body: { id: "cs_test_9", url: "https://checkout.stripe.com/c/pay/cs_test_9" } });
   t.after(srv.close);
   const pay = new StripePayments("sk_test_123", "whsec_1", srv.url);
-  const base = { productName: "Halfold Plus, monthly", currency: "hkd", amount: 9800, successUrl: "https://a.b/#/settings", cancelUrl: "https://a.b/#/settings", userId: "u1" };
-  assert.deepEqual(await pay.createCheckout({ ...base, mode: "subscription", customer: null, email: "ann@example.edu", metadata: { user: "u1", plan: "plus", card: "plus" } }),
-    { id: "cs_test_9", url: "https://checkout.stripe.com/c/pay/cs_test_9" });
-  const sub = srv.seen[0];
-  assert.equal(sub.method, "POST"); assert.equal(sub.headers.authorization, "Bearer sk_test_123");
-  assert.equal(sub.headers["content-type"], "application/x-www-form-urlencoded");
-  assert.deepEqual(form(sub.body), {
-    mode: "subscription", "line_items[0][quantity]": "1", "line_items[0][price_data][currency]": "hkd", "line_items[0][price_data][unit_amount]": "9800",
-    "line_items[0][price_data][product_data][name]": "Halfold Plus, monthly", "line_items[0][price_data][recurring][interval]": "month",
+  const base = { productName: "Halfold Plus for a semester, 120 days", currency: "hkd", amount: 34800, successUrl: "https://a.b/#/settings", cancelUrl: "https://a.b/#/settings", userId: "u1" };
+  const metadata = { user: "u1", plan: "plus", card: "plus-semester", days: "120" };
+  assert.deepEqual(await pay.createCheckout({ ...base, email: "ann@example.edu", metadata }), { id: "cs_test_9", url: "https://checkout.stripe.com/c/pay/cs_test_9" });
+  const req = srv.seen[0];
+  assert.equal(req.method, "POST"); assert.equal(req.url, "/v1/checkout/sessions"); assert.equal(req.headers.authorization, "Bearer sk_test_123");
+  assert.equal(req.headers["content-type"], "application/x-www-form-urlencoded");
+  /* Nothing renews: no subscription, no recurring price. No payment_method_types: the methods are the ones turned on in
+     the Dashboard. The payment carries the metadata too, so a payment found in the Dashboard says whose it is. */
+  assert.deepEqual(form(req.body), {
+    mode: "payment", "line_items[0][quantity]": "1", "line_items[0][price_data][currency]": "hkd", "line_items[0][price_data][unit_amount]": "34800",
+    "line_items[0][price_data][product_data][name]": "Halfold Plus for a semester, 120 days",
     success_url: "https://a.b/#/settings", cancel_url: "https://a.b/#/settings", client_reference_id: "u1", customer_email: "ann@example.edu",
-    "metadata[user]": "u1", "metadata[plan]": "plus", "metadata[card]": "plus",
-    "subscription_data[metadata][user]": "u1", "subscription_data[metadata][plan]": "plus", "subscription_data[metadata][card]": "plus"
+    "metadata[user]": "u1", "metadata[plan]": "plus", "metadata[card]": "plus-semester", "metadata[days]": "120",
+    "payment_intent_data[description]": "Halfold Plus for a semester, 120 days",
+    "payment_intent_data[metadata][user]": "u1", "payment_intent_data[metadata][plan]": "plus", "payment_intent_data[metadata][card]": "plus-semester", "payment_intent_data[metadata][days]": "120"
   });
-  await pay.createCheckout({ ...base, mode: "payment", amount: 34800, customer: "cus_1", email: "ann@example.edu", metadata: { user: "u1", plan: "plus", card: "plus-semester" } });
-  const once = form(srv.seen[1].body);
-  assert.equal(once.mode, "payment"); assert.equal(once.customer, "cus_1"); assert.equal(once.customer_email, undefined);
-  assert.equal(once["line_items[0][price_data][recurring][interval]"], undefined);
-  assert.equal(once["payment_intent_data[metadata][card]"], "plus-semester");
-  /* No payment_method_types: the methods are the ones turned on in the Dashboard (cards; Alipay and WeChat Pay for a pass). */
-  assert.ok(!Object.keys(once).some(k => k.startsWith("payment_method_types")));
-  await assert.rejects(pay.createCheckout({ ...base, mode: "payment", metadata: { card: "broken" } }), /Stripe 400 \/v1\/checkout\/sessions: Invalid currency: xyz/);
+  /* A student without an email yet: Checkout asks for one. */
+  await pay.createCheckout({ ...base, email: null, metadata });
+  assert.equal(form(srv.seen[1].body).customer_email, undefined);
+  await assert.rejects(pay.createCheckout({ ...base, metadata: { card: "broken" } }), /Stripe 400 \/v1\/checkout\/sessions: Invalid currency: xyz/);
 });
 
-test("Stripe: reading a Checkout and a subscription (period end in old and new API versions), and the billing page", async t => {
+test("Stripe: reading a Checkout, finding the Checkout of a payment, closing one; refunds and disputes as the webhook gives them", async t => {
+  const paid = { id: "cs_1", object: "checkout.session", status: "complete", payment_status: "paid", mode: "payment", payment_intent: "pi_1", metadata: { user: "u1", n: 5 } };
   const srv = await fakeServer(s => {
-    if (s.url === "/v1/checkout/sessions/cs_1") return { body: { id: "cs_1", status: "complete", payment_status: "paid", mode: "subscription", subscription: "sub_1", customer: { id: "cus_1" }, metadata: { user: "u1", n: 5 } } };
-    if (s.url === "/v1/subscriptions/sub_1") return { body: { id: "sub_1", customer: "cus_1", status: "active", cancel_at_period_end: false, cancel_at: null, ended_at: null,
-      items: { data: [{ current_period_end: 1798761600 }] }, metadata: { user: "u1", plan: "plus" } } };
-    if (s.url === "/v1/billing_portal/sessions") return { body: { url: "https://billing.stripe.com/p/session/x" } };
+    if (s.url === "/v1/checkout/sessions/cs_1") return { body: { ...paid, payment_intent: { id: "pi_1", object: "payment_intent" } } };
+    if (s.url === "/v1/checkout/sessions?payment_intent=pi_1&limit=1") return { body: { object: "list", data: [paid], has_more: false } };
+    if (s.url === "/v1/checkout/sessions?payment_intent=pi_none&limit=1") return { body: { object: "list", data: [], has_more: false } };
     if (s.url === "/v1/checkout/sessions/cs_1/expire") return { body: { id: "cs_1", status: "expired" } };
     return { status: 404, body: { error: { message: "No such thing" } } };
   });
   t.after(srv.close);
   const pay = new StripePayments("sk_test_1", "", srv.url);
-  assert.deepEqual(await pay.checkout("cs_1"), { id: "cs_1", status: "complete", paymentStatus: "paid", mode: "subscription", subscription: "sub_1", customer: "cus_1", metadata: { user: "u1" } });
-  assert.deepEqual(await pay.subscription("sub_1"), { id: "sub_1", customer: "cus_1", status: "active", periodEnd: "2027-01-01T00:00:00.000Z", cancelAtEnd: false, endedAt: null, metadata: { user: "u1", plan: "plus" } });
-  assert.equal(await pay.billingPortal("cus_1", "https://a.b/#/settings"), "https://billing.stripe.com/p/session/x");
-  assert.deepEqual(form(srv.seen[2].body), { customer: "cus_1", return_url: "https://a.b/#/settings" });
+  const info = { id: "cs_1", status: "complete", paymentStatus: "paid", paymentIntent: "pi_1", metadata: { user: "u1" } };
+  assert.deepEqual(await pay.checkout("cs_1"), info);
+  assert.deepEqual(await pay.checkoutOfPayment("pi_1"), info);
+  assert.deepEqual([srv.seen[1].method, srv.seen[1].body], ["GET", ""]);
+  assert.equal(await pay.checkoutOfPayment("pi_none"), null);
   await pay.expireCheckout("cs_1");
   assert.deepEqual([srv.seen[3].method, srv.seen[3].url, srv.seen[3].body], ["POST", "/v1/checkout/sessions/cs_1/expire", ""]);
-  await assert.rejects(pay.subscription("sub_404"), /Stripe 404 \/v1\/subscriptions\/sub_404: No such thing/);
-  /* Older API versions: the period end on the subscription; a cancellation planned with cancel_at. */
-  const old = readSubscription({ id: "sub_2", customer: "cus_2", status: "canceled", current_period_end: 1798761600, cancel_at: 1798761600, ended_at: 1798000000, metadata: {} });
-  assert.deepEqual([old.periodEnd, old.cancelAtEnd, old.endedAt], ["2027-01-01T00:00:00.000Z", true, "2026-12-23T04:26:40.000Z"]);
+  await assert.rejects(pay.checkout("cs_404"), /Stripe 404 \/v1\/checkout\/sessions\/cs_404: No such thing/);
+  await assert.rejects(pay.checkoutOfPayment("pi_404"), /^Error: Stripe 404 \/v1\/checkout\/sessions: No such thing$/);
+
+  /* charge.refunded and charge.dispute.closed: the objects in the events. */
+  assert.deepEqual(readCharge({ id: "ch_1", object: "charge", amount: 34800, amount_refunded: 17400, refunded: false, payment_intent: "pi_1", currency: "hkd" }),
+    { id: "ch_1", paymentIntent: "pi_1", amount: 34800, refunded: 17400, currency: "hkd" });
+  assert.deepEqual(readCharge({ id: "ch_2", payment_intent: { id: "pi_2" } }), { id: "ch_2", paymentIntent: "pi_2", amount: 0, refunded: 0, currency: "" });
+  assert.deepEqual(readDispute({ id: "dp_1", object: "dispute", status: "lost", payment_intent: "pi_1", charge: "ch_1", amount: 34800 }), { id: "dp_1", paymentIntent: "pi_1", status: "lost" });
 });
 
 test("the webhook signature: right, wrong, old, several v1 values, no secret", () => {
@@ -121,18 +126,24 @@ test("Resend: the sign-in email as JSON with the key; an error says what Resend 
   assert.equal(createMailer(loadConfig({ RESEND_API_KEY: "re_1" })).provider, "resend");
 });
 
-test("plans.json: the committed file is valid; a broken one says what is wrong", () => {
+test("plans.json: the committed file is valid; a broken one, or one written before one-time payments, says what is wrong", () => {
   const book = readPlans(fs.readFileSync(path.join(SERVER_DIR, "plans.json"), "utf8"));
-  assert.deepEqual(cards(book).map(c => [c.id, c.kind]), [["free", "free"], ["plus", "monthly"], ["plus-semester", "pass"]]);
+  assert.deepEqual(cards(book).map(c => [c.id, c.kind]), [["free", "free"], ["plus-month", "pass"], ["plus-semester", "pass"]]);
   assert.equal(money("HKD", 98), "HK$98"); assert.equal(money("hkd", 12.5), "HK$12.50"); assert.equal(money("JPY", 500), "500 JPY");
   const ok = { currency: "HKD", plans: [{ id: "free", name: "Free", dailyLiveMinutes: 60, lecturesPerMonth: 2, packsPerMonth: 0, audioDays: 7 }] };
   assert.ok(PlanBookSchema.safeParse(ok).success);
-  const paidFirst = { ...ok, plans: [{ ...ok.plans[0], monthly: 10 }] };
+  const pass = { id: "x-week", name: "X for a week", price: 30, days: 7 };
+  const paidFirst = { ...ok, plans: [{ ...ok.plans[0], passes: [pass] }] };
   assert.throws(() => readPlans(JSON.stringify(paidFirst)), /the first plan is the free one/);
   const noPrice = { ...ok, plans: [ok.plans[0], { ...ok.plans[0], id: "plus" }] };
-  assert.throws(() => readPlans(JSON.stringify(noPrice)), /plans\.1: a plan after the first needs a monthly price or a pass/);
-  const twice = { ...ok, plans: [ok.plans[0], { ...ok.plans[0], id: "plus", monthly: 5, pass: { id: "free", name: "X", price: 5, days: 3 } }] };
+  assert.throws(() => readPlans(JSON.stringify(noPrice)), /plans\.1: a plan after the first needs at least one pass/);
+  assert.throws(() => readPlans(JSON.stringify({ ...ok, plans: [ok.plans[0], { ...ok.plans[0], id: "plus", passes: [] }] })), /needs at least one pass/);
+  const twice = { ...ok, plans: [ok.plans[0], { ...ok.plans[0], id: "plus", passes: [pass, { ...pass, id: "free" }] }] };
   assert.throws(() => readPlans(JSON.stringify(twice)), /ids must all be different/);
+  assert.ok(readPlans(JSON.stringify({ ...ok, plans: [ok.plans[0], { ...ok.plans[0], id: "plus", passes: [pass] }] })));
+  /* The format before 2026-11-24: a monthly price was a subscription. */
+  assert.throws(() => readPlans(JSON.stringify({ ...ok, plans: [ok.plans[0], { ...ok.plans[0], id: "plus", monthly: 98 }] }), "old.json"), /^Error: old\.json: plan "plus": "monthly" is gone: payments are one-time now/);
+  assert.throws(() => readPlans(JSON.stringify({ ...ok, plans: [ok.plans[0], { ...ok.plans[0], id: "plus", pass }] })), /"pass" is now a list, "passes"/);
   assert.throws(() => readPlans("{", "x.json"), /x\.json is not valid JSON/);
   assert.throws(() => loadConfig({ PLANS_FILE: "missing-plans.json" }), /ENOENT/);
 });

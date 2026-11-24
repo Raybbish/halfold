@@ -26,7 +26,7 @@ npm start                 # http://localhost:8787
 | `npm start` / `npm run dev` | 启动；`dev` 改了代码会自动重启 |
 | `npm test` | 类型检查和全部测试（转写服务和 DeepSeek 用假实现，不花钱） |
 | `npm run invite -- add <code> [名字]` / `new` / `list` | 管理邀请码。一个码就是一个账号；邮箱第一次登录时用一次，绑定后用邮箱登录 |
-| `npm run plan -- list` / `show <邮箱或邀请码>` / `give <邮箱或邀请码> <天数>` | 看每个学生的方案和本月用量；手动给几天 Plus（测试的人，或用 FPS、PayMe 转账的人），不经过 Stripe |
+| `npm run plan -- list` / `show <邮箱或邀请码>` / `give <邮箱或邀请码> <天数>` | 看每个学生的方案和本月用量；手动给几天 Plus（测试的人，用 FPS、PayMe 转账的人，或补回退款扣掉的天数），不经过 Stripe |
 | `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本 |
 | `npm run feedback` | 学生在课堂页 “What is wrong in these notes?” 里写的反馈，新的在前（`-- --all` 看全部） |
 | `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
@@ -124,35 +124,54 @@ Deepgram 只给英文（`en`）加标点，`multi` 和中文都没有标点，�
 
 方案在 [`plans.json`](plans.json)，改了重启生效：
 
-| | Free | Plus（HK$98 / 月，或 HK$348 买 120 天） |
+| | Free | Plus（HK$98 买 30 天，或 HK$348 买 120 天） |
 |---|---|---|
 | 每天现场录音 | 90 分钟 | 240 分钟 |
 | 每月课堂（录的和上传的） | 4 | 40 |
 | 每月复习包 | 1 | 不限 |
 | 录音保留 | 30 天 | 一直保留 |
 
-按月的 Plus 是 Stripe 订阅，自动续费，只能用卡、Apple Pay、Google Pay。120 天的是一次付清，不续费，还能用支付宝、微信支付。付费结束（取消、续费失败、到期）马上回到 Free，内容都在；付费期间的录音从那天起再留 30 天。第一次以这个版本启动之前录的课，从启动那天起算 30 天，不会马上删。
+**都是一次付清，不自动续费**（2026-11-24 起；之前的按月订阅去掉了）。学生在 Stripe Checkout 付一次钱，买到一段时间；时间到了马上回到 Free，内容都在，付费期间的录音从那天起再留 30 天。没有要取消的东西：付费期间点 Free 只提示哪天结束。付费期内再买同一个方案（比如学期版快到期时再买一个月），天数接在后面，不会浪费。第一次以第四阶段启动之前录的课，从启动那天起算 30 天，不会马上删。
+
+**改档位和价格**：只改 `plans.json`，不用动代码，也不用在 Stripe 后台建商品。第一个方案是免费的；后面每个付费方案有自己的额度，和一个或几个 `passes`（每个是设置页上的一张卡片）：
+
+```json
+"passes": [
+  { "id": "plus-month", "name": "Plus for a month", "price": 98, "days": 30 },
+  { "id": "plus-semester", "name": "Plus for a semester", "price": 348, "days": 120 }
+]
+```
+
+`price` 按 `currency`（港币）算，可以有小数；`days` 是买到的天数；`id` 只用字母、数字、`_`、`-`，方案和卡片的 id 都不能重复。卡片按文件里的顺序显示。已经打开、还没付的 Checkout 按打开时的价格和天数算。旧格式的 `monthly` 和 `pass` 启动时会报错，并说明怎么改。新的卡片名字要在 `src/i18n/zh.ts` 补中文（现在有 “Plus for a month”、“Plus for a semester”）。
+
+**退款**：在 Stripe 后台 → Payments 找到这笔，点 Refund（可以退全额，也可以退一部分）。Stripe 通过 webhook（`charge.refunded`）告诉服务器，服务器**按退回的比例扣掉这笔付款买的天数**：
+
+- 全额退款扣掉全部天数，退一半扣一半（比如学期版用了 60 天后退一半，扣 60 天，正好到今天结束）。
+- 天数从付费期的末尾扣，最早扣到“现在”为止，不会扣到过去：学生马上回到 Free，课都在，录音从退款那天起按 Free 再留 30 天，不会因为退款马上被删。
+- 学生买过几次时只扣被退的那一笔；付费期已经结束的那笔退款不再扣什么。
+- 同一个退款的消息来两次、先后颠倒，都只扣一次。付款的消息漏了、学生也没回来过，退款到的时候服务器先去 Stripe 查这笔付款，补记上再扣，学生不会在退款后又拿到这段时间。
+- 学生向银行争议（dispute）这笔付款、我们输了（`charge.dispute.closed`，状态 `lost`）算全额退款；赢了不变。
+- 退一部分只是想补偿、不想缩短时间的话，退款后用 `npm run plan -- give <邮箱> <天数>` 补回。退款失败（很少见，Stripe 会发邮件）时扣掉的天数也这样补。
 
 **接 Stripe（测试模式，不会扣真钱）**：
 
 1. 在 [Stripe](https://dashboard.stripe.com) 注册，保持在 **Test mode**。
-2. Developers → API keys，把 **Secret key**（`sk_test_` 开头）填进 `server/.env` 的 `STRIPE_SECRET_KEY`。`sk_live_` 开头的 key 会被拒绝。
-3. Settings → Payment methods：打开 Alipay 和 WeChat Pay（学期通行证用）。
-4. Settings → Billing → Customer portal：存一次设置（学生取消订阅、换卡的页面），允许取消订阅。
-5. Webhook，二选一：
+2. Developers → API keys，把 **Secret key**（`sk_test_` 开头）填进 `server/.env` 的 `STRIPE_SECRET_KEY`。`sk_live_` 开头的 key 会被拒绝，除非设了 `STRIPE_ALLOW_LIVE=on`（收真钱见 [`deploy/server/README.md`](../deploy/server/README.md) 的“收款”）。
+3. Settings → Payment methods：打开 Alipay 和 WeChat Pay（卡片上写着可以用卡、支付宝、微信支付）。
+4. Webhook，二选一：
    - 自己电脑上：装 [Stripe CLI](https://docs.stripe.com/stripe-cli)，`stripe listen --forward-to localhost:8787/api/stripe/webhook`，把它打印的 `whsec_...` 填进 `STRIPE_WEBHOOK_SECRET`；
-   - 有公网地址时：Developers → Webhooks 新建 `https://<你的服务器>/api/stripe/webhook`，事件选 `checkout.session.*` 和 `customer.subscription.*`，把 Signing secret 填进 `STRIPE_WEBHOOK_SECRET`。
+   - 有公网地址时：Developers → Webhooks 新建 `https://<你的服务器>/api/stripe/webhook`，事件选 `checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`charge.refunded`、`charge.dispute.closed`，把 Signing secret 填进 `STRIPE_WEBHOOK_SECRET`。
 
-   没配 webhook 时，第一次付款在学生回到设置页时也能生效（服务器会去问 Stripe），但取消和续费要靠 webhook。
-6. 重启。测试卡号 `4242 4242 4242 4242`，任意未来日期和 CVC。
+   没配 webhook 时，付款在学生回到设置页时也能生效（服务器会去问 Stripe），但退款、争议和晚到账的付款要靠 webhook。
+5. 重启。测试卡号 `4242 4242 4242 4242`，任意未来日期和 CVC。退款在 Dashboard → Payments 里点，或 `stripe refunds create --payment-intent pi_...`。
 
-没设 `STRIPE_SECRET_KEY` 时，设置页照样显示方案，点 “Choose this plan” 提示 “Checkout is not connected yet.”。
+没设 `STRIPE_SECRET_KEY` 时，设置页照样显示方案，点 “Choose this plan” 提示付款还没开通、没有扣费。
 
 ## 最后一次端到端检查
 
 一次走完第一到四阶段的所有功能。用真实的课堂录音（最好 5 到 10 分钟以上，粤语或普通话夹英文），手机和电脑各试一部分。每项后面是要的 key（`EL` = 转写服务的 key：默认 `DEEPGRAM_API_KEY`，`STT_PROVIDER=elevenlabs` 时 `ELEVENLABS_API_KEY`；`DS` = `DEEPSEEK_API_KEY`，`RS` = `RESEND_API_KEY`，`ST` = `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`）。开始前 `npm run costs` 记一下总数，结束后再看一次。
 
-**准备**：仓库根目录 `npm run build`；`server/` 里 `npm start`；`npm run invite -- new` 生成两个邀请码；Stripe 按上面 1 到 6 步配好。
+**准备**：仓库根目录 `npm run build`；`server/` 里 `npm start`；`npm run invite -- new` 生成两个邀请码；Stripe 按上面 1 到 5 步配好。
 
 登录（第四阶段）
 
@@ -188,9 +207,11 @@ Deepgram 只给英文（`en`）加标点，`multi` 和中文都没有标点，�
 - [ ] 设置页改名字、上课语言、中文解釋默认、繁／简，刷新后还在。
 - [ ] 方案卡片：Free 显示 “Your plan”，用量条是 90 分钟。
 - [ ] Free 的限制：本月第 5 堂课、第 2 个复习包被拒绝，提示写着 Plus 和下个月 1 号。（省钱的试法：先把 `plans.json` 里 Free 的 `lecturesPerMonth` 临时改成 1 再重启，试完改回。）
-- [ ] 买 Plus（按月）：测试卡付款，回到设置页是 Plus，“Renews on …”，用量条 240 分钟。
-- [ ] 选 Free：去 Stripe 账单页面取消，回来显示 “Ends on …”。在 Stripe 后台把这个订阅立即取消：回到 Free，课都在，录音显示保留到 30 天后。
-- [ ] 另一个学生买学期通行证，用支付宝或微信支付的测试付款：显示 “Paid until …”。
+- [ ] 买 Plus for a month：测试卡付款，回到设置页是 Plus for a month，“Paid until …”，学期版卡片写着 “Adds 120 days after …”，用量条 240 分钟。
+- [ ] 选 Free：提示哪天结束、不会续费，没有跳去 Stripe。
+- [ ] 再买学期版：“Paid until …” 往后推 120 天。
+- [ ] 在 Stripe 后台把学期版那笔退一半：“Paid until …” 提前 60 天；再退剩下的：回到一个月的那张卡片，提前的正好是 120 天。
+- [ ] 另一个学生买学期版，用支付宝或微信支付的测试付款：显示 “Paid until …”。全额退款：马上回到 Free，课都在，录音显示保留到 30 天后。
 - [ ] `npm run plan -- list` 看到两个人的方案。
 
 最后：`npm run costs` 看这次一共花了多少。
@@ -203,9 +224,9 @@ src/
   library.ts       第三阶段的接口：改标题和课程、编辑笔记、进度、反馈、分享、改删课程、复习包、搜索
   login.ts         登录：邮箱验证码，或只用邀请码（SIGN_IN）
   account.ts       第四阶段的接口：设置、方案、付款；Stripe 的 webhook
-  billing.ts       学生现在是哪个方案、额度、方案卡片、Stripe 告诉我们的事
+  billing.ts       学生现在是哪个方案、额度、方案卡片、一次付清的 Checkout、Stripe 告诉我们的事（付款、退款、争议）
   plans.ts         读 plans.json
-  pay/stripe.ts    Stripe 的请求和 webhook 签名
+  pay/stripe.ts    Stripe 的请求、webhook 签名、读事件里的付款和退款
   mail.ts          发登录码（Resend）
   packs.ts         复习包：每门课一次一个，重启后接着做
   shapes.ts        回复的 zod schema，和 ../src/types.ts 绑定
@@ -224,7 +245,8 @@ src/
 scripts/           invite、plan、costs、compare-stt、feedback
 plans.json         方案、价格和每个方案的限制
 test/              契约、上传、流程、整理、服务商请求、ffmpeg 和网页；现场录音（模拟浏览器）、真实分段、回放；
-                   编辑和课程、分享、复习包、搜索、补传课件；登录、方案和付款、设置、Stripe 和 Resend 的请求
+                   编辑和课程、分享、复习包、搜索、补传课件；登录、方案和付款（含退款）、设置、Stripe 和 Resend 的请求；
+                   对着假的 Stripe 服务器走完付款和退款（stripe-flow.test.ts）
 test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的 README
 ```
 
@@ -236,6 +258,7 @@ test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的
 - FPS、PayMe 付款：Stripe 不支持，要另接 Airwallex 或 PayMe for Business。现在可以收转账后用 `npm run plan -- give` 手动开通。
 - Google 登录、学校单点登录。
 - 方案卡片的中文：后端不知道学生的界面语言。
+- 设置页上“Your plan”那张卡片没有按钮：想在到期前再买同一张（比如再买一个月），现在要选同一方案的另一张卡片。服务器已经接受同一张卡片（天数接在后面），等定价页重做时在前端加一个按钮即可。
 - 服务器端的退出登录：前端的 Sign out 只清本机；token 90 天不用自动失效。
 - 首页的本周统计（`week`）：学习进度和测验分数已经存了，但“本周”“已掌握的闪卡”“平均分”怎么算还没定，不给时前端不显示这一栏。
 - 分享页的录音（4.3）：默认不带，要带是产品和合规上的决定。

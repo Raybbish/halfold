@@ -55,7 +55,7 @@ if (config.signIn === "email" && mailer.provider === "console") console.warn("[s
 if (!ytdlp) console.warn(`[sidenote] yt-dlp was not found (YTDLP=${config.links.ytdlp}): video links are refused and students are asked to upload the file.`);
 if (problem) console.warn("[sidenote] payments are off: " + problem);
 else if (!payments) console.warn("[sidenote] STRIPE_SECRET_KEY is not set: plans are shown, but choosing one says checkout is not connected yet.");
-else if (!config.stripe.webhookSecret) console.warn("[sidenote] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but renewals and cancellations need the webhook.");
+else if (!config.stripe.webhookSecret) console.warn("[sidenote] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but refunds, disputes and payments that arrive later (Alipay, WeChat Pay) need the webhook.");
 
 /* Node ends a request after 5 minutes by default, which cuts off a 500 MB upload on a slow connection. */
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host, serverOptions: { requestTimeout: 3 * 3600_000 } }, info => {
