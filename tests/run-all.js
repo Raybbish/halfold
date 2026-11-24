@@ -24,6 +24,8 @@ const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-tex
 
 // The retest of 2026-11-23 (retest.js), on a line of its own.
 EXPECT.retest = 18; SCRIPTS.push('retest');
+// profile.js (the profile and consents asked once after signing in, and in Settings), added on its own lines.
+EXPECT.profile = 18; SCRIPTS.splice(SCRIPTS.indexOf('signin') + 1, 0, 'profile');
 
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });

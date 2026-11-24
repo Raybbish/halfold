@@ -8,6 +8,7 @@ import { privateRoutes, publicRoutes, type AppEnv, type Deps } from "./routes";
 import { libraryRoutes, sharedRoutes } from "./library";
 import { loginRoutes } from "./login";
 import { accountRoutes, webhookRoutes } from "./account";
+import { profileRoutes } from "./profile";
 import type { Config } from "./config";
 
 /* The front end reads window.SIDENOTE_CONFIG at start (src/config.ts). "Example notes" on the public pages opens the
@@ -41,6 +42,7 @@ export function createApp(deps: Deps) {
   api.route("/", privateRoutes(deps));
   api.route("/", libraryRoutes(deps));
   api.route("/", accountRoutes(deps));
+  api.route("/", profileRoutes(deps));
   api.notFound(c => c.json({ message: "This is not available yet." }, 404));
   api.onError(onError);
   app.route("/api", api);

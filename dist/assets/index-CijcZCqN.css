@@ -501,3 +501,11 @@ sup,sub{font-size:.72em;line-height:0}
 /* Sign-in: the invite code field once the server asks for it, and the note that says why (not an error). */
 .field.need input{border-color:var(--ink);box-shadow:3px 3px 0 var(--yellow)}
 .need-note{margin:-6px 0 14px;color:var(--ink)}
+/* The profile form and the home page's reminder for someone who skipped it (pages/Profile.tsx; the designers' draft of 2026-11-24). */
+.consent{display:grid;gap:10px;margin:4px 0 18px;padding:14px 16px;background:var(--bg);border-radius:var(--r)}
+.consent label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:15px}
+.consent input{margin-top:4px;flex:none;width:17px;height:17px}
+.nudge{display:flex;gap:14px;align-items:center;padding:12px 18px;margin-bottom:16px;color:inherit}
+.nudge:hover{text-decoration:none;border-color:var(--ink)}
+.nudge b{display:block;color:var(--ink)}
+.nudge .grow{flex:1}

@@ -15,6 +15,7 @@ import { Hal } from "../ui/icons";
 import { Shell, addCourseModal } from "../ui/Shell";
 import { addDateModal, removeDate } from "./radar";
 import { css } from "../ui/css";
+import { ProfileNudge } from "./Profile";
 
 /* A lecture whose recording is being uploaded right now is "Uploading", not "Not finished". */
 export const statusTag = (l: Lecture) => uploading() && up.id === l.id ? <span className="tag amber">{t("Uploading")}</span> : l.status === "processing" ? <span className="tag grey">{t("Writing notes")}</span> : l.status === "failed" ? <span className="tag red">{t("Not written")}</span>
@@ -76,10 +77,11 @@ export function Home() {
   /* Text left in the box from earlier in this visit: search the notes again, they may have changed since. */
   useEffect(() => { if (S.lectures.length && norm(state.q).length >= MIN_QUERY) { searchNotes(state.q, true); refresh(); } }, []);
   const up = S.upcoming.filter(u => daysLeft(u.date) >= 0).sort((a, b) => +new Date(a.date) - +new Date(b.date)), w = S.week, n = up[0]; S._up = up;
-  if (!S.lectures.length) return <Shell active="home"><div className="center" style={css("min-height:60vh;flex-direction:column;gap:28px")}><div style={css("text-align:center;max-width:420px")}><Hal size={84} mood="smile" /><h1 style={css("font-size:30px;margin:16px 0 8px")}>{t("Hi " + S.user!.name + ". Nothing here yet.")}</h1><p className="muted" style={css("margin-bottom:22px")}>{t("Record your next class or upload a recording you already have. Notes, flashcards and a quiz arrive a minute or two after it ends.")}</p><a className="btn primary" href="#/new">{t("Add your first lecture")}</a></div><div style={css("width:100%;max-width:560px")}><RecordCard /></div></div></Shell>;
+  if (!S.lectures.length) return <Shell active="home"><div className="center" style={css("min-height:60vh;flex-direction:column;gap:28px")}><div style={css("text-align:center;max-width:420px")}><Hal size={84} mood="smile" /><h1 style={css("font-size:30px;margin:16px 0 8px")}>{t("Hi " + S.user!.name + ". Nothing here yet.")}</h1><p className="muted" style={css("margin-bottom:22px")}>{t("Record your next class or upload a recording you already have. Notes, flashcards and a quiz arrive a minute or two after it ends.")}</p><a className="btn primary" href="#/new">{t("Add your first lecture")}</a></div><div style={css("width:100%;max-width:560px")}><RecordCard /><div style={css("margin-top:16px")}><ProfileNudge /></div></div></div></Shell>;
   return <Shell active="home">
     <div className="page-h"><div className="hello"><Hal size={52} mood="smile" /><div><h1>{t("Hi " + S.user!.name)}</h1><p className="muted" style={css("margin-top:4px")}>{t(n ? `Next up: ${n.kind.toLowerCase()} for ${n.course}, ${daysLeft(n.date) === 0 ? "today" : "in " + plural(daysLeft(n.date), "day")}.` : "No exam dates on the radar.")}</p></div></div>
       <a className="btn primary desk" href="#/new">{t("New lecture")}</a></div>
+    <ProfileNudge />
     <div className="top2"><RecordCard /><LastCard /></div>
     {w ? <div className="stats">
       <div className="stat" style={css("background:var(--blue-soft)")}><b className="num">{w.lectures}</b><span>{t("lectures recorded this week")}</span></div>

@@ -2,11 +2,13 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPlans, type PlanBook } from "./plans";
+import { ASSEMBLYAI_PRICES } from "./stt/assemblyai";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const SERVER_DIR = path.resolve(here, "..");
 
-export type SttProviderName = "elevenlabs" | "deepgram";
+export const STT_PROVIDERS = ["elevenlabs", "deepgram", "soniox", "assemblyai"] as const;
+export type SttProviderName = typeof STT_PROVIDERS[number];
 /* email: a code sent to the student's address, and an invite code the first time (phase 4). invite: the invite code alone (phases 1 to 3). */
 export type SignInMode = "email" | "invite";
 /* The language spoken in class: English, Mandarin or Cantonese, English mixed with one of them, or not known. "zh" and "yue"
@@ -62,6 +64,8 @@ export interface Config {
     provider: SttProviderName;
     elevenlabs: { apiKey: string; model: string; usdPerHour: number };
     deepgram: { apiKey: string; model: string; languages: Record<ClassLanguage, string>; usdPerHourMono: number; usdPerHourMulti: number };
+    soniox: { apiKey: string; model: string; usdPerHour: number };
+    assemblyai: { apiKey: string; model: string; usdPerHour: number };
   };
   notes: {
     provider: "deepseek";
@@ -109,8 +113,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const deepseekModel = env.DEEPSEEK_MODEL || "deepseek-v4-pro", catchUpModel = env.CATCHUP_MODEL || "deepseek-flash";
   const deepseekKey = env.DEEPSEEK_API_KEY || "", deepseekBase = (env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
   const web = env.WEB_DIR === undefined ? path.resolve(SERVER_DIR, "../dist") : env.WEB_DIR.trim() ? path.resolve(SERVER_DIR, env.WEB_DIR) : null;
-  const provider = (env.STT_PROVIDER || "deepgram").trim();
-  if (provider !== "elevenlabs" && provider !== "deepgram") throw new Error(`STT_PROVIDER must be elevenlabs or deepgram, not "${provider}"`);
+  const provider = (env.STT_PROVIDER || "deepgram").trim() as SttProviderName;
+  if (!(STT_PROVIDERS as readonly string[]).includes(provider)) throw new Error(`STT_PROVIDER must be one of ${STT_PROVIDERS.join(", ")}, not "${provider}"`);
+  const aaiModel = env.ASSEMBLYAI_MODEL || "assemblyai-stt-3-7";
   return {
     port: num(env.PORT, 8787),
     host: (env.HOST || "").trim() || undefined,
@@ -160,7 +165,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
            taught in Mandarin or Cantonese go there too, since lecturers keep the English terms. */
         languages: languageMap(env.DEEPGRAM_LANGUAGES, { en: "en", zh: "multi", yue: "multi", "en-zh": "multi", "en-yue": "multi", auto: "multi" }),
         usdPerHourMono: num(env.DEEPGRAM_USD_PER_HOUR, 0.258), usdPerHourMulti: num(env.DEEPGRAM_USD_PER_HOUR_MULTI, 0.312)
-      }
+      },
+      /* Being compared (README.md "对比转写服务"): not used by the app until STT_PROVIDER names them. */
+      soniox: { apiKey: env.SONIOX_API_KEY || "", model: env.SONIOX_MODEL || "stt-async-v6", usdPerHour: num(env.SONIOX_USD_PER_HOUR, 0.1) },
+      assemblyai: { apiKey: env.ASSEMBLYAI_API_KEY || "", model: aaiModel, usdPerHour: num(env.ASSEMBLYAI_USD_PER_HOUR, ASSEMBLYAI_PRICES[aaiModel] ?? 0.21) }
     },
     notes: {
       provider: "deepseek",

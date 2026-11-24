@@ -8,7 +8,7 @@ import { http, form1, upload, type UploadOptions } from "./http";
 import { DATA, fakeUpload, fileUnderSlides, mockSlides, withoutSlides } from "./mock";
 import type {
   CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, NewLecture, Plans, Point, ProgressUpdate,
-  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, Upcoming, UrlReply, PackHint, PackTopic, PackQuestion
+  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, Upcoming, UrlReply, PackHint, PackTopic, PackQuestion, ProfileReply, ProfileUpdate
 } from "../types";
 
 export const api = {
@@ -33,7 +33,7 @@ export const api = {
   async getHome(): Promise<Home> {
     if (!CONFIG.USE_MOCK) return http("GET", "/home");
     await wait(250);
-    return { user: S.user || DATA.user, courses: DATA.courses.slice(), lectures: DATA.lectures.slice(), upcoming: DATA.upcoming.slice() as Home["upcoming"], week: DATA.week, settings: { ...DATA.settings },
+    return { user: { ...(S.user || DATA.user), profile: DATA.profile ? { ...DATA.profile } : null }, courses: DATA.courses.slice(), lectures: DATA.lectures.slice(), upcoming: DATA.upcoming.slice() as Home["upcoming"], week: DATA.week, settings: { ...DATA.settings },
       usage: { minutesToday: DATA.user.minutesToday, minutesLimit: DATA.user.minutesLimit }, today: "2026-11-11" };
   },
   /* POST /courses {code, name} -> course */
@@ -157,6 +157,16 @@ export const api = {
     const u = { date: p.date, kind: p.kind, text: p.text, course: c.code, lecture: null, t: null, id: "rd-" + Date.now().toString(36), day: "", mon: "" }; DATA.upcoming.push(u); return { ...u }; },
   /* DELETE /upcoming/:id -- only a date added by hand */
   async deleteUpcoming(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/upcoming/" + encodeURIComponent(id)); await wait(200); DATA.upcoming = DATA.upcoming.filter(u => u.id !== id); return null; },
+  /* PUT /profile {school, major, yearOfStudy, gradYear, origin, consentMarketing, consentSurvey} -> {profile}   every field optional; the
+     fields given are saved, the rest kept (API-CHANGES.md 14) */
+  async updateProfile(p: ProfileUpdate): Promise<ProfileReply> { if (!CONFIG.USE_MOCK) return http("PUT", "/profile", p); await wait(300);
+    const was = DATA.profile || { school: "", major: "", yearOfStudy: "", gradYear: null, origin: "", consentMarketing: false, consentSurvey: false, consentMarketingAt: null, consentSurveyAt: null }, at = new Date().toISOString();
+    const mk = p.consentMarketing ?? was.consentMarketing, sv = p.consentSurvey ?? was.consentSurvey;
+    DATA.profile = { school: p.school ?? was.school, major: p.major ?? was.major, yearOfStudy: p.yearOfStudy ?? was.yearOfStudy, gradYear: p.gradYear === undefined ? was.gradYear : p.gradYear ? Number(p.gradYear) : null,
+      origin: p.origin ?? was.origin, consentMarketing: mk, consentSurvey: sv, consentMarketingAt: DATA.profile && mk === was.consentMarketing ? was.consentMarketingAt : at, consentSurveyAt: DATA.profile && sv === was.consentSurvey ? was.consentSurveyAt : at };
+    return { profile: { ...DATA.profile } }; },
+  /* POST /profile/later   "Skip for now", kept for the student's other devices */
+  async profileLater(): Promise<null> { if (!CONFIG.USE_MOCK) return http("POST", "/profile/later"); await wait(200); return null; },
   /* PUT /settings {name, classLanguage, zhDefault, zhScript:"hant"|"hans"} */
   async updateSettings(p: SettingsUpdate): Promise<null> { if (!CONFIG.USE_MOCK) return http("PUT", "/settings", p); Object.assign(DATA.settings, { classLanguage: p.classLanguage, zhDefault: p.zhDefault, zhScript: p.zhScript }); await wait(300); return null; }
 };

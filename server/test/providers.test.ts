@@ -8,6 +8,10 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { ElevenLabsScribe } from "../src/stt/elevenlabs";
 import { DeepgramNova } from "../src/stt/deepgram";
+import { SonioxAsync, tokensToWords } from "../src/stt/soniox";
+import { AssemblyAi } from "../src/stt/assemblyai";
+import { joinTokens } from "../src/stt/lines";
+import { createTranscriber, missingKeys } from "../src/providers";
 import { DeepSeekWriter, isPeak } from "../src/notes/deepseek";
 import { DeepSeekCatchUp, readPoints } from "../src/notes/catchup";
 import { loadConfig } from "../src/config";
@@ -100,6 +104,87 @@ test("Deepgram: without punctuation (multi, Chinese), each utterance's last word
   const english = await dg.transcribe(audioFile(), "en");
   assert.deepEqual(english.words.map(w => !!w.endsSentence), [false, false]);
   assert.equal(english.detectedLanguage, "en");
+});
+
+test("Soniox: tokens become words: pieces of a word join, a space starts a word, each Chinese character is a word, punctuation joins", () => {
+  const tok = (text: string, s: number, language = "en") => ({ text, start_ms: s * 1000, end_ms: s * 1000 + 100, language });
+  const words = tokensToWords([tok("Op", 0), tok("port", 0.1), tok("unity", 0.2), tok(" cost", 0.4), tok(" is", 0.6), tok(" 3", 0.8), tok(".", 0.9), tok("5", 1), tok(",", 1.1),
+    tok(" 即", 1.5, "zh"), tok("係", 1.6, "zh"), tok("。", 1.7, "zh"), tok("So", 2, "en"), { text: "[laughter]", start_ms: 2500, end_ms: 2600, is_audio_event: true }, tok(" yes", 3), tok(".", 3.1)]);
+  assert.deepEqual(words.map(w => [w.text, w.start, w.end, w.language]), [
+    ["Opportunity", 0, 0.3, "en"], ["cost", 0.4, 0.5, "en"], ["is", 0.6, 0.7, "en"], ["3.5,", 0.8, 1.2, "en"],
+    ["即", 1.5, 1.6, "zh"], ["係。", 1.6, 1.8, "zh"], ["So", 2, 2.1, "en"], ["yes.", 3, 3.2, "en"]]);
+  assert.equal(joinTokens(words.map(w => w.text)), "Opportunity cost is 3.5, 即係。 So yes.");
+});
+
+test("Soniox: upload, transcribe with the class's hints, wait, read the tokens, then delete the transcription and the file", async t => {
+  let polls = 0;
+  const srv = await fakeServer(req => {
+    if (req.method === "POST" && req.url === "/v1/files") return { status: 201, body: JSON.stringify({ id: "file-1" }) };
+    if (req.method === "POST" && req.url === "/v1/transcriptions") return { status: 201, body: JSON.stringify({ id: "tr-1", status: "queued" }) };
+    if (req.method === "GET" && req.url === "/v1/transcriptions/tr-1") return { body: JSON.stringify({ id: "tr-1", status: ++polls < 2 ? "processing" : "completed", audio_duration_ms: 9000 }) };
+    if (req.method === "GET" && req.url === "/v1/transcriptions/tr-1/transcript") return { body: JSON.stringify({ text: "機會 cost", tokens: [
+      { text: "機", start_ms: 0, end_ms: 200, language: "zh" }, { text: "會", start_ms: 200, end_ms: 400, language: "zh" }, { text: " cost", start_ms: 500, end_ms: 900, language: "en" }] }) };
+    if (req.method === "DELETE") return { status: 204, body: "" };
+    return { status: 404, body: "no route" };
+  });
+  t.after(srv.close);
+  const sx = new SonioxAsync("sx-key", "stt-async-v6", 0.1, srv.url, 5);
+  const r = await sx.transcribe(audioFile(), "en-yue");
+  assert.deepEqual(r.words, [{ text: "機", start: 0, end: 0.2, language: "zh" }, { text: "會", start: 0.2, end: 0.4, language: "zh" }, { text: "cost", start: 0.5, end: 0.9, language: "en" }]);
+  assert.equal(r.durationSec, 9); assert.equal(r.detectedLanguage, "zh");
+  assert.deepEqual(srv.seen.map(s => `${s.method} ${s.url}`), ["POST /v1/files", "POST /v1/transcriptions", "GET /v1/transcriptions/tr-1", "GET /v1/transcriptions/tr-1",
+    "GET /v1/transcriptions/tr-1/transcript", "DELETE /v1/transcriptions/tr-1", "DELETE /v1/files/file-1"]);
+  assert.ok(srv.seen.every(s => s.headers.authorization === "Bearer sx-key"));
+  const form = await formOf(srv.seen[0]);
+  assert.equal(await (form.get("file") as Blob).text(), "m4a-bytes");
+  assert.deepEqual(JSON.parse(srv.seen[1].body.toString()), { model: "stt-async-v6", file_id: "file-1", language_hints: ["zh", "en"], enable_language_identification: true });
+  assert.deepEqual(sx.request("f", "en").language_hints, ["en"]);
+  assert.ok(Math.abs(sx.usd(3600) - 0.1) < 1e-12);
+});
+
+test("Soniox: a failed transcription is an error naming the reason, and is still deleted", async t => {
+  const srv = await fakeServer(req => req.url === "/v1/files" ? { status: 201, body: JSON.stringify({ id: "f" }) }
+    : req.method === "POST" ? { status: 201, body: JSON.stringify({ id: "x", status: "error", error_message: "audio is empty" }) } : { status: 204, body: "" });
+  t.after(srv.close);
+  await assert.rejects(new SonioxAsync("k", "stt-async-v6", 0.1, srv.url, 5).transcribe(audioFile(), "en"), /soniox.*audio is empty/);
+  assert.deepEqual(srv.seen.filter(s => s.method === "DELETE").map(s => s.url), ["/v1/transcriptions/x", "/v1/files/f"]);
+});
+
+test("AssemblyAI: upload the bytes, start the transcript for the class language, wait, words in seconds, then delete it", async t => {
+  let polls = 0;
+  const srv = await fakeServer(req => {
+    if (req.url === "/v2/upload") return { body: JSON.stringify({ upload_url: "https://cdn.example/up-1" }) };
+    if (req.method === "POST" && req.url === "/v2/transcript") return { body: JSON.stringify({ id: "t1", status: "queued" }) };
+    if (req.method === "GET" && req.url === "/v2/transcript/t1") return { body: JSON.stringify(++polls < 2 ? { id: "t1", status: "processing" }
+      : { id: "t1", status: "completed", language_code: "zh", audio_duration: 9, words: [{ text: "機會", start: 0, end: 400 }, { text: "cost.", start: 500, end: 900 }] }) };
+    if (req.method === "DELETE") return { body: JSON.stringify({ id: "t1", status: "completed" }) };
+    return { status: 404, body: "no route" };
+  });
+  t.after(srv.close);
+  const aai = new AssemblyAi("aai-key", "universal-2", 0.15, srv.url, 5);
+  const r = await aai.transcribe(audioFile(), "en-zh");
+  assert.deepEqual(r.words, [{ text: "機會", start: 0, end: 0.4 }, { text: "cost.", start: 0.5, end: 0.9 }]);
+  assert.equal(r.detectedLanguage, "zh"); assert.equal(r.durationSec, 9);
+  assert.deepEqual(srv.seen.map(s => `${s.method} ${s.url}`), ["POST /v2/upload", "POST /v2/transcript", "GET /v2/transcript/t1", "GET /v2/transcript/t1", "DELETE /v2/transcript/t1"]);
+  assert.ok(srv.seen.every(s => s.headers.authorization === "aai-key"));
+  assert.equal(srv.seen[0].body.toString(), "m4a-bytes");
+  assert.deepEqual(JSON.parse(srv.seen[1].body.toString()), { audio_url: "https://cdn.example/up-1", speech_models: ["universal-2"], punctuate: true, format_text: true,
+    language_detection: true, language_detection_options: { code_switching: true } });
+  /* English classes name the language; 3.7 mixes languages without being asked. */
+  assert.equal((aai.request("u", "en") as { language_code?: string }).language_code, "en");
+  assert.deepEqual(new AssemblyAi("k", "assemblyai-stt-3-7", 0.21).request("u", "en-yue"), { audio_url: "u", speech_models: ["assemblyai-stt-3-7"], punctuate: true, format_text: true, language_detection: true });
+});
+
+test("config: Soniox and AssemblyAI settings; another AssemblyAI model is priced at its own list price", () => {
+  const c = loadConfig({ STT_PROVIDER: "soniox", SONIOX_API_KEY: "s", ASSEMBLYAI_API_KEY: "a" });
+  assert.equal(c.stt.provider, "soniox");
+  assert.deepEqual(c.stt.soniox, { apiKey: "s", model: "stt-async-v6", usdPerHour: 0.1 });
+  assert.deepEqual(c.stt.assemblyai, { apiKey: "a", model: "assemblyai-stt-3-7", usdPerHour: 0.21 });
+  assert.equal(loadConfig({ ASSEMBLYAI_MODEL: "universal-2" }).stt.assemblyai.usdPerHour, 0.15);
+  assert.ok(Math.abs(createTranscriber(c, "assemblyai", "universal-2").usd(3600, "en-yue") - 0.15) < 1e-12);
+  assert.ok(Math.abs(createTranscriber(c, "assemblyai").usd(3600, "en-yue") - 0.21) < 1e-12);
+  assert.throws(() => loadConfig({ STT_PROVIDER: "whisper" }), /must be one of elevenlabs, deepgram, soniox, assemblyai/);
+  assert.deepEqual(missingKeys(loadConfig({ STT_PROVIDER: "assemblyai", DEEPSEEK_API_KEY: "d" })), ["ASSEMBLYAI_API_KEY"]);
 });
 
 test("config: Deepgram is the default speech-to-text service, mixed classes on multi", () => {

@@ -292,6 +292,24 @@ export const ZH: Record<string, string> = {
   "Choose what the date is for.": "請選擇日期的類型。", "The note can be at most 200 characters.": "備註最多 200 個字。", "This date is no longer on the radar.": "這個日期已經不在雷達上。",
   /* The built-in example notes (server/src/example.ts) */
   "These are example notes, so they cannot be saved. Record or upload a lecture to get notes like these.": "這是示例筆記，不能儲存。錄下或上載一堂課，就能得到這樣的筆記。",
+  /* The profile step and the About you card (pages/Profile.tsx): the designers' draft of 2026-11-24, with its own Chinese
+     (halfold(1).html). The consent sentences are the draft's wording; the server's messages about the form too. */
+  "One more step": "還有一步",
+  "This puts you with classmates on the same courses, so the notes they share are easy to find.": "這樣可以把你和同一門課的同學放在一起，更容易找到他們分享的筆記。",
+  "University": "大學", "What you study": "主修科目", "Year": "年級", "Graduating in": "畢業年份",
+  "Economics and Finance": "經濟及金融",
+  "Where you studied before university (optional)": "入讀大學前在哪裡讀書（可不填）",
+  "Year 1": "一年級", "Year 2": "二年級", "Year 3": "三年級", "Year 4 or above": "四年級或以上", "Taught master's": "授課型碩士", "Research postgraduate": "研究型研究生", "Other": "其他",
+  "Prefer not to say": "不想說", "Hong Kong": "香港", "Mainland China": "中國內地", "Taiwan": "台灣", "Macau": "澳門", "Somewhere else": "其他地方",
+  "Send me messages about jobs, further study and student offers that fit my course and year. Halfold sends them itself and does not pass my details to anyone.": "把適合我的課程和年級的招聘、升學和學生優惠訊息發給我。訊息由 Halfold 自己發出，不會把我的個人資料交給任何人。",
+  "Invite me to paid student surveys.": "邀請我參加有償的學生問卷調查。",
+  "Both are off unless you tick them, and you can change them in Settings at any time.": "兩項預設都不勾選，隨時可以在設定裡更改。",
+  "Save and continue": "儲存並繼續", "Skip for now": "暫時跳過", "About you": "關於你", "Save": "儲存",
+  "Tell Halfold your university and year": "告訴 Halfold 你的大學和年級", "It puts you with classmates on the same courses.": "這樣可以把你和同一門課的同學放在一起。", "Fill it in": "去填寫",
+  "Your university, what you study, your year and when you graduate, where you studied before university if you say, and your answers to the two optional boxes about messages and paid surveys, with when you gave or withdrew each.": "你的大學、主修科目、年級和畢業年份，你願意說的話還有入讀大學前在哪裡讀書，以及你對兩個可選項目（接收訊息、參加有償問卷）的選擇，和每次同意或取消的時間。",
+  "The university can be at most 80 characters.": "大學名稱最多 80 個字。", "What you study can be at most 80 characters.": "主修科目最多 80 個字。",
+  "Choose your year from the list.": "請從清單中選擇年級。", "Choose the year you graduate from the list.": "請從清單中選擇畢業年份。",
+  "Choose where you studied before university from the list.": "請從清單中選擇入讀大學前在哪裡讀書。", "Tick or untick each box.": "請勾選或取消勾選每一項。",
 };
 /* Sentences our server writes about video links (server/src/links: ytdlp.ts STUDENT_MESSAGE, guard.ts linkProblem). A
    failed lecture's reason (lecture.error) is backend text and normally shown as it is; these exact sentences are ours,
