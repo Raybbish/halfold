@@ -29,6 +29,7 @@ npm start                 # http://localhost:8787
 | `npm run plan -- list` / `show <邮箱或邀请码>` / `give <邮箱或邀请码> <天数>` | 看每个学生的方案和本月用量；手动给几天 Plus（测试的人，用 FPS、PayMe 转账的人，或补回退款扣掉的天数），不经过 Stripe |
 | `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本 |
 | `npm run feedback` | 学生在课堂页 “What is wrong in these notes?” 里写的反馈，新的在前（`-- --all` 看全部） |
+| `npm run signups` | 每天注册数，填了资料的人数，两个同意各占多少（交接文档第 8 项；`-- --days=90`、`-- --json`，见 API-CHANGES.md 第 14 节） |
 | `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
 
 ## 视频链接
@@ -55,7 +56,10 @@ npm start                 # http://localhost:8787
 
 1. 准备几段录音，最好包括粤语夹英文和普通话夹英文的课，每段 5 到 10 分钟就够。
 2. 可选：在录音旁边放一份人工整理的逐字稿 `<同名>.ref.txt`，会多算一个错误率。英文按词算，中文按字算，繁简不算错。数字的写法会算错（参考稿写 three、服务写 3 就算一个错），所以参考稿里的数字请用阿拉伯数字写。
-3. `npm run compare-stt -- --language en-yue 录音1.m4a 录音2.mp3`。默认跑 `elevenlabs:scribe_v3`、`elevenlabs:scribe_v2`、`deepgram:nova-3`，用 `--providers` 改。
+3. `npm run compare-stt -- --language en-yue 录音1.m4a 录音2.mp3`。默认跑 `deepgram:nova-3`、`soniox:stt-async-v6`、`assemblyai:universal-2`、`assemblyai:assemblyai-stt-3-7`，用 `--providers` 改（ElevenLabs 是 `elevenlabs:scribe_v3`）。每家都要在 `.env` 里有 key。
+   - 也可以直接写已经处理过的课的 id（`lec-…`，在 `npm run costs` 里能看到）：用它的录音和上课语言，表里多一行 `stored`，是当时 app 做出来的逐字稿，不用再花钱转一次。
+   - 加 `--notes`：每份逐字稿都用 app 现在的提示词写一份笔记（`<服务>.notes.md`，和没有课件的课一样），表里多两列：笔记要点数、考试提醒数。`stored` 那行也用现在的提示词重写一份，当时 app 给的笔记另存为 `stored.app-notes.md`（提示词可能改过，不好直接比）。
+   - 加 `--chunks 15`：再按现场录音的方式每 15 秒送一轮，看每轮要等多久。
 4. 看 `compare-out/summary.md` 和各家的逐字稿 `compare-out/<录音>/<服务>.txt`。然后在 `.env` 里设 `STT_PROVIDER`（以及 `ELEVENLABS_MODEL` 或 `DEEPGRAM_LANGUAGES`）。
 
 2026-11-13 用一段 62 秒的英文夹粤语录音（macOS 语音合成，不是真实课堂）试过：
@@ -82,6 +86,38 @@ npm start                 # http://localhost:8787
 | | `multi` | 15% | |
 
 所以混合语言的课默认用 `multi`（`DEEPGRAM_LANGUAGES`）。粤语夹英文仍然比 ElevenLabs 差很多（会整句丢英文），ElevenLabs 有额度时可以 `STT_PROVIDER=elevenlabs` 换回去。
+
+2026-11-23 查到的两家便宜的（价格是官网价目表，还没实测）：
+
+| 服务 | 每小时 | 粤语 | 中英夹杂 | 现场录音 |
+|---|---|---|---|---|
+| Soniox `stt-async-v6` | US$0.10 | 文档只列中文 `zh`，没有单独的粤语 | 同一句里换语言也行，每个词标语言；请求里给 `language_hints` | 我们的现场录音是每 15 秒发一个文件，按文件价算；Soniox 另有 WebSocket 实时接口 US$0.12/小时 |
+| AssemblyAI `universal-2` | US$0.15 | 没有，只有“中文” | 要开 `code_switching`，只能两种语言、其中一种是英文 | 同上按文件价；实时接口 `assemblyai-stt-3-7-realtime` US$0.30/小时 |
+| AssemblyAI `assemblyai-stt-3-7` | US$0.21 | 有，和普通话分开列 | 自动 | |
+
+对照：ElevenLabs `scribe_v3` US$0.20，Deepgram `nova-3` `multi` US$0.312（比 ElevenLabs 贵）。Soniox 的文件和转写用完就删（`stt/soniox.ts`）。
+
+2026-11-24 实测 AssemblyAI。录音是 `npm run costs` 里那五堂测试课，加 `compare-out/clips/` 的四段片段。ElevenLabs 没额度了，用的是 app 当时存下的 ElevenLabs 逐字稿（`stored`）。笔记都用现在的提示词，从各家的逐字稿重写一份（`--notes`）：
+
+| 录音 | ElevenLabs（当时） | Deepgram `nova-3` | AssemblyAI `universal-2`（US$0.15） | AssemblyAI `assemblyai-stt-3-7`（US$0.21） | 换不换 |
+|---|---|---|---|---|---|
+| 四堂短英文课（0:11、1:25、3:26、5:04） | 参照 | 差不多 | 差不多 | 差不多 | 两个都能换 |
+| 90 分钟英文访谈，夹中文（`lec-BVH3u3HUg81s`） | 268 个中文字，人名都对 | 中文全丢；笔记里两处听错、看起来又可信的事实（Fore 语写成 Fijian，Mencius 写成 Confucius） | 中文全丢；漏 Mencius、Jared Diamond；笔记一处听错的词 | 251 个中文字，天时地利人和在；人名和 ElevenLabs 一样；笔记一处书名听错 | `stt-3-7` 换，`universal-2` 不换 |
+| 英文句子里夹中文词（2:31，从上面那堂剪的） | 时势、英雄、天时地利人和都在 | 设成英文、自动都丢 | 只有设成自动、整段转的时候在；每 15 秒一轮就丢 | 设成英文、自动都有天时地利人和；时势、英雄写成拼音 | `stt-3-7` 换 |
+| 粤语夹英文（0:35，macOS 合成语音，人工稿） | 11-13 另一段 62 秒：4.6% | 20.5%：丢两句英文，没有标点 | 2.5%：考试写成校试，concept 翻成了“概念” | 0%：粤语口语字、繁体、英文都对 | `stt-3-7` 换 |
+| 普通话广告夹英文（3:00，没有人工稿） | - | 157 个中文字 / 301 个英文词 | 195 / 327 | 194 / 356 | 没有参考稿，只看得出 Deepgram 少了一截 |
+
+- 现场录音每 15 秒送一轮（`--chunks 15`），每轮要等：Deepgram 0.5 到 0.9 秒（最慢 2 秒）；AssemblyAI 平均 4 到 6 秒，最慢 8.3 秒。录音页每段最多等 8 秒（`LIVE_REPLY_WAIT_MS`），超过的那段文字晚一轮（15 秒）才出来。
+- 笔记：同一份 ElevenLabs 逐字稿跑两次，要点一次 59 条、一次 94 条，所以要点数主要是写笔记的模型自己在变。90 分钟那堂逐条对过：`stt-3-7` 和 ElevenLabs 差不多，`universal-2` 稍差，Deepgram 差一些。
+- 每小时成本（按成本表 ElevenLabs 每小时约 HK$2.23、其中转写约 HK$1.68 换算）：ElevenLabs 约 HK$2.23；`assemblyai-stt-3-7` 约 HK$2.31；`universal-2` 约 HK$1.81；Deepgram `multi` 约 HK$3.17；Soniox 约 HK$1.39（还没测）。
+
+所以：混合语言的课（粤英、普英、英文课里讲中文词）用 `assemblyai-stt-3-7`（`ASSEMBLYAI_MODEL` 的默认值）。它比现在的 Deepgram `multi` 便宜三分之一，质量和 ElevenLabs 差不多，但不比 ElevenLabs 便宜。`universal-2` 便宜 25%，纯英文课没问题，可英文课里的中文词会丢、粤语里的英文词会被翻成中文。比 ElevenLabs 便宜的只剩 Soniox 没测。这批测试也太少：五堂课都是英文，粤语只有一段 35 秒的合成语音，要定下来还需要一两堂真实的粤语课和普通话课。
+
+AssemblyAI 上线前要知道的（2026-11-24 查的官网）：
+- 上传的文件 48 小时内自动删除，没有删除接口；转写结果用完就删（`stt/assemblyai.ts`）。
+- 免费额度同时只能处理 5 个（大约够 15 个人同时现场录音），绑卡付费后 200 个以上，超过的排队。
+- 服务条款允许拿客户的音频训练模型。付费账户可以在 Data Controls 里关掉；或者用欧洲服务器 `api.eu.assemblyai.com`，那边不拿来训练。
+- 默认在美国处理。隐私页写的是“按服务种类和所在地”，换服务时要对一下。
 
 Deepgram 只给英文（`en`）加标点，`multi` 和中文都没有标点，整段只有一个段落。所以请求里加 `utterances=true&utt_split=0.6`（按音频里的停顿切，平均 3 到 4 秒一段），回复没有标点时把每段的最后一个词当作句末（`Word.endsSentence`），逐字稿照样按句分行，现场录音的“未说完的句子留到下一轮”也照样按句。
 

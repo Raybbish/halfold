@@ -17,6 +17,7 @@ export interface Config {
   SHARE_AUDIO: boolean;
   SIGN_IN: "invite" | "email";
   CONTACT_EMAIL: string | null;
+  SCHOOLS: string[];
 }
 
 declare global {
@@ -33,7 +34,14 @@ const DEFAULTS: Config = {
   EXAMPLE_SHARE_ID: "econ-w9", // the shared lecture behind "Example notes" on the public pages. null hides those links
   SHARE_AUDIO: false,      // true = classmates with a share link can also play the recording
   SIGN_IN: "invite",       // "email" = a 6-digit code sent to the student's email, and an invite code the first time (the backend sets it)
-  CONTACT_EMAIL: null      // where students write, on the Privacy page (the backend sets it from its CONTACT_EMAIL); null = "to be decided"
+  CONTACT_EMAIL: null,     // where students write, on the Privacy page (the backend sets it from its CONTACT_EMAIL); null = "to be decided"
+  /* Suggestions under University on the profile form; any text is accepted, and the school the email address points to
+     comes first. The designers' draft lists Hong Kong; Halfold is for every Chinese-speaking student, so Macau, Taiwan,
+     the mainland and a few schools abroad are added. */
+  SCHOOLS: ["HKUST", "HKU", "CUHK", "PolyU", "CityU", "HKBU", "Lingnan", "EdUHK", "HKMU", "HKSYU", "HSUHK",
+    "UM (Macau)", "MUST (Macau)", "NTU (Taiwan)", "NTHU", "NYCU", "NCKU", "NCCU",
+    "Peking University", "Tsinghua University", "Fudan University", "Shanghai Jiao Tong University", "Zhejiang University", "Sun Yat-sen University", "CUHK-Shenzhen",
+    "NUS", "NTU (Singapore)", "UCL", "Imperial College London", "University of Toronto", "UBC", "University of Melbourne", "University of Sydney"]
 };
 
 export const CONFIG: Config = { ...DEFAULTS, ...(window.SIDENOTE_CONFIG || {}) };

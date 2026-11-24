@@ -13,7 +13,20 @@ import { slideLabels } from "./notes/normalize";
 export interface UserRow {
   id: string; invite_code: string; name: string; class_language: string; zh_default: number; zh_script: string | null;
   email: string | null; stripe_customer: string | null;
+  signed_up_at: string | null;   // when the email was bound to the account: a sign-up; null for accounts from before 2026-11-24
 }
+/* The profile and consents asked for after the first sign-in (profile.ts). Fields "" or null: not given (origin "" is also
+   "Prefer not to say"). consent_*: 1 given, 0 not, null never answered; consent_*_at: when that choice was made.
+   saved_at: when the profile was first saved (the student is not asked again); skipped_at: when "Skip for now" was chosen. */
+export interface ProfileRow {
+  user_id: string; school: string | null; major: string | null; year_of_study: string | null; grad_year: number | null; origin: string | null;
+  consent_marketing: number | null; consent_marketing_at: string | null; consent_survey: number | null; consent_survey_at: string | null;
+  saved_at: string | null; skipped_at: string | null; updated_at: string;
+}
+/* Every consent answer and change, kept: given 1 or 0; wording: which text was shown (profile.ts CONSENT_WORDING);
+   source: first (the first time the profile was saved) or change (a later save, in Settings or on the form again). */
+export interface ConsentRow { id: number; user_id: string; kind: "marketing" | "survey"; given: number; wording: string; source: string; created_at: string }
+export type ProfileFields = Partial<Pick<ProfileRow, "school" | "major" | "year_of_study" | "grad_year" | "origin">>;
 export interface LoginCodeRow { email: string; code_hash: string; expires_at: string; tries: number; created_at: string }
 /* The student's paid time: passes bought (and days given by hand: npm run plan -- give) add up in one row. plan: the
    plan id in plans.json; card: the pass last bought, the card shown as "Your plan" (null: days given by hand). */
@@ -113,6 +126,13 @@ CREATE TABLE IF NOT EXISTS checkouts (
 CREATE TABLE IF NOT EXISTS quota (
   kind TEXT NOT NULL, ref TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (kind, ref));
 CREATE INDEX IF NOT EXISTS quota_user ON quota(user_id, kind, created_at);
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, school TEXT, major TEXT, year_of_study TEXT, grad_year INTEGER, origin TEXT,
+  consent_marketing INTEGER, consent_marketing_at TEXT, consent_survey INTEGER, consent_survey_at TEXT, saved_at TEXT, skipped_at TEXT, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS consents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, kind TEXT NOT NULL, given INTEGER NOT NULL,
+  wording TEXT NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS consents_user ON consents(user_id, kind, id);
 CREATE TABLE IF NOT EXISTS costs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, lecture_id TEXT NOT NULL, user_id TEXT, stage TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
   audio_seconds REAL, input_tokens INTEGER, cached_input_tokens INTEGER, output_tokens INTEGER, reasoning_tokens INTEGER, usd REAL,
@@ -133,7 +153,8 @@ const ADDED: [string, string, string][] = [
   ["lectures", "audio_expired", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "live_held", "TEXT"], ["lectures", "live_gaps", "TEXT"],
   ["lectures", "share_id", "TEXT"], ["lectures", "share_url", "TEXT"], ["lectures", "refile", "INTEGER NOT NULL DEFAULT 0"], ["lectures", "copied_from", "TEXT"],
   ["lectures", "link", "TEXT"], ["lectures", "public_error", "TEXT"], ["lectures", "auto_title", "INTEGER NOT NULL DEFAULT 0"],
-  ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"],
+  ["users", "email", "TEXT"], ["users", "stripe_customer", "TEXT"], ["sessions", "last_used", "TEXT"], ["users", "signed_up_at", "TEXT"],
+  ["profiles", "saved_at", "TEXT"], ["profiles", "skipped_at", "TEXT"],   // a database made with the first version of PR 22 (never deployed)
   /* One-time payments and refunds (2026-11-24). */
   ["passes", "card", "TEXT"], ["checkouts", "plan", "TEXT"], ["checkouts", "days", "INTEGER"], ["checkouts", "payment_intent", "TEXT"],
   ["checkouts", "returned", "REAL NOT NULL DEFAULT 0"]
@@ -216,14 +237,53 @@ export class Store {
   }
   endSession(token: string) { this.db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token)); }
   userByEmail(email: string) { return this.db.prepare("SELECT * FROM users WHERE email = ?").get(email) as UserRow | undefined; }
-  /* Binds an address to an invite code's account; false when the account already has one or the address is taken. */
+  /* Binds an address to an invite code's account; false when the account already has one or the address is taken. This
+     is the student's sign-up: its time is kept (daily sign-ups, scripts/signups.ts; the profile asked for, profile.ts). */
   bindEmail(userId: string, email: string) {
-    try { return Number(this.db.prepare("UPDATE users SET email = ? WHERE id = ? AND email IS NULL").run(email, userId).changes) > 0; }
+    try { return Number(this.db.prepare("UPDATE users SET email = ?, signed_up_at = ? WHERE id = ? AND email IS NULL").run(email, now(), userId).changes) > 0; }
     catch (e) { if (/UNIQUE/i.test((e as Error).message)) return false; throw e; }
   }
   setSettings(id: string, s: { name: string; classLanguage: string; zhDefault: boolean; zhScript?: string }) {
     this.db.prepare("UPDATE users SET name = ?, class_language = ?, zh_default = ?, zh_script = COALESCE(?, zh_script) WHERE id = ?")
       .run(s.name, s.classLanguage, s.zhDefault ? 1 : 0, s.zhScript ?? null, id);
+  }
+
+  /* ---- the profile and consents asked for after the first sign-in (profile.ts) ---- */
+  profile(userId: string) { return this.db.prepare("SELECT * FROM profiles WHERE user_id = ?").get(userId) as ProfileRow | undefined; }
+  /* Saves the fields given and the consents given, in one go. A consent is logged (consents) when it is answered the first
+     time or changes; saving it unchanged keeps its time. */
+  saveProfile(userId: string, fields: ProfileFields, consents: { marketing?: boolean; survey?: boolean }, o: { wording: string }) {
+    this.tx(() => {
+      const at = now();
+      this.db.prepare("INSERT OR IGNORE INTO profiles (user_id, updated_at) VALUES (?, ?)").run(userId, at);
+      const source = this.profile(userId)!.saved_at ? "change" : "first";
+      const cols = (Object.keys(fields) as (keyof ProfileFields)[]).filter(k => fields[k] !== undefined);
+      if (cols.length) this.db.prepare(`UPDATE profiles SET ${cols.map(c => c + " = ?").join(", ")}, updated_at = ? WHERE user_id = ?`).run(...cols.map(c => fields[c] ?? null), at, userId);
+      const row = this.profile(userId)!;
+      for (const kind of ["marketing", "survey"] as const) {
+        const want = consents[kind];
+        if (want === undefined || row[`consent_${kind}`] === (want ? 1 : 0)) continue;
+        this.db.prepare(`UPDATE profiles SET consent_${kind} = ?, consent_${kind}_at = ? WHERE user_id = ?`).run(want ? 1 : 0, at, userId);
+        this.db.prepare("INSERT INTO consents (user_id, kind, given, wording, source, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(userId, kind, want ? 1 : 0, o.wording, source, at);
+      }
+      this.db.prepare("UPDATE profiles SET saved_at = COALESCE(saved_at, ?), updated_at = ? WHERE user_id = ?").run(at, at, userId);
+    });
+    return this.profile(userId)!;
+  }
+  /* "Skip for now": kept, so the student is not asked again on another device. */
+  skipProfile(userId: string) {
+    const at = now();
+    this.db.prepare(`INSERT INTO profiles (user_id, skipped_at, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET skipped_at = COALESCE(skipped_at, excluded.skipped_at)`).run(userId, at, at);
+  }
+  consentLog(userId?: string) {
+    return (userId ? this.db.prepare("SELECT * FROM consents WHERE user_id = ? ORDER BY id").all(userId) : this.db.prepare("SELECT * FROM consents ORDER BY id").all()) as unknown as ConsentRow[];
+  }
+  /* Every account that has signed in with an email, with its profile (null fields when it has none). */
+  accountsWithProfiles() {
+    return this.db.prepare(`SELECT users.id, users.signed_up_at, profiles.saved_at, profiles.skipped_at, profiles.consent_marketing, profiles.consent_survey
+      FROM users LEFT JOIN profiles ON profiles.user_id = users.id WHERE users.email IS NOT NULL ORDER BY users.signed_up_at`).all() as unknown as
+      { id: string; signed_up_at: string | null; saved_at: string | null; skipped_at: string | null; consent_marketing: number | null; consent_survey: number | null }[];
   }
 
   /* ---- codes sent by email to sign in ---- */

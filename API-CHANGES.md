@@ -466,3 +466,52 @@
 - 后端把它放进页面的 `window.SIDENOTE_CONFIG.CONTACT_EMAIL`（只在设了时）；前端的 `CONFIG.CONTACT_EMAIL` 默认是 `null`。
 - 线上定为 `support@halfold.app`，用 Cloudflare Email Routing 转发。转发设好、能收到信之后，再在服务器上设这个值（`halfold env`）。
 - 隐私页的“谁处理你的数据”改为按服务类别和所在地写（语音转文字服务在美国，AI 模型服务在中国内地，付款服务、邮件发送服务），不写服务商名字；服务器写成“新加坡的云服务商”。换服务商时只要所在地没变，这一页就不用改；所在地变了要同步改 `src/pages/Privacy.tsx`。
+
+## 14. 注册后的资料和两个同意（2026-11-24，交接文档第 4 项，按设计师 11-24 稿）
+
+第一次登录后问一次资料和两个同意，设置页随时可改资料、取消同意。做法和字段跟设计师 11 月 24 日的稿（`halfold(1).html` 的 `profileFields`、`readProfile`、`needsWelcome`、`welcomePage`、`saveProfile`、`skipProfile`）一致。登录接口（`/session`）没有改。
+
+### 字段名（`src/types.ts` 的 `Profile`）
+
+每一项都可以不填。`""`（`gradYear` 是 `null`）就是没填。
+
+| 字段 | 值 |
+|---|---|
+| `school` | 文本，最长 80 字，任何文字都可以。前端有建议列表（`CONFIG.SCHOOLS`），并按邮箱域名预填（`schoolGuess`） |
+| `major` | 文本，最长 80 字（界面上是 “What you study”） |
+| `yearOfStudy` | `y1`、`y2`、`y3`、`y4`（四年级或以上）、`tpg`（授课型硕士）、`rpg`（研究型研究生）、`other`，或 `""` |
+| `gradYear` | 四位数年份，或 `null`。表单给今年到六年后；服务器收今年前后 10 年内的，`"2028"` 和 `2028` 都收，返回数字 |
+| `origin` | 入读大学前在哪里读书：`hk`、`cn`、`tw`、`mo`（澳门）、`other`，或 `""`（“Prefer not to say”，也是默认） |
+| `consentMarketing` | 布尔值：愿意接收适合自己课程和年级的招聘、升学和学生优惠信息。默认不勾 |
+| `consentSurvey` | 布尔值：愿意参加有偿的学生问卷调查。默认不勾 |
+| `consentMarketingAt`、`consentSurveyAt` | 这个选择是什么时候做的（ISO 时间）：同意、取消，或第一次存时没勾；没存过是 `null`。只读 |
+
+### `getHome`
+
+- `user.profile`：上面的 `Profile`；**还没存过时是 `null`**。前端在去主页时看到 `null`，就先跳到 `#/welcome`（和稿里的 `needsWelcome` 一样：有没录完的录音时不跳）。不认识资料的服务器不给这个字段，前端就不问，设置页也不显示“About you”。
+- `user.profileSkipped`：学生点过 “Skip for now”、之后还没存过资料时是 `true`，否则不给。
+- `schoolGuess`：`{ en, zhHant, zhHans }`，邮箱域名对得上学校、而且还没存学校时才有（`server/src/schools.ts`，内地、港澳台和海外常见学校）。海外学校三种语言都是英文名。
+
+### `updateProfile`：`PUT /profile`
+
+- body 是上面七个可写字段的任意几个：给了的存，没给的不动。前端每次都发七个（跟稿里的 `readProfile` 一样，`gradYear` 是字符串，没选是 `""`）。
+- 返回 `{ profile }`。第一次存（哪怕什么都没填）之后，`user.profile` 就不再是 `null`，不会再问。
+- 值不对回 400，`message` 可以直接显示（中文在 `src/i18n/zh.ts`）。
+- 同意第一次存或改变时，记下时间，并在 `consents` 表另记一行（同意/不同意、显示的文字版本 `CONSENT_WORDING`、`first` 或 `change`、时间），所以每次同意和取消都查得到。存同样的值不记、时间不变。
+
+### “Skip for now”：`POST /profile/later`
+
+- 谁都可以跳过，新注册的也一样。前端先在浏览器里记下（`sidenote.welcomed`，和稿一样；登出时清掉，免得同一部电脑上的下一个人不被问），再调这个接口，成功回 204。
+- 服务器也记下来，`GET /home` 之后带 `user.profileSkipped: true`，所以换一部设备也不会再问。只看 `user.profile === null` 的前端（比如稿本身）照样能用，只是换设备会再问一次。
+- 跳过的人在主页看到一行提示 “Tell Halfold your university and year”，点了回到 `#/welcome`；设置页的 “About you” 也能填。
+
+### 同意的文字
+
+- 用稿里的写法，中英文都是稿里的（`src/pages/Profile.tsx`、`src/i18n/zh.ts`），`CONSENT_WORDING` 是 `draft-2026-11-24`。定稿来了改这两处，并改 `server/src/profile.ts` 的 `CONSENT_WORDING`，这样每个回答都对得上当时看到的文字。
+- 两个勾选框各自独立，不和服务条款合在一起（现在登录流程里没有服务条款的勾选）。
+- 稿里欢迎页的推广码一栏没有做：付款还没接上。
+
+### 数字（交接文档第 8 项）
+
+- `cd server && npm run signups`：最近 30 天每天注册数（按 `APP_TIMEZONE`），存过资料、跳过了还没存、两样都还没有的人数，以及两个同意各占回答过的人多少、同意后又取消的人数。`-- --days=90` 换天数，`-- --json` 出 JSON。
+- 注册时间是邮箱绑定到账户的时间（`users.signed_up_at`）。2026-11-24 之前注册的账户没有这个时间，单独计数。

@@ -16,6 +16,7 @@
     "plan": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/plan.ts",
     "costs": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/costs.ts",
     "feedback": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/feedback.ts",
+    "signups": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/signups.ts",
     "compare-stt": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/compare-stt.ts"
   },
   "dependencies": {

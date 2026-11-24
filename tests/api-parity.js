@@ -47,6 +47,10 @@ async function run(target) {
 
 (async () => {
   const [a, b] = [await run('legacy'), await run('dist')];
+  /* Added after the migration, so not in sidenote.html: the sample student's profile (sign-up profile, 2026-11-24),
+     which the sample build shows in Settings. Everything else must still match. */
+  if (b.data) delete b.data.profile;
+  if (b.getHome && b.getHome.user) delete b.getHome.user.profile;
   let pass = 0, total = 0;
   for (const k of Object.keys(a)) {
     total++; const ok = JSON.stringify(a[k]) === JSON.stringify(b[k]);

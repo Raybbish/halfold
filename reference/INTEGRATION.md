@@ -98,6 +98,8 @@
 | `getPlans()` | `GET /plans` | 见 3.4 |
 | `startCheckout(planId)` | `POST /checkout` | `{ url }`，浏览器会跳到这个地址 |
 | `updateSettings({name, classLanguage, zhDefault, zhScript})` | `PUT /settings` | 无 |
+| `updateProfile({school, major, yearOfStudy, gradYear, origin, consentMarketing, consentSurvey})` | `PUT /profile` | `{ profile }`，见 3.5 |
+| `profileLater()` | `POST /profile/later` | 无（学生点了 “Skip for now”，见 3.5） |
 
 路径只是建议。想换路径，改 `api` 里对应那一行即可。上一版的导出接口 `exportLecture` 已经去掉，导出现在全部在浏览器里完成。
 
@@ -124,7 +126,7 @@
 
 ```json
 {
-  "user": { "name": "Jasper" },
+  "user": { "name": "Jasper", "profile": null },
   "courses": [{ "id": "econ1001", "code": "ECON 1001", "name": "Principles of Microeconomics", "color": "#FF6B57" }],
   "lectures": [{ "id": "econ-w9", "course": "econ1001", "title": "...", "week": 9, "date": "Tue 10 Nov", "duration": 5400, "status": "ready", "shareUrl": null }],
   "upcoming": [{ "date": "2026-11-26", "kind": "Midterm", "text": "...", "course": "ECON 1001", "lecture": "econ-w9", "t": 18 }],
@@ -136,6 +138,7 @@
 ```
 
 - `course.color`、`lecture.week`、`week`、`usage`、`today` 都可以不给，界面会自动隐藏对应部分。
+- `user.profile`、`user.profileSkipped` 和 `schoolGuess`：学生的资料和两个同意，见 3.5。不给 `user.profile` 时前端不问资料。
 - `usage.audioDays` 是当前套餐下录音保留的天数，给了就显示在设置页。会员功能上线前不用给。
 - `settings.zhScript` 是用户选的中文解釋写法：`hant`（繁體）或 `hans`（简体）。用户没选过就不要给，前端会按浏览器语言决定起始写法。
 - `today` 是用户所在地的当天日期（`YYYY-MM-DD`），用来算倒计时。不给的话前端用设备的本地日期。
@@ -215,6 +218,27 @@
 - `current` 是用户现在的方案 id，对应的卡片显示"Your plan"，其余显示"Choose this plan"。
 - 点"Choose this plan"会调 `startCheckout(planId)`，然后跳到返回的 `url`。付款完成后请把用户带回 `#/settings`。
 - `name`、`priceText`、`features` 都是直接显示的文字，不会被翻译。需要中文的话，后端按用户语言返回。目前界面语言只存在浏览器里，后端拿不到；要做的话可以加一个请求头或设置项。
+
+### 3.5 资料和两个同意（`user.profile`）
+
+第一次登录后问一次，设置页的 “About you” 随时可改（交接文档第 4 项；设计师 2026-11-24 的稿）。
+
+```json
+{
+  "school": "HKUST", "major": "Economics and Finance", "yearOfStudy": "y2", "gradYear": 2028, "origin": "hk",
+  "consentMarketing": false, "consentSurvey": true,
+  "consentMarketingAt": "2026-11-24T08:00:00.000Z", "consentSurveyAt": "2026-11-24T08:00:00.000Z"
+}
+```
+
+- 每一项都可以不填：文本和选项是 `""`，`gradYear` 是 `null`。
+- `yearOfStudy`：`y1`、`y2`、`y3`、`y4`（四年级或以上）、`tpg`（授课型硕士）、`rpg`（研究型研究生）、`other`。
+- `gradYear`：四位数年份。表单列出今年到六年后。
+- `origin`：入读大学前在哪里读书，`hk`、`cn`、`tw`、`mo`、`other`；`""` 是 “Prefer not to say”。
+- `consentMarketing`、`consentSurvey`：两个同意，各自独立，默认都是 `false`。`consentMarketingAt`、`consentSurveyAt` 是这个选择是什么时候做的，没存过是 `null`，只读。
+- `GET /home` 的 `user.profile` 在学生存过一次之前是 `null`，前端在去主页时就先打开 `#/welcome`。学生点 “Skip for now” 时前端在浏览器里记下，并调 `profileLater()`；之后 `user.profileSkipped` 是 `true`，换设备也不再问，主页只显示一行提示。
+- `schoolGuess`（`GET /home` 顶层）：`{ en, zhHant, zhHans }`，邮箱域名对得上学校、还没存学校时才给，前端拿来预填 “University”。
+- `updateProfile` 给了的字段才存，没给的不动；返回 `{ profile }`。第一次存（哪怕什么都没填）之后就不再问。同意每次改变都要记下时间。
 
 ## 4. 录音保留与回放
 
