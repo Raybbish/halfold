@@ -4,12 +4,15 @@
 import fs from "node:fs";
 import { Readable } from "node:stream";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
+import { createHash } from "node:crypto";
 import busboy from "busboy";
 import type { FileStore } from "../files";
 import { HttpError } from "./errors";
 
-/* fields: the form's other fields, whether they came before or after the file (the live recorder sends "seq" after "audio"). */
-export interface Received { tempPath: string; filename: string; mimeType: string; bytes: number; fields: Record<string, string> }
+/* fields: the form's other fields, whether they came before or after the file (the live recorder sends "seq" after "audio").
+   sha256: of the file's bytes, in hex, worked out as they arrive (an upload that is the same file as one already
+   transcribed reuses its transcript: dedupe.ts). */
+export interface Received { tempPath: string; filename: string; mimeType: string; bytes: number; sha256: string; fields: Record<string, string> }
 
 const tooBig = (maxBytes: number) => new HttpError(413, `That file is larger than ${Math.round(maxBytes / 1048576)} MB.`);
 
@@ -30,7 +33,8 @@ export async function receiveFile(req: Request, files: FileStore, field: string,
   catch { throw new HttpError(400, "Send the file as multipart/form-data."); }
 
   return new Promise<Received>((resolve, reject) => {
-    let settled = false, got: Omit<Received, "tempPath" | "bytes" | "fields"> | null = null, bytes = 0, overLimit = false;
+    let settled = false, got: Omit<Received, "tempPath" | "bytes" | "sha256" | "fields"> | null = null, bytes = 0, overLimit = false;
+    const hash = createHash("sha256");
     const fields: Record<string, string> = {};
     let out: fs.WriteStream | null = null, written: Promise<void> = Promise.resolve();
     const source = Readable.fromWeb(req.body as unknown as WebReadableStream<Uint8Array>);
@@ -49,7 +53,7 @@ export async function receiveFile(req: Request, files: FileStore, field: string,
       out = fs.createWriteStream(tempPath);
       written = new Promise((ok, bad) => { out!.on("finish", ok); out!.on("error", bad); });
       written.catch(e => stop(e));
-      stream.on("data", (d: Buffer) => { bytes += d.length; });
+      stream.on("data", (d: Buffer) => { bytes += d.length; hash.update(d); });
       stream.on("limit", () => { overLimit = true; stop(tooBig(maxBytes)); });
       stream.on("error", e => stop(e));
       stream.pipe(out);
@@ -60,7 +64,7 @@ export async function receiveFile(req: Request, files: FileStore, field: string,
       if (settled) return;
       if (overLimit) return stop(tooBig(maxBytes));
       if (!got) return stop(new HttpError(400, "No file was sent."));
-      written.then(() => { if (settled) return; settled = true; resolve({ tempPath, bytes, fields, ...got! }); }, e => stop(e));
+      written.then(() => { if (settled) return; settled = true; resolve({ tempPath, bytes, sha256: hash.digest("hex"), fields, ...got! }); }, e => stop(e));
     });
     /* The request was cut off (the student cancelled, or the connection dropped): an ordinary error, not a server fault. */
     const cutOff = () => stop(new HttpError(400, "The upload did not finish. Please try again."));

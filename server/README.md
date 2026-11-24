@@ -27,7 +27,7 @@ npm start                 # http://localhost:8787
 | `npm test` | 类型检查和全部测试（转写服务和 DeepSeek 用假实现，不花钱） |
 | `npm run invite -- add <code> [名字]` / `new` / `list` | 管理邀请码。一个码就是一个账号；邮箱第一次登录时用一次，绑定后用邮箱登录 |
 | `npm run plan -- list` / `show <邮箱或邀请码>` / `give <邮箱或邀请码> <天数>` | 看每个学生的方案和本月用量；手动给几天 Plus（测试的人，或用 FPS、PayMe 转账的人），不经过 Stripe |
-| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本 |
+| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本；同一堂课去重的合并率和每堂课的录音份数 |
 | `npm run feedback` | 学生在课堂页 “What is wrong in these notes?” 里写的反馈，新的在前（`-- --all` 看全部） |
 | `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
 
@@ -240,3 +240,4 @@ test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的
 - 首页的本周统计（`week`）：学习进度和测验分数已经存了，但“本周”“已掌握的闪卡”“平均分”怎么算还没定，不给时前端不显示这一栏。
 - 分享页的录音（4.3）：默认不带，要带是产品和合规上的决定。
 - 搜索逐字稿和中文解释（API-CHANGES.md 第 4 节说以后再考虑）。
+- 同一堂课去重的第 2、3 步（比对文字稿、现场录音），等《同一堂课去重》的详细规则；第 1 步（同一文件、同一个 YouTube 视频）见 DESIGN.md 最后一节。
