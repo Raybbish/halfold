@@ -1,5 +1,6 @@
 /* ---------- new lecture ----------
-   Record with the microphone, record a browser tab (online class), upload a file, or paste a video link.
+   Record with the microphone, record a browser tab (online class), upload a file, paste a video link, or make a study
+   pack from the slide deck alone (Slides only: no recording, and it does not use the recording time).
    What has been typed or chosen is kept in nf, as before, so it is still there after a redraw or an error. */
 import type { ReactNode } from "react";
 import type { Lecture, Source } from "../types";
@@ -77,16 +78,19 @@ export function NewLecture() {
       <button role="radio" aria-checked={m === "upload"} className={m === "upload" ? "on" : ""} onClick={mode("upload")}><b><span className="w">{t("Upload a recording")}</span><span className="n">{t("Upload")}</span></b><span className="small muted d">{t("Audio or video file you already have.")}</span></button>
       <button role="radio" aria-checked={m === "link"} className={m === "link" ? "on" : ""} onClick={mode("link")}><b><span className="w">{t("Paste a lecture video link")}</span><span className="n">{t("Video link")}</span></b><span className="small muted d">{t("For classes with an online replay.")}</span></button>
       {CAN_TAB ? <button role="radio" aria-checked={m === "tab"} className={m === "tab" ? "on" : ""} onClick={mode("tab")}><b><span className="w">{t("Record an online class")}</span><span className="n">{t("Online class")}</span></b><span className="small muted d">{t("Capture the sound of a browser tab, such as Zoom in the browser. Desktop Chrome or Edge.")}</span></button> : null}
+      <button role="radio" aria-checked={m === "slides"} data-act="mode-slides" className={m === "slides" ? "on" : ""} onClick={mode("slides")}><b><span className="w">{t("Slides only, no recording")}</span><span className="n">{t("Slides only")}</span></b><span className="small muted d">{t("A study pack from the slide deck: explanations, key points, flashcards and a quiz.")}</span></button>
     </div>
     <form className="card" style={css("padding:22px;max-width:640px")} onSubmit={e => { e.preventDefault(); submitNew(); }}>
       <CourseField />
       <label className="field"><span>{t("Title (optional)")}</span><input placeholder={t("Week 10, supply and demand")} maxLength={120} defaultValue={nf.title} onChange={e => { nf.title = e.currentTarget.value; }} /></label>
       {m === "upload" ? <div className="field"><span>{t("Recording")}</span><FileBox k="file" id="fRec" accept="audio/*,video/*" empty={<>{t("Drop an audio or video file here, or ")}<button type="button" className="ts" style={css("font-size:inherit")} onClick={() => document.getElementById("fRec")!.click()}>{t("choose a file")}</button><div className="small">{t("MP3, M4A, WAV, MP4. Up to " + CONFIG.MAX_UPLOAD_MB + " MB.")}</div></>} /></div> : null}
       {m === "link" ? <label className="field"><span>{t("Video link")}</span><input type="url" placeholder={t("https://")} defaultValue={nf.link} onChange={e => { nf.link = e.currentTarget.value; }} /></label> : null}
-      <div className="field"><span>{t("Slides (optional)")}</span><FileBox k="slides" id="fSl" accept="application/pdf,.pdf" empty={<>{t("Add the slide deck as a PDF and the notes will stick to each slide. ")}<button type="button" className="ts" style={css("font-size:inherit")} onClick={() => document.getElementById("fSl")!.click()}>{t("Choose a PDF")}</button></>} /></div>
-      <label className="field"><span>{t("Language spoken in class")}</span><select defaultValue={nf.lang} onChange={e => { nf.lang = e.currentTarget.value; }}>{LANGS.map(([v, n]) => <option key={v} value={v}>{t(n)}</option>)}</select></label>
+      {m === "slides" ? <div className="field"><span>{t("Slide deck")}</span><FileBox k="slides" id="fSl" accept="application/pdf,.pdf" empty={<>{t("Drop the lecturer's slide deck here as a PDF, or ")}<button type="button" className="ts" style={css("font-size:inherit")} onClick={() => document.getElementById("fSl")!.click()}>{t("choose a PDF")}</button></>} /></div>
+        : <div className="field"><span>{t("Slides (optional)")}</span><FileBox k="slides" id="fSl" accept="application/pdf,.pdf" empty={<>{t("Add the slide deck as a PDF and the notes will stick to each slide. ")}<button type="button" className="ts" style={css("font-size:inherit")} onClick={() => document.getElementById("fSl")!.click()}>{t("Choose a PDF")}</button></>} /></div>}
+      {m === "slides" ? null : <label className="field"><span>{t("Language spoken in class")}</span><select defaultValue={nf.lang} onChange={e => { nf.lang = e.currentTarget.value; }}>{LANGS.map(([v, n]) => <option key={v} value={v}>{t(n)}</option>)}</select></label>}
       {nf.err ? <p className="err" role="alert">{t(nf.err)}</p> : null}
-      <button className="btn blue" disabled={nf.busy || ((m === "record" || m === "tab") && live.active)}>{t(m === "record" || m === "tab" ? "Start recording" : "Make notes")}</button>
+      <button className="btn blue" disabled={nf.busy || ((m === "record" || m === "tab") && live.active)}>{t(m === "record" || m === "tab" ? "Start recording" : m === "slides" ? "Make the study pack" : "Make notes")}</button>
+      {m === "slides" ? <p className="small muted" style={css("margin-top:14px")}>{t("No recording is needed, and this does not use your recording time. You can add a recording of the class to it later.")}</p> : null}
       {m === "record" ? <p className="small muted" style={css("margin-top:14px")}>{t("Your browser will ask to use the microphone. On a laptop, recording continues while you use other tabs. On an iPhone, keep this page open and the screen on.")}</p> : null}
       {m === "tab" ? <p className="small muted" style={css("margin-top:14px")}>{t("Your browser will ask what to share. Choose the tab that is playing the class and turn on the option to share tab audio. Only the sound is recorded.")}</p> : null}
     </form>
@@ -102,6 +106,7 @@ function submitNew() {
   if (nf.mode === "upload" && !nf.file) return startFailed("Choose the recording to upload.");
   if (nf.mode === "upload" && uploading()) return startFailed("Another upload is still running. Wait for it to finish first.");
   if (nf.mode === "link" && !/^https?:\/\/\S+\.\S+/.test(nf.link.trim())) return startFailed("Paste the full link, starting with https://");
+  if (nf.mode === "slides" && !nf.slides) return startFailed("Choose the slide deck to read.");
   const recMode = nf.mode === "record" || nf.mode === "tab";
   if (recMode && S.usage && S.usage.minutesToday >= S.usage.minutesLimit) return startFailed("You have used today's recording minutes. Upload a recording instead, or come back tomorrow.");
   if (recMode && !store.get("recTip")) return recTipModal();
@@ -112,7 +117,7 @@ function submitNew() {
       const typed = nf.title.trim(); let lec: Lecture;
       /* Over a limit of the plan: a window that explains it and offers the plans (ui/limit.tsx), on Home as on New lecture. */
       try { lec = await api.createLecture({ courseId: nf.courseId!, title: typed || defaultTitle(), autoTitle: !typed, language: nf.lang!, source: nf.mode }); }
-      catch (e) { if (isLimit(e)) { nf.err = ""; limitModal((e as Error).message); return; } throw e; }
+      catch (e) { if (isLimit(e)) { nf.err = ""; limitModal((e as Error).message, { slides: true }); return; } throw e; }
       if (recMode) { const code = course(nf.courseId)!.code; store.set("lastCourse", nf.courseId!);
         if (!S.lectures.some(x => x.id === lec.id)) S.lectures.unshift(lec);
         /* The microphone (or the tab) was refused: the lecture just made is deleted again, and the reason shown. */
@@ -120,6 +125,13 @@ function submitNew() {
         catch (e) { api.deleteLecture(lec.id).catch(() => {}); S.lectures = S.lectures.filter(x => x.id !== lec.id); startFailed((e as Error).message); return; }
         if (nf.slides) api.uploadSlides(lec.id, nf.slides).catch(() => toast("Slides did not upload. The notes will be made without them."));
         done(); location.hash = "#/live"; return; }
+      /* A study pack from the slides alone: the PDF is sent, then the pack is started and the lecture page shows it being
+         written. A PDF the server refuses deletes the lecture just made, so nothing empty is left; the form keeps the file. */
+      if (nf.mode === "slides") { if (!S.lectures.some(x => x.id === lec.id)) S.lectures.unshift(lec); store.set("lastCourse", nf.courseId!);
+        busy("Uploading the slides", "A few seconds.");
+        try { await api.uploadSlides(lec.id, nf.slides!); }
+        catch (e) { api.deleteLecture(lec.id).catch(() => {}); S.lectures = S.lectures.filter(x => x.id !== lec.id); closeModal(); startFailed((e as Error).message || "The upload failed."); return; }
+        done(); await finalize(lec.id, 0); return; }
       /* An upload goes on in the background (features/upload/upload.ts): straight to the lecture page, which shows it. */
       if (nf.mode === "upload") { if (!S.lectures.some(x => x.id === lec.id)) S.lectures.unshift(lec); S.detail[lec.id] = null;
         startUpload(lec.id, nf.file!, nf.slides); done(); location.hash = "#/lecture/" + encodeURIComponent(lec.id); return; }

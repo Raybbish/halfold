@@ -2,7 +2,8 @@
 
 export type LectureStatus = "recording" | "processing" | "ready" | "failed";
 export type ZhScript = "hant" | "hans";
-export type Source = "record" | "tab" | "upload" | "link";   // language is "en" | "en-yue" | "en-zh" | "auto" (state/app.ts LANGS)
+/* "slides": a study pack made from the slide deck alone, with no recording; it becomes "upload" when a recording is added. */
+export type Source = "record" | "tab" | "upload" | "link" | "slides";   // language is "en" | "en-yue" | "en-zh" | "auto" (state/app.ts LANGS)
 
 /* 3.1 GET /home */
 export interface User { name: string }
@@ -55,6 +56,9 @@ export interface Line { t: number; text: string }
 export interface Flashcard { q: string; a: string }
 export interface QuizQuestion { q: string; opts: string[]; a: number; why?: string; t?: number | null }
 export interface Detail {
+  /* "slides": a study pack written from the slide deck alone. No transcript, alerts or times: each point has t null and
+     the slide it explains, and nothing is "off". */
+  kind?: "slides";
   summary?: string[];   // the lecture in 3 to 5 sentences, shown above the notes
   audio?: Audio | null;
   progress?: { known: number[] };

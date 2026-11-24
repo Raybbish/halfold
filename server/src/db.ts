@@ -48,9 +48,10 @@ export interface LectureRow {
 export interface UpcomingRow { lecture_id: string; date: string; kind: string; text: string; t: number; course_code: string }
 export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
 export interface FeedbackRow { id: number; lecture_id: string; user_id: string; text: string; created_at: string; title: string; course_code: string; user_name: string }
-/* stage "slides": matching slides sent later to the notes; "pack": a review pack, logged with the course id in lecture_id. */
+/* stage "slides": matching slides sent later to the notes; "pack": a review pack, logged with the course id in lecture_id;
+   "slides-pack": a study pack written from the slide deck alone (notes/slidesPack.ts). */
 export interface CostEntry {
-  lectureId: string; userId: string | null; stage: "stt" | "notes" | "live" | "catchup" | "slides" | "pack"; provider: string; model: string;
+  lectureId: string; userId: string | null; stage: "stt" | "notes" | "live" | "catchup" | "slides" | "pack" | "slides-pack"; provider: string; model: string;
   audioSeconds?: number | null; inputTokens?: number | null; cachedInputTokens?: number | null; outputTokens?: number | null;
   reasoningTokens?: number | null; usd: number | null; meta?: Record<string, unknown>;
 }
@@ -286,11 +287,12 @@ export class Store {
     });
   }
   /* Lectures that count against the month's limit, started since a time: those that got (or are getting) notes, deleted
-     or not, and those still being recorded or uploaded. Saved copies of shared notes do not count. */
+     or not, and those still being recorded or uploaded. Saved copies of shared notes and study packs made from slides
+     alone (source "slides", no recording) do not count. */
   lecturesUsed(userId: string, sinceIso: string) {
     return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM (
       SELECT ref FROM quota WHERE kind = 'lecture' AND user_id = ? AND created_at >= ?
-      UNION SELECT id FROM lectures WHERE user_id = ? AND status = 'recording' AND copied_from IS NULL AND created_at >= ?)`).get(userId, sinceIso, userId, sinceIso) as { n: number }).n);
+      UNION SELECT id FROM lectures WHERE user_id = ? AND status = 'recording' AND copied_from IS NULL AND source <> 'slides' AND created_at >= ?)`).get(userId, sinceIso, userId, sinceIso) as { n: number }).n);
   }
   /* Review packs made since a time, and those being made now. Empty packs (no lecture with notes yet) do not count. */
   packsUsed(userId: string, sinceIso: string) {
@@ -331,6 +333,7 @@ export class Store {
   lecturesWithStatus(status: LectureStatus) { return this.db.prepare("SELECT * FROM lectures WHERE status = ?").all(status) as unknown as LectureRow[]; }
   setRecording(id: string, file: string) { this.db.prepare("UPDATE lectures SET recording_file = ? WHERE id = ?").run(file, id); }
   setHasSlides(id: string) { this.db.prepare("UPDATE lectures SET has_slides = 1 WHERE id = ?").run(id); }
+  setSource(id: string, source: Source) { this.db.prepare("UPDATE lectures SET source = ? WHERE id = ?").run(source, id); }
   setDuration(id: string, seconds: number) { this.db.prepare("UPDATE lectures SET duration = ? WHERE id = ?").run(seconds, id); }
   /* Moves a lecture to processing only from the given states; false when it was not in one of them (someone else moved it first). */
   startProcessing(id: string, from: LectureStatus[], clientDuration?: number | null) {
@@ -338,8 +341,9 @@ export class Store {
     const r = this.db.prepare(`UPDATE lectures SET status = 'processing', error = NULL, finished_at = COALESCE(finished_at, ?), client_duration = COALESCE(?, client_duration) WHERE id = ? AND status IN (${marks})`)
       .run(now(), clientDuration ?? null, id, ...from);
     /* The lecture now counts against the month's limit (plans.json lecturesPerMonth), even if it is deleted later; only
-       a lecture that fails stops counting (setFailed), and a retry that starts it again counts it again. */
-    if (Number(r.changes) > 0) this.db.prepare("INSERT OR IGNORE INTO quota (kind, ref, user_id, created_at) SELECT 'lecture', id, user_id, created_at FROM lectures WHERE id = ? AND copied_from IS NULL").run(id);
+       a lecture that fails stops counting (setFailed), and a retry that starts it again counts it again. A study pack
+       made from slides alone does not count; it does once a recording is added (it is then an upload). */
+    if (Number(r.changes) > 0) this.db.prepare("INSERT OR IGNORE INTO quota (kind, ref, user_id, created_at) SELECT 'lecture', id, user_id, created_at FROM lectures WHERE id = ? AND copied_from IS NULL AND source <> 'slides'").run(id);
     return Number(r.changes) > 0;
   }
   renameLecture(id: string, title: string) { this.db.prepare("UPDATE lectures SET title = ?, auto_title = 0 WHERE id = ?").run(title, id); }

@@ -1,6 +1,6 @@
 /* ---------- landing ---------- */
 import type { ReactNode } from "react";
-import { S, exHref } from "../state/app";
+import { S, exHref, nf } from "../state/app";
 import { t } from "../i18n";
 import { Logo, Hal } from "../ui/icons";
 import { LangBtn } from "../ui/Shell";
@@ -25,6 +25,7 @@ export function Landing() {
           <p className="lead">{t("Record your class and get notes that sit next to each slide: what the lecturer explained, the examples that were never written down, and every exam date they mentioned.")}</p>
           <div className="cta"><a className="btn primary" href="#/new">{t("Record a lecture")}</a>{exHref() ? <a className="btn" href={exHref()}>{t("Open example notes")}</a> : null}</div>
           <div className="niche"><Hal size={22} mood="smile" /><span>{t("Works in the browser on a laptop or a phone. Nothing to install.")}</span></div>
+          <p className="small" style={css("margin-top:16px")}><a data-act="land-slides" href="#/new" onClick={() => { nf.mode = "slides"; nf.err = ""; }}>{t("No recording yet? Make a study pack from your slides")}</a></p>
         </div>
         <div className="stage" aria-label={t("A lecture slide with notes attached")}>
           <div className="rec"><i></i><span className="num">{t("Recording 12:48")}</span></div>

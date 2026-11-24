@@ -3,7 +3,8 @@
    and when it resets; the window adds this month's count when /home gave it (usage.lecturesThisMonth / lecturesLimit). */
 import type { HttpError } from "../api/http";
 import type { Usage } from "../types";
-import { S } from "../state/app";
+import { S, nf } from "../state/app";
+import { bump } from "../lib/bus";
 import { closeModal } from "../state/overlay";
 import { t } from "../i18n";
 import { openModal } from "./Overlay";
@@ -15,11 +16,13 @@ export const isLimit = (e: unknown) => { const s = (e as HttpError | null)?.stat
 /* "3 of 4 lectures used this month", or null when the plan has no monthly limit (or /home did not say). */
 export const lecturesLine = (u: Usage | null | undefined) => u && u.lecturesThisMonth != null && u.lecturesLimit ? u.lecturesThisMonth + " of " + u.lecturesLimit + " lectures used this month" : null;
 
-export function limitModal(message: string) {
+/* slides: the limit refused a recorded lecture; a study pack from the slides alone is not counted, so it is offered. */
+export function limitModal(message: string, o: { slides?: boolean } = {}) {
   const line = lecturesLine(S.usage);
   openModal(() => <><div style={css("display:flex;gap:12px;align-items:center;margin-bottom:10px")}><Hal size={40} mood="sad" /><h3 style={css("margin:0")}>{t("You have reached the limit of your plan")}</h3></div>
     <p className="muted" style={css("margin-bottom:10px")}>{t(message)}</p>
     {line ? <p className="small muted num" style={css("margin-bottom:10px")}>{t(line)}</p> : null}
     <p className="small muted" style={css("margin-bottom:16px")}>{t("Everything you already have stays, and you can still read, share and review it.")}</p>
+    {o.slides ? <p className="small" style={css("margin-bottom:16px")}><a data-act="q-slides" href="#/new" onClick={() => { closeModal(); nf.mode = "slides"; nf.err = ""; bump(); }}>{t("Make a study pack from the slides instead")}</a>{" "}<span className="muted">{t("It needs no recording and does not use your recording time.")}</span></p> : null}
     <div style={css("display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={closeModal}>{t("Not now")}</button><a className="btn primary" data-act="seeplans" href="#/settings" onClick={closeModal}>{t("See the plans")}</a></div></>);
 }

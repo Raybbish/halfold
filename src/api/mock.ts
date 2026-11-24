@@ -139,6 +139,12 @@ export function withoutSlides(d: Detail): Detail {
 }
 /* Keeps the points as they are (text, edits, points the student added) and gives each one the slide it belongs to,
    found by its timestamp in the full sample notes. */
+/* The sample lecture as a study pack made from the slides alone (the sample build has no model): nothing has a time,
+   nothing is "not on the slides", and there is no transcript or alert. */
+export function samplePack(d: Detail): Detail {
+  const sections = d.sections.map(s => ({ ...s, start: 0, end: 0, points: s.points.filter(p => !p.off).map(p => ({ ...p, t: null })) })).filter(s => s.points.length);
+  return { kind: "slides", ...(d.summary ? { summary: d.summary.slice(0, 3) } : {}), alerts: [], sections, slides: d.slides, transcript: [], flashcards: d.flashcards, quiz: d.quiz.map(q => ({ ...q, t: null })) };
+}
 export function fileUnderSlides(d: Detail): Detail {
   const full = DATA.detail;
   return { ...d, slides: full.slides, sections: d.sections.map((s, i) => { const f = full.sections[i];

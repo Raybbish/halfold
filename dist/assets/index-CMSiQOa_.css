@@ -494,3 +494,16 @@ sup,sub{font-size:.72em;line-height:0}
 /* Sign-in: the invite code field once the server asks for it, and the note that says why (not an error). */
 .field.need input{border-color:var(--ink);box-shadow:3px 3px 0 var(--yellow)}
 .need-note{margin:-6px 0 14px;color:var(--ink)}
+/* ---------- study packs made from the slides alone (draft of 2026-11-24) ---------- */
+/* Slides only is the last choice on New lecture; alone on its row of two, it takes the whole row. Phones fit the
+   choices side by side (auto-fit), so there it keeps one cell. */
+.choice button[data-act=mode-slides]{background:var(--yellow-soft)}
+.choice button:nth-child(odd):last-child{grid-column:1/-1}
+@media (max-width:900px){.choice button:nth-child(odd):last-child{grid-column:auto}}
+/* The pack's offer of the other half: add a recording of the class. */
+.addrec{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:16px 20px;margin-bottom:12px;background:var(--yellow-soft);border:2px solid var(--ink)}
+.addrec b{color:var(--ink)}
+.addrec .grow{min-width:240px;flex:1}
+.addrec .brow{margin-top:0}
+@media (max-width:600px){.addrec .grow{min-width:0}}
+@media print{.addrec{display:none!important}}

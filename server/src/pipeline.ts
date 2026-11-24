@@ -16,6 +16,7 @@ import type { Detail, Line } from "../../src/types";
 import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "./notes/types";
 import { buildDetail, parseModelNotes } from "./notes/normalize";
 import { fileUnder, readFiling, slidesInput } from "./notes/slides";
+import { buildSlidesPack, readSlidesPack, type SlidesPackInput } from "./notes/slidesPack";
 import { cantoneseTraditional } from "./notes/zh";
 import { DetailSchema } from "./shapes";
 import { readSlides } from "./slides";
@@ -108,7 +109,7 @@ export class Pipeline implements Jobs {
       const l = store.lecture(id);
       if (!l || l.status !== "processing") return;
       refile = !!l.refile;
-      if (refile) await this.refile(l, signal); else await this.process(l, signal);
+      if (refile) await this.refile(l, signal); else if (l.source === "slides") await this.slidesPack(l, signal); else await this.process(l, signal);
     } catch (e) {
       if (signal.aborted || e instanceof Gone || !store.lecture(id)) return;
       const msg = e instanceof Error ? e.message : String(e);
@@ -241,6 +242,40 @@ export class Pipeline implements Jobs {
     return [...store.liveLines(id), ...added].sort((a, b) => a.t - b.t);
   }
 
+  /* A study pack from the slide deck alone (source "slides", notes/slidesPack.ts): no recording to convert or transcribe.
+     Slides that cannot be read, or have no text, fail the lecture; it keeps the file, so a retry reads it again. A
+     recording added later makes the lecture an upload (routes.ts), and process() then writes the notes with the slides. */
+  private async slidesPack(l: LectureRow, signal: AbortSignal) {
+    const { store, files, config } = this.d, id = l.id;
+    if (!files.exists(id, "slides.pdf")) throw new Error("no slides");
+    let pages: { n: number; text: string }[];
+    try { pages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
+    catch (e) { throw new Error("the slides could not be read: " + (e as Error).message); }
+    if (!pages.some(p => p.text)) throw new Error("the slides have no text to read (scanned pages, or an empty file)");
+    this.check(id, signal);
+    const course = store.course(l.user_id, l.course_id);
+    const zh = config.zhExplanations ? (l.language === "en-zh" ? "hans" : "hant") : null;
+    const input: SlidesPackInput = { courseCode: course?.code || "", courseName: course?.name || "", title: l.title, slides: pages, zh };
+    let out: ReturnType<typeof buildSlidesPack> | null = null, repair: Repair | undefined, problem = "";
+    for (let attempt = 1; attempt <= NOTES_ATTEMPTS && !out; attempt++) {
+      const call = await this.callModel(l, "slides-pack", { attempt, slidePages: pages.length, zh }, () => this.d.notes.slidesPack(input, signal, repair));
+      this.check(id, signal);
+      try {
+        const next = buildSlidesPack(readSlidesPack(call.text), { pages, zh });
+        const checked = DetailSchema.safeParse(next.detail);
+        if (!checked.success) throw new Error("the study pack breaks these rules: " + checked.error.issues.slice(0, 8).map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
+        out = next;
+      } catch (e) {
+        problem = (e as Error).message;
+        repair = { reply: call.text, problem };
+        console.warn(`[pipeline] ${id} study pack attempt ${attempt} unusable: ${problem}`);
+      }
+    }
+    if (!out) throw new Error("the notes model did not write a usable study pack: " + problem);
+    this.check(id, signal);
+    store.saveNotes(id, out.detail, [], out.title);
+  }
+
   /* Slides sent after the notes were written (API-CHANGES.md section 3): each point the lecturer said is placed under
      its slide and marked off or not. The notes are not written again: text, order, the student's edits and own points
      stay (notes/slides.ts). Edits wait (409) while this runs, so the notes read here are still the notes saved after. */
@@ -329,7 +364,7 @@ export class Pipeline implements Jobs {
   }
 
   /* One model call, logged in the cost table whether or not its reply turns out usable. */
-  private async callModel(l: LectureRow, stage: "notes" | "slides", meta: Record<string, unknown>, ask: () => Promise<NotesCall>) {
+  private async callModel(l: LectureRow, stage: "notes" | "slides" | "slides-pack", meta: Record<string, unknown>, ask: () => Promise<NotesCall>) {
     const { notes, store } = this.d;
     const log = (usage: TokenUsage, at: Date, ok: boolean) => {
       const price = notes.usd(usage, at);

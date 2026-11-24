@@ -10,10 +10,11 @@ import { fx } from "../../ui/Fx";
 import { jump, editPoint, delPoint } from "./actions";
 
 /* One point of the notes. Backend text keeps data-notr; "Not on slides" marks a point said in class but not on the slides.
-   "You" marks a point the student added to their own lecture (mine). A point someone else added, on the shared page or
-   in a saved copy, has no time either; an empty cell keeps its text in line. */
+   "You" marks a point the student added to their own lecture (mine). A point of a study pack made from the slides alone
+   has no time either: it shows the slide it explains. A point someone else added, on the shared page or in a saved copy,
+   has neither; an empty cell keeps its text in line. */
 export function Point({ p, si, pi }: { p: P; si: number; pi: number }) { const own = cur && !cur.shared && state.edit, you = cur && !cur.shared && p.mine;
-  return <div className={`pt ${p.off ? "off" : ""}${state.found === p ? " found" : ""}`}>{p.t != null ? <button className="ts" onClick={() => jump(+p.t!)} aria-label={t("Open transcript at " + fmt(p.t))}>{fmt(p.t)}</button> : you ? <span className="tag grey">{t("You")}</span> : <span />}<div className="body">{p.off ? <><span className="tag sn">{t("Not on slides")}</span>{" "}</> : null}<span data-notr="">{fx(p.text)}</span>{state.zh && zhText(p) ? <div className="zh" data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{fx(zhText(p))}</div> : null}{own ? <div className="pt-acts"><button className="ts" onClick={() => editPoint(si, pi)}>{t("Edit")}</button><button className="ts" style={css("color:var(--red)")} onClick={() => delPoint(si, pi)}>{t("Delete")}</button></div> : null}</div></div>; }
+  return <div className={`pt ${p.off ? "off" : ""}${state.found === p ? " found" : ""}`}>{p.t != null ? <button className="ts" onClick={() => jump(+p.t!)} aria-label={t("Open transcript at " + fmt(p.t))}>{fmt(p.t)}</button> : you ? <span className="tag grey">{t("You")}</span> : p.slide != null && !p.mine ? <span className="tag grey">{t("Slide " + p.slide)}</span> : <span />}<div className="body">{p.off ? <><span className="tag sn">{t("Not on slides")}</span>{" "}</> : null}<span data-notr="">{fx(p.text)}</span>{state.zh && zhText(p) ? <div className="zh" data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{fx(zhText(p))}</div> : null}{own ? <div className="pt-acts"><button className="ts" onClick={() => editPoint(si, pi)}>{t("Edit")}</button><button className="ts" style={css("color:var(--red)")} onClick={() => delPoint(si, pi)}>{t("Delete")}</button></div> : null}</div></div>; }
 
 /* The lecture as a coloured bar, one colour per topic, with ! where an exam or deadline was mentioned. The head is
    moved by the player without a redraw (plTick). */
@@ -27,7 +28,8 @@ export function Timeline({ d, dur, pos }: { d: Detail; dur: number | undefined; 
 function ZhPick({ d }: { d: Detail }) { const hans = zhScript() === "hans";
   return state.zh && d.sections.some(s => s.points.some(p => p.zhHant && p.zhHans)) ? <span className="seg2" role="group" aria-label={t("Chinese characters")}><button className={hans ? "" : "on"} aria-pressed={!hans} onClick={() => setZhScript("hant")} data-notr="">繁</button><button className={hans ? "on" : ""} aria-pressed={hans} onClick={() => setZhScript("hans")} data-notr="">简</button></span> : null; }
 
+/* A study pack made from the slides alone has nothing that is not on the slides: no such filter. */
 export function Tools({ d }: { d: Detail }) {
-  return <div className="tools"><label><input type="checkbox" defaultChecked={state.onlyOff} onChange={e => { state.onlyOff = e.currentTarget.checked; bump(); }} />{t(" Only what is not on the slides")}</label>
+  return <div className="tools">{d.kind === "slides" ? null : <label><input type="checkbox" defaultChecked={state.onlyOff} onChange={e => { state.onlyOff = e.currentTarget.checked; bump(); }} />{t(" Only what is not on the slides")}</label>}
     <label><input type="checkbox" defaultChecked={state.zh} onChange={e => { state.zh = e.currentTarget.checked; bump(); }} />{t(" 中文解釋")}</label><ZhPick d={d} />{cur!.shared ? null : <label><input type="checkbox" defaultChecked={state.edit} onChange={e => { state.edit = e.currentTarget.checked; bump(); }} />{t(" Edit notes")}</label>}</div>;
 }

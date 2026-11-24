@@ -3,7 +3,7 @@ import { useEffect, type ReactNode } from "react";
 import type { Lecture, NoteHit } from "../types";
 import { fmt, mins, plural } from "../lib/helpers";
 import { refresh } from "../lib/bus";
-import { S, colorOf, course, daysLeft, dayMon, lecture, meta, setPendingPoint, setPendingPos, state } from "../state/app";
+import { S, colorOf, course, daysLeft, dayMon, lecture, meta, nf, setPendingPoint, setPendingPos, state } from "../state/app";
 import { t } from "../i18n";
 import { store } from "../lib/store";
 import { quickRecord } from "./NewLecture";
@@ -15,9 +15,13 @@ import { Hal } from "../ui/icons";
 import { Shell, addCourseModal } from "../ui/Shell";
 import { css } from "../ui/css";
 
-/* A lecture whose recording is being uploaded right now is "Uploading", not "Not finished". */
+/* A lecture whose recording is being uploaded right now is "Uploading", not "Not finished". A study pack made from the
+   slides alone has no length to show: "Slides" instead. */
 export const statusTag = (l: Lecture) => uploading() && up.id === l.id ? <span className="tag amber">{t("Uploading")}</span> : l.status === "processing" ? <span className="tag grey">{t("Writing notes")}</span> : l.status === "failed" ? <span className="tag red">{t("Not written")}</span>
-  : l.status === "recording" ? (live.active && live.id === l.id ? <span className="tag amber">{t("Recording")}</span> : <span className="tag grey">{t("Not finished")}</span>) : null;
+  : l.status === "recording" ? (live.active && live.id === l.id ? <span className="tag amber">{t("Recording")}</span> : <span className="tag grey">{t("Not finished")}</span>)
+  : l.source === "slides" && !l.duration ? <span className="tag grey">{t("Slides")}</span> : null;
+/* The New lecture page with Slides only chosen (links on Home and on the landing page). */
+export const slidesMode = () => { nf.mode = "slides"; nf.err = ""; };
 
 /* The note matches from the server for the text in the box (features/search.ts). While a new search is on its way
    the last matches stay, so the list does not flicker with each letter typed. */
@@ -61,7 +65,8 @@ function RecordCard() {
   if (live.active) return <div className="rec-hero on"><div className="grow"><h2>{t("Recording")} <span data-notr="">{live.courseCode}</span></h2><p className="clk num" style={css("font-size:24px;font-weight:800;color:var(--ink)")}>{fmt(live.sec)}</p></div><a className="btn dark" href="#/live">{t("Return to the recording")}</a></div>;
   return <div className="rec-hero"><div className="grow"><h2>{t("Class starting?")}</h2><p>{t("One tap to record. Add the title later.")}</p>
     {S.courses.length ? <label className="rec-course small">{t("Course")}<select data-notr="" aria-label={t("Course")} defaultValue={cid || undefined} onChange={e => store.set("lastCourse", e.currentTarget.value)}>{S.courses.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}</select></label> : null}
-    <a className="small" href="#/new">{t("Upload a file, paste a link or record an online class")}</a></div>
+    <a className="small" href="#/new">{t("Upload a file, paste a link or record an online class")}</a>
+    <a className="small" data-act="from-slides" href="#/new" onClick={slidesMode} style={css("display:block;margin-top:4px")}>{t("No recording? Make a study pack from the slides")}</a></div>
     <button className="rec-btn" onClick={() => { quickRecord(); }} aria-label={t("Record this class")}><i></i><span>{t("Record")}</span></button></div>;
 }
 

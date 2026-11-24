@@ -14,7 +14,7 @@ const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const id = z.string().regex(/^[A-Za-z0-9_-]+$/);   // INTEGRATION.md section 1
 export const StatusSchema = z.enum(["recording", "processing", "ready", "failed"]);
 
-export const SourceSchema = z.enum(["record", "tab", "upload", "link"]);
+export const SourceSchema = z.enum(["record", "tab", "upload", "link", "slides"]);
 export const UserSchema: z.ZodType<User> = z.strictObject({ name: z.string() });
 export const CourseSchema: z.ZodType<Course> = z.strictObject({ id, code: z.string().min(1), name: z.string().optional(), color: z.string().optional() });
 export const LectureSchema: z.ZodType<Lecture> = z.strictObject({
@@ -49,6 +49,7 @@ const quizFields = {
 const answerIsAnOption = (q: { a: number; opts: string[] }) => q.a < q.opts.length;
 export const QuizSchema: z.ZodType<QuizQuestion> = z.strictObject(quizFields).refine(answerIsAnOption, "the answer index is not one of the options");
 export const DetailSchema: z.ZodType<Detail> = z.strictObject({
+  kind: z.literal("slides").optional(),
   summary: z.array(z.string().min(1)).min(1).max(5).optional(),
   audio: AudioSchema.nullable().optional(), progress: z.strictObject({ known: z.array(z.number().int().nonnegative()) }).optional(),
   alerts: z.array(AlertSchema), sections: z.array(SectionSchema).min(1), slides: z.array(SlideSchema), transcript: z.array(LineSchema),
