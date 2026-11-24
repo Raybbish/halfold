@@ -229,6 +229,7 @@
   - 设了 `PUBLIC_URL` 就给完整地址，否则给相对路径（前端和 API 在同一个地址时就是这样）。
 - 文件是 `audio.m4a`（AAC 48 kbps 单声道，faststart），支持 Range：206、416、`HEAD`。端到端实测在 Chrome 里能加载，并跳到任意位置。转码后每小时约 21.4 MB。
 - 下载：`Content-Disposition: inline`，文件名用课堂标题。
+- 设了 R2 时，写好笔记的课的录音在 R2：同一个链接回 302，跳到 R2 的预签名地址（见“录音存在 R2”）。
 - `detail` 只在 `ready` 时有，所以只有写好笔记的课有回放。
 
 ## 录音保留期限（4.4）
@@ -622,3 +623,56 @@ React 前端（本仓库）：失败的课堂页有 `lecture.error` 时显示它
 ## 测试
 
 `live.test.ts`：结束后只补转最后一轮之后的 2 秒，笔记和存下的逐字稿就是实时那些行；最后一句被留着时和补转的词接成一整句；服务商出错 150 秒后实时跳过的那段在结束后补上，每段各记一笔成本；`LIVE_TRANSCRIPT=off` 时结束后整段转写一次；从已保存的部分写笔记时也只补转没转到的。
+
+# 录音存在 R2
+
+日期：2026-11-24。交接文档（2026-11-23）第 2 项：录音存在服务器硬盘，约 30 GB，只够十来个用户。
+
+## 做法
+
+- **还是先写本机**。上传的文件、现场录音的分段、`audio.m4a` 都先写在 `DATA_DIR/lectures/<id>/`，转码、转写、切段、读课件都读本机文件（ffmpeg 要文件）。笔记写好后（`pipeline.ts` 第 7 步，补传的课件放进笔记之后也一样），留着不删的两个文件 `audio.m4a` 和 `slides.pdf` 搬到 R2 的 `kept/<id>/<文件名>`。原始文件、分段、临时文件、转写服务的原始返回照旧留在本机、照旧删。
+- **先确认再删**。上传时把文件的 SHA-256 签进请求（R2 收到的字节对不上就拒收），传完用 HEAD 读回大小和 ETag（单次上传的 ETag 是 MD5），都对上才在 `remote_files` 记一行、删本机的。上传期间文件被换掉（补传了新课件）或课被删了，不删本机的、不记，删课时上传的那份也删掉。
+- **在哪里**：`files.where(id, name)` 先看本机，再看 `remote_files`，不用问 R2，所以 `GET /lectures/:id` 不会变慢。
+- **没搬成的**：R2 出错时文件留在本机，照常播放。启动时和之后每六小时（`audio.ts` 的 `sweepKept`）把还在本机的再搬一次，遇到第一个失败就停（R2 多半整个不通）。`npm run move-to-r2` 用同一个函数，一次搬完所有已有的录音，每个都报告。
+- **删除**：删课、删课程时，R2 上这堂课的 `audio.m4a` 和 `slides.pdf` 都发一次 DELETE（不只删记了的：上传到一半时进程停了，R2 上可能有一份没记下的）。录音过了保留期时删 `audio.m4a`。每个要删的先记进 `remote_deletes`，删成功才划掉，R2 不通的那些每六小时再删；删课的请求每个 DELETE 最多等 15 秒，不会因为 R2 出错而失败。
+- **补传课件撞上搬录音**：笔记刚写好、`audio.m4a` 还在往 R2 传时，学生补传课件，`jobs.enqueue` 以前看到这堂课还在跑就什么都不做，课会一直停在 `processing`。现在记下来，这一轮跑完再排一次（`Pipeline.again`）。以前也有这个空档，只是第 6 步很快，碰不上。
+
+## 回放：跳到预签名地址，不经过服务器
+
+`detail.audio.url` 不变，还是服务器自己的签名链接。录音在 R2 时它回 302，`Location` 是 R2 的预签名地址：
+
+- 有效期到原链接的 `exp` 为止（至少 60 秒，最多 7 天），所以还是 `AUDIO_LINK_HOURS` 一个设置管。过期后播放器出错，前端照旧重新拿一次课堂（INTEGRATION 4.2 第 3 条），拿到新链接，再跳一次。
+- Range 由 R2 直接回 206，浏览器跟着 302 会把 Range 带过去。HEAD 请求给的是为 HEAD 签的地址（为 GET 签的 HEAD 用不了）。
+- 302 本身 `Cache-Control: no-store`。R2 的回复带 `response-content-type=audio/mp4`、`response-cache-control`，以及 **`Content-Disposition: attachment`**（本机时是 `inline`）：“Download recording” 是 `<a download>`，链接跳到别的网站后浏览器不再认 `download` 属性，要靠回复里的 `attachment` 才会存成文件；`<audio>` 不看这个头。文件名还是课堂标题。
+
+考虑过的做法：
+
+- **服务器转发**（服务器去 R2 取，再按 Range 发给浏览器）：前端看到的和以前完全一样，但每次播放都占服务器的带宽和流量包（轻量服务器带宽小、流量按月有上限），而转发换不来什么：R2 支持 Range，链接格式也没变。
+- **直接把预签名地址放进 `detail.audio.url`**：少一次跳转，但链接格式变了，有效期也要另算；跳转的做法前端不用改。
+
+注意：预签名地址只能用 R2 的 S3 域名（`<账户>.r2.cloudflarestorage.com`），不能用自定义域名。学生的网络连不上这个域名的话（比如回内地时），录音放不了，笔记不受影响；真遇到了再加“服务器转发”作为开关。
+
+## S3 客户端：手写 SigV4，不用 @aws-sdk/client-s3
+
+只用到四个操作（PUT、HEAD、DELETE、预签名 GET/HEAD），手写约 160 行，含注释（`r2.ts`）。`@aws-sdk/client-s3` 加预签名要两个包、几十个依赖；它较新的版本默认发 CRC32 校验头，R2 曾经不认，升级时容易踩坑。签名按 AWS 文档里的三个例子（预签名 GET、带 Range 的 GET、PUT）测过，签名逐字相同（`test/r2.test.ts`）。路径式地址（`<endpoint>/<bucket>/<key>`），region 用 R2 要求的 `auto`。上传用 `fs.openAsBlob`，边读边发，带 Content-Length，不把整个文件读进内存。
+
+## 和备份共用 bucket
+
+每天的备份（`deploy/server/backup.sh`）用 `rclone sync` 把本机的 `lectures/` 镜像到它的 bucket 的 `lectures/`，R2 上多出来的会被删掉。所以录音放在 `kept/` 而不是 `lectures/`：两个用同一个 bucket 也不会互相删。搬到 R2 之后，备份的 `lectures/` 里就没有这些录音了，录音只有 `kept/` 一份（R2 自己多副本存放）。
+
+## 设置
+
+`R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`、`R2_BUCKET` 全填才开，全空就和以前一样，只填一部分启动时报错。`R2_ENDPOINT` 只在欧盟辖区的 bucket（或测试）时用。启动时读一个不存在的对象，回 404 NoSuchKey 才算设对了；key 错、bucket 名错、连不上都在日志里写一行 `R2 does not work with the R2_* settings`，服务器照常跑，录音留在本机。名字和备份的 `backup.env` 一样，含义也一样，但在不同的文件里（服务器读 `halfold.env`，备份读 `backup.env`）。
+
+## 测试
+
+`r2.test.ts`，对着一个假的 R2（本地 HTTP 服务器，像 R2 一样核对每个签名、上传的 SHA-256 和预签名地址的有效期）：
+
+- 签名和 AWS 文档的三个例子逐字相同；设置要么全填要么全空；启动时的检查认得出 key 错、bucket 错、R2 出错。
+- 写好笔记后 `audio.m4a` 和 `slides.pdf` 在 R2、不在本机；链接格式不变，302 到预签名地址，有效期跟着原链接，整段、Range、HEAD 都能放；改过的链接还是 403；删课后 R2 上两个都删了，链接 404。
+- 现场录音的分段在本机拼，只有 `audio.m4a` 上 R2。
+- R2 上传失败时课照样 `ready`，从本机放；R2 读回的大小或 MD5 不对时不删本机的；之后的检查搬过去。
+- R2 删不了时删课照样成功，之后的检查删掉。
+- 过了保留期，R2 上的录音删掉，课件留着。
+- 录音还在往 R2 传时补传课件：课件照样放进笔记，也传上 R2（去掉 `Pipeline.again` 这个测试就失败，课停在 `processing`）。
+- `move-to-r2`：真的跑脚本（子进程），先 `--dry-run`，再搬（一个文件读回不对，留在本机，退出码 1），再跑一次搬完，第三次什么都不做；没写好笔记的课不动；服务器的临时文件不碰。

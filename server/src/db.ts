@@ -114,6 +114,10 @@ CREATE TABLE IF NOT EXISTS checkouts (
 CREATE TABLE IF NOT EXISTS quota (
   kind TEXT NOT NULL, ref TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (kind, ref));
 CREATE INDEX IF NOT EXISTS quota_user ON quota(user_id, kind, created_at);
+CREATE TABLE IF NOT EXISTS remote_files (
+  lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE, name TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY (lecture_id, name));
+CREATE TABLE IF NOT EXISTS remote_deletes (key TEXT PRIMARY KEY, tries INTEGER NOT NULL DEFAULT 0, error TEXT, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS costs (
   id INTEGER PRIMARY KEY AUTOINCREMENT, lecture_id TEXT NOT NULL, user_id TEXT, stage TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
   audio_seconds REAL, input_tokens INTEGER, cached_input_tokens INTEGER, output_tokens INTEGER, reasoning_tokens INTEGER, usd REAL,
@@ -449,6 +453,23 @@ export class Store {
   /* ---- kept recordings ---- */
   readyLecturesWithAudio() { return this.db.prepare("SELECT * FROM lectures WHERE status = 'ready' AND audio_expired = 0").all() as unknown as LectureRow[]; }
   setAudioExpired(id: string) { this.db.prepare("UPDATE lectures SET audio_expired = 1 WHERE id = ?").run(id); }
+
+  /* ---- files kept in object storage (files.ts R2FileStore) ----
+     remote_files: a lecture's file that is in R2 and no longer on this disk. Its row goes with the lecture.
+     remote_deletes: objects to delete from R2 that could not be deleted yet (R2 did not answer); tried again later. */
+  isRemote(lectureId: string, name: string) { return !!this.db.prepare("SELECT 1 FROM remote_files WHERE lecture_id = ? AND name = ?").get(lectureId, name); }
+  addRemote(lectureId: string, name: string, bytes: number) {
+    this.db.prepare("INSERT OR REPLACE INTO remote_files (lecture_id, name, bytes, created_at) VALUES (?, ?, ?, ?)").run(lectureId, name, bytes, now());
+  }
+  dropRemote(lectureId: string, name: string) { this.db.prepare("DELETE FROM remote_files WHERE lecture_id = ? AND name = ?").run(lectureId, name); }
+  remoteTotals() {
+    const r = this.db.prepare("SELECT COUNT(*) AS files, COALESCE(SUM(bytes), 0) AS bytes FROM remote_files").get() as { files: number; bytes: number };
+    return { files: r.files, bytes: r.bytes };
+  }
+  queueRemoteDelete(key: string) { this.db.prepare("INSERT OR IGNORE INTO remote_deletes (key, created_at) VALUES (?, ?)").run(key, now()); }
+  remoteDeletes() { return this.db.prepare("SELECT key, tries FROM remote_deletes ORDER BY created_at").all() as { key: string; tries: number }[]; }
+  remoteDeleted(key: string) { this.db.prepare("DELETE FROM remote_deletes WHERE key = ?").run(key); }
+  remoteDeleteFailed(key: string, error: string) { this.db.prepare("UPDATE remote_deletes SET tries = tries + 1, error = ? WHERE key = ?").run(error.slice(0, 500), key); }
 
   /* ---- transcript, notes, upcoming dates ---- */
   saveTranscript(lectureId: string, provider: string, model: string, lines: Line[]) {
