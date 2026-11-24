@@ -27,6 +27,10 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
   const END = /^(Your notes are now under the slides\.|The slides could not be matched|Still working|筆記已經放到簡報下)/;
   const endToast = async (page, timeout = 15000) => { await page.waitForFunction(re => [...document.querySelectorAll('.toast')].some(t => new RegExp(re).test(t.textContent)), END.source, { timeout }); return (await page.locator('.toast').allInnerTexts()).filter(x => END.test(x)).pop(); };
   const noModal = async page => (await page.locator('#overlay .modal').count()) === 0;
+  /* Waits up to 3 s for any dialog to close: true, or the text of the dialog still open (for the report). Once seen on
+     CI only (2026-11-23): "Still working" shown with a dialog still open, which no run here reproduced. */
+  const modalGone = async page => { try { await page.waitForSelector('#overlay .modal', { state: 'detached', timeout: 3000 }); return true; }
+    catch (e) { return (await page.locator('#overlay .modal').first().innerText().catch(() => '(unreadable)')).replace(/\s+/g, ' ').slice(0, 200); } };
   const tabs = page => page.locator('.tabs button').allInnerTexts();
   const hint = page => page.locator('.main p:has(button.ts:text-is("Add slides"))').count();
   // Choose a file in the picker that Add slides opens (from the More menu or from the line under the notes).
@@ -152,7 +156,8 @@ const pdf = (size = MB) => ({ name: 'week10-slides.pdf', mimeType: 'application/
 
   { const be = { log: [], forever: true, pollMs: 5 }; const { ctx, page } = await realOpen(be);
     await viaMore(page, pdf(MB / 2)); const t = await endToast(page, 30000);
-    check('still processing when the wait runs out: says it is still working', t === 'Still working. The notes will be under the slides when ready.' && await noModal(page), t);
+    const gone = await modalGone(page);
+    check('still processing when the wait runs out: says it is still working', t === 'Still working. The notes will be under the slides when ready.' && gone === true, { t, dialog: gone });
     await ctx.close(); }
 
   check('no page errors', errs.length === 0, errs);
