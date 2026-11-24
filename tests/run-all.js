@@ -21,6 +21,9 @@ const want = n => !ONLY || ONLY.includes(n);
 const EXPECT = { real5: 65, zhscript: 17, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 17, search: 20, sharing: 7, signin: 14, 'course-picker': 9, 'failed-reason': 7, brand: 19, 'zh-hans': 21, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 21, 'live-meta': 11, 'help-privacy': 12, kept: 9, limits: 16, formulas: 7, 'review-pack': 7 };
 const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy', 'kept', 'limits', 'formulas', 'review-pack'];
 
+// profile.js (the profile and consents asked once after signing in, and in Settings), added on its own lines.
+EXPECT.profile = 18; SCRIPTS.splice(SCRIPTS.indexOf('signin') + 1, 0, 'profile');
+
 function run(script, target, extraEnv = {}) {
   const cwd = path.join(OUT, target); fs.mkdirSync(cwd, { recursive: true });
   const t0 = Date.now();
