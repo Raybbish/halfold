@@ -10,8 +10,9 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   const errs = [];
   const lec = { id: 'l1', course: 'c1', title: 'Week 1', date: 'Today', duration: 300, status: 'ready' };
-  const detail = { alerts: [], transcript: [{ t: 0, text: 'line' }], flashcards: [], quiz: [], slides: [],
-    sections: [{ title: 'Part one', start: 0, end: 300, points: [{ t: 30, text: 'Supply shifts right when costs fall', off: false }, { t: 90, text: 'The exam is open book', off: true }] }] };
+  /* A point is "off" the slides only when there are slides (the filter is not offered without them since the retest of 2026-11-23). */
+  const detail = { alerts: [], transcript: [{ t: 0, text: 'line' }], flashcards: [], quiz: [], slides: [{ n: 1, title: 'Supply', image: null }],
+    sections: [{ title: 'Part one', slides: 'Slide 1', start: 0, end: 300, points: [{ t: 30, text: 'Supply shifts right when costs fall', off: false, slide: 1 }, { t: 90, text: 'The exam is open book', off: true, slide: null }] }] };
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await setConfig(ctx, { USE_MOCK: false, POLL_MS: 50 });
   await ctx.route('**/*', async route => {

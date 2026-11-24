@@ -104,7 +104,7 @@ Deepgram 只给英文（`en`）加标点，`multi` 和中文都没有标点，�
 
 学生点 Share 得到的链接是前端的 `#/s/<随机 id>`，地址按顺序取：`WEB_URL`；没设就用学生当时打开的页面的地址；再没有就用 `PUBLIC_URL`。前端放在某个路径下（如 `https://uni.example.com/sidenote/`）时要设 `WEB_URL`。
 
-`EXAMPLE_SHARE_ID`：公开页面（首页、登录页）上 “Example notes” 打开的分享课堂，填分享链接最后那串 id。不设就不显示这个入口。
+`EXAMPLE_SHARE_ID`：公开页面（首页、登录页）上 “Example notes” 打开的分享课堂，填分享链接最后那串 id。不设（或留空）就用服务器自带的示例笔记（ECON 1001 第 9 周，数据在 `src/api/sample.ts`，`server/src/example.ts` 读出），数据库里不用有这堂课；设成 `off` 就不显示这个入口。设成 `econ-w9` 和不设一样。
 
 分享页不带录音（INTEGRATION.md 4.3），也不带学习进度。
 

@@ -71,7 +71,7 @@
 | 接口 | 行为 |
 |---|---|
 | `POST /session` `{inviteCode, name}` | 码不对回 401 加说明（前端对这个公开接口原样显示）。给了 `name` 就更新名字。回 `{token, user}` |
-| `GET /home` | `user`、`courses`、`lectures`（新的在前）、`upcoming`（从笔记里带日期的考试和截止提示汇总，只给今天及以后的）、`settings`、`usage`、`today`（按 `APP_TIMEZONE`，默认香港）。`week` 本阶段不给 |
+| `GET /home` | `user`、`courses`、`lectures`（新的在前）、`upcoming`（从笔记里带日期的考试和截止提示汇总，加上学生自己加的日期，只给今天及以后的）、`settings`、`usage`、`today`（按 `APP_TIMEZONE`，默认香港）。`week` 本阶段不给 |
 | `POST /courses` `{code, name}` | `code` 必填，最长 20 字；`name` 最长 80 字。回 `course`，带一个配色 |
 | `POST /lectures` `{courseId, title, language, source}` | 检查课程、语言、来源。`record`、`tab` 先查当天现场录音分钟数，超了回 429 加说明；本阶段还不收分段，所以再回 501“录音功能还没开放，请上传录音”（不让前端开始录一堂存不下来的课）。**第二阶段**：`record`、`tab` 照常建课（`LIVE_RECORDING=off` 时仍回 501），分钟数也算上正在录的课。`link` 回 501。`upload` 建课，状态 `recording`（和示例数据一致），回 `lecture` |
 | `POST /lectures/:id/recording` | 只在 `recording` 状态收。流式收完用 `ffprobe` 确认有音轨，没有就删掉并回 415。存成固定的文件名 `recording`（不带扩展名），这样 ffmpeg 按内容识别格式，上传的文件名改不了它的读法（比如把文件叫成 `.m3u8` 当播放列表读）。同一堂课再传一次会覆盖。**第二阶段**：现场录音的课回 409 |

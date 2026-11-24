@@ -27,7 +27,13 @@ export function Timeline({ d, dur, pos }: { d: Detail; dur: number | undefined; 
 function ZhPick({ d }: { d: Detail }) { const hans = zhScript() === "hans";
   return state.zh && d.sections.some(s => s.points.some(p => p.zhHant && p.zhHans)) ? <span className="seg2" role="group" aria-label={t("Chinese characters")}><button className={hans ? "" : "on"} aria-pressed={!hans} onClick={() => setZhScript("hant")} data-notr="">繁</button><button className={hans ? "on" : ""} aria-pressed={hans} onClick={() => setZhScript("hans")} data-notr="">简</button></span> : null; }
 
-export function Tools({ d }: { d: Detail }) {
-  return <div className="tools"><label><input type="checkbox" defaultChecked={state.onlyOff} onChange={e => { state.onlyOff = e.currentTarget.checked; bump(); }} />{t(" Only what is not on the slides")}</label>
-    <label><input type="checkbox" defaultChecked={state.zh} onChange={e => { state.zh = e.currentTarget.checked; bump(); }} />{t(" 中文解釋")}</label><ZhPick d={d} />{cur!.shared ? null : <label><input type="checkbox" defaultChecked={state.edit} onChange={e => { state.edit = e.currentTarget.checked; bump(); }} />{t(" Edit notes")}</label>}</div>;
+/* Notes on slides that can be shown alone ("Not on slides"): only when the lecture has slides. */
+export const hasSlides = (d: Detail) => d.slides.length > 0;
+
+/* 中文解釋 comes first and stands out (a core feature, on by default: retest of 2026-11-23), written in the reader's
+   script. "Only what is not on the slides" only when there are slides: without them no point is "Not on slides". */
+export function Tools({ d }: { d: Detail }) { const any = d.sections.some(s => s.points.some(p => p.zhHant || p.zhHans || p.zh));
+  return <div className="tools">{any ? <span className={"zh-on" + (state.zh ? " on" : "")}><label><input type="checkbox" name="zh" defaultChecked={state.zh} onChange={e => { state.zh = e.currentTarget.checked; bump(); }} /><span data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{zhScript() === "hans" ? "中文解释" : "中文解釋"}</span></label><ZhPick d={d} /></span> : null}
+    {hasSlides(d) ? <label><input type="checkbox" name="onlyOff" defaultChecked={state.onlyOff} onChange={e => { state.onlyOff = e.currentTarget.checked; bump(); }} />{t(" Only what is not on the slides")}</label> : null}
+    {cur!.shared ? null : <label><input type="checkbox" name="edit" defaultChecked={state.edit} onChange={e => { state.edit = e.currentTarget.checked; bump(); }} />{t(" Edit notes")}</label>}</div>;
 }

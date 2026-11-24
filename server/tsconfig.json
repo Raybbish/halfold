@@ -14,5 +14,5 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
-  "include": ["src", "test", "scripts", "../src/types.ts"]
+  "include": ["src", "test", "scripts", "../src/types.ts", "../src/api/sample.ts"]
 }

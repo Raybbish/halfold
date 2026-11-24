@@ -39,7 +39,7 @@ const DETAIL = { alerts: [], slides: [], transcript: [{ t: 0, text: 'line 0' }],
   const second = await page.evaluate(() => { const e = document.querySelectorAll('.pt .body')[1]; return { html: e.innerHTML, text: e.textContent, b: e.querySelectorAll('b').length, subs: e.querySelectorAll('sub,sup').length }; });
   check('the rest of the text stays text: <b> is shown as typed, snake_case and "3 ^ 4" are left alone', second.b === 0 && second.subs === 0 && second.text.includes('<b>not bold</b> and a snake_case_name and 3 ^ 4 stay as written.'), second);
 
-  await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
+  await page.locator('.tools input[name=zh]').check(); await page.waitForTimeout(200);
   const zh = await marks('.pt .zh');
   check('中文解釋 shows the formula the same way', zh && JSON.stringify(zh.sup) === '["-i 2π k/N"]', zh);
 

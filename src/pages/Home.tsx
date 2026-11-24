@@ -13,6 +13,7 @@ import { addToCalendar } from "../features/export";
 import { MIN_QUERY, found, norm, searchNotes } from "../features/search";
 import { Hal } from "../ui/icons";
 import { Shell, addCourseModal } from "../ui/Shell";
+import { addDateModal, removeDate } from "./radar";
 import { css } from "../ui/css";
 
 /* A lecture whose recording is being uploaded right now is "Uploading", not "Not finished". */
@@ -88,9 +89,10 @@ export function Home() {
       <div className="card"><div style={css("display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px 4px;flex-wrap:wrap")}><h2 style={css("font-size:17px")}>{t("Lectures")}</h2>
         <input className="search" type="search" aria-label={t("Search lectures")} placeholder={t("Search course, title or notes")} defaultValue={state.q} onChange={e => { state.q = e.currentTarget.value; searchNotes(state.q); refresh(); }} /></div>
         <ul className="list" id="lecList"><LecList /></ul><NoteHits /></div>
-      <div className="card"><h2 className="sec-h">{t("Exam radar")}</h2><ul className="list">
-        {up.length ? up.map((u, i) => <li key={i}><div className="count"><b className="num">{daysLeft(u.date)}</b><span>{t(daysLeft(u.date) === 1 ? "day" : "days")}</span></div><div className="grow"><div><span className="tag amber">{t(u.kind)}</span>{" "}<span className="small muted">{t(u.course + ", " + dayMon(u.date))}</span></div><div className="small" style={css("margin-top:3px")} data-notr="">{u.text}</div><a className="small" href={"#/lecture/" + encodeURIComponent(u.lecture)} onClick={() => setPendingPos(+u.t)}>{t("Said at " + fmt(u.t))}</a><button className="ts" style={css("margin-left:12px")} onClick={() => addToCalendar(i)}>{t("Add to calendar")}</button></div></li>)
-          : <li><span className="muted">{t("No dates yet. They appear here when a lecturer mentions an exam or a deadline.")}</span></li>}
+      <div className="card"><div className="radar-h"><h2 className="sec-h">{t("Exam radar")}</h2><button className="ts" data-act="adddate" onClick={addDateModal}>{t("Add a date")}</button></div><ul className="list">
+        {up.length ? up.map((u, i) => <li key={u.id || i}><div className="count"><b className="num">{daysLeft(u.date)}</b><span>{t(daysLeft(u.date) === 1 ? "day" : "days")}</span></div><div className="grow"><div><span className="tag amber">{t(u.kind)}</span>{" "}<span className="small muted">{t(u.course + ", " + dayMon(u.date))}</span></div>{u.text ? <div className="small" style={css("margin-top:3px")} data-notr="">{u.text}</div> : null}
+          {u.lecture != null && u.t != null ? <a className="small" href={"#/lecture/" + encodeURIComponent(u.lecture)} onClick={() => setPendingPos(+u.t!)}>{t("Said at " + fmt(u.t))}</a> : <><span className="small muted">{t("Added by you")}</span><button className="ts" style={css("margin-left:12px")} onClick={() => removeDate(u)}>{t("Remove")}</button></>}<button className="ts" style={css("margin-left:12px")} onClick={() => addToCalendar(i)}>{t("Add to calendar")}</button></div></li>)
+          : <li><span className="muted">{t("No dates yet. They appear here when a lecturer mentions an exam or a deadline, or when you add one.")}</span></li>}
       </ul></div>
     </div>
     <h2 style={css("font-size:20px;margin-top:32px")}>{t("Your courses")}</h2>

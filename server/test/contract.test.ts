@@ -39,7 +39,7 @@ test("GET /home matches the Home shape, empty and with a lecture", async t => {
   assert.deepEqual(empty.courses, []); assert.deepEqual(empty.lectures, []);
   assert.deepEqual(empty.usage, { minutesToday: 0, minutesLimit: 240 });
   assert.match(empty.today!, /^\d{4}-\d{2}-\d{2}$/);
-  assert.deepEqual(empty.settings, { classLanguage: "en", zhDefault: false });
+  assert.deepEqual(empty.settings, { classLanguage: "en", zhDefault: true });   // 中文解釋 on by default
 
   const id = await uploadedLecture(s, token);
   await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 590 } });

@@ -37,7 +37,7 @@ class Gone extends Error {}
 
 /* A Cantonese class reads in Traditional characters, as students in Hong Kong write. */
 const traditionalForCantonese = (l: LectureRow, lines: Line[], detected?: string) =>
-  l.language === "en-yue" || (l.language === "auto" && detected === "yue") ? lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) })) : lines;
+  l.language === "en-yue" || l.language === "yue" || (l.language === "auto" && detected === "yue") ? lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) })) : lines;
 
 /* Two lanes. A link lecture whose file is not here yet is downloaded first, at most LINK_CONCURRENCY at a time, and
    queued again for the rest once the file is in: a slow download (up to LINK_DOWNLOAD_MINUTES) never holds up the notes
@@ -164,7 +164,10 @@ export class Pipeline implements Jobs {
 
     /* 4. Notes. A reply that cannot be used is shown back to the model once to be corrected. */
     const course = store.course(l.user_id, l.course_id);
-    const zh = config.zhExplanations ? (l.language === "en-zh" ? "hans" : "hant") : null;
+    /* The explanations come in both scripts, each written by the model in its own usage (notes/prompt.ts), whatever the
+       class language: the reader picks 简 or 繁 (retest of 2026-11-23: Simplified converted from Hong Kong Traditional
+       kept Hong Kong terms such as 联储局 and 货品). */
+    const zh = config.zhExplanations;
     const input: NotesInput = {
       courseCode: course?.code || "", courseName: course?.name || "", title: l.title, date: promptDate(new Date(l.created_at), config.timezone),
       language: l.language, duration: info.duration, lines, slides: slidePages, zh

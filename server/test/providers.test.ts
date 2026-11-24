@@ -71,7 +71,7 @@ test("Deepgram: the class language maps to a Deepgram language; punctuated words
   const srv = await fakeServer(() => ({ body: JSON.stringify({ metadata: { duration: 9 }, results: { channels: [{ alternatives: [{ words: [
     { word: "hello", punctuated_word: "Hello,", start: 0, end: 0.4, language: "en" }, { word: "機會", start: 0.5, end: 1, language: "zh-HK" }] }] }] } }) }));
   t.after(srv.close);
-  const dg = new DeepgramNova("dg-key", "nova-3", { en: "en", "en-yue": "zh-HK", "en-zh": "multi", auto: "multi" }, 0.258, 0.312, srv.url);
+  const dg = new DeepgramNova("dg-key", "nova-3", { en: "en", zh: "multi", yue: "multi", "en-yue": "zh-HK", "en-zh": "multi", auto: "multi" }, 0.258, 0.312, srv.url);
   const r = await dg.transcribe(audioFile(), "en-yue");
   assert.deepEqual(r.words, [{ text: "Hello,", start: 0, end: 0.4, language: "en" }, { text: "機會", start: 0.5, end: 1, language: "zh-HK" }]);
   const u = new URL(srv.url + srv.seen[0].url);
@@ -92,7 +92,7 @@ test("Deepgram: without punctuation (multi, Chinese), each utterance's last word
   ];
   const srv = await fakeServer((_, n) => ({ body: JSON.stringify(replies[n - 1]) }));
   t.after(srv.close);
-  const dg = new DeepgramNova("k", "nova-3", { en: "en", "en-yue": "multi", "en-zh": "multi", auto: "multi" }, 0.258, 0.312, srv.url);
+  const dg = new DeepgramNova("k", "nova-3", { en: "en", zh: "multi", yue: "multi", "en-yue": "multi", "en-zh": "multi", auto: "multi" }, 0.258, 0.312, srv.url);
   const mixed = await dg.transcribe(audioFile(), "auto");
   assert.deepEqual(mixed.words.map(w => [w.text, !!w.endsSentence]), [["首先", false], ["我哋", true], ["remember", true], ["concept", true]]);
   assert.equal(mixed.detectedLanguage, "yue");
@@ -105,12 +105,12 @@ test("Deepgram: without punctuation (multi, Chinese), each utterance's last word
 test("config: Deepgram is the default speech-to-text service, mixed classes on multi", () => {
   const c = loadConfig({});
   assert.equal(c.stt.provider, "deepgram");
-  assert.deepEqual(c.stt.deepgram.languages, { en: "en", "en-yue": "multi", "en-zh": "multi", auto: "multi" });
+  assert.deepEqual(c.stt.deepgram.languages, { en: "en", zh: "multi", yue: "multi", "en-zh": "multi", "en-yue": "multi", auto: "multi" });
   assert.equal(loadConfig({ STT_PROVIDER: "elevenlabs" }).stt.provider, "elevenlabs");
 });
 
 const input: NotesInput = { courseCode: "ECON 1001", courseName: "Micro", title: "W9", date: "Tuesday 2026-11-10", language: "en-yue", duration: 600,
-  lines: [{ t: 1, text: "Hello" }], slides: [], zh: "hant" };
+  lines: [{ t: 1, text: "Hello" }], slides: [], zh: true };
 const sse = (chunks: object[]) => chunks.map(c => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n";
 const opts = (url: string) => ({ apiKey: "ds-key", baseUrl: url, model: "deepseek-v4-pro", reasoningEffort: "high", maxTokens: 1000, prices: { inputCacheHit: 0.044, inputCacheMiss: 1.32, output: 3.96 } });
 
@@ -131,7 +131,7 @@ test("DeepSeek: a streamed JSON reply with usage; JSON mode, thinking and the pr
   assert.equal(body.model, "deepseek-v4-pro"); assert.equal(body.stream, true); assert.deepEqual(body.stream_options, { include_usage: true });
   assert.equal(body.reasoning_effort, "high"); assert.equal(body.max_tokens, 1000);
   assert.equal(body.messages.length, 2);
-  assert.match(body.messages[0].content, /JSON/); assert.match(body.messages[0].content, /Traditional Chinese \(as used in Hong Kong\)/);
+  assert.match(body.messages[0].content, /JSON/); assert.match(body.messages[0].content, /Traditional Chinese as written in Hong Kong/);
   assert.match(body.messages[0].content, /standard written Chinese \(書面語\), not spoken Cantonese/);
   assert.match(body.messages[1].content, /\[1\] Hello/); assert.match(body.messages[1].content, /Lecture date: Tuesday 2026-11-10/);
   /* A repair call shows the model its reply and the problem. */
