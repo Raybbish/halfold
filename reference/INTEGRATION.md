@@ -123,9 +123,10 @@
 - `ask` 用这堂课的逐字稿回答，`refs` 是答案依据的逐字稿原句和时间（最多 4 条），界面上点时间就跳过去播放。问题最多 300 字。讲不到就在 `answer` 里直说，`refs` 给空数组。出错回 `{ message }`，前端原样显示。
 - `getReview` 给所有有笔记的课里还没标"记得"的闪卡，新课在前；`index` 是这张卡在那堂课 `flashcards` 里的下标。`setCardKnown` 只改这一张，测验分数不动；和 `saveProgress` 存的是同一份 `progress.known`。
 - `createLecture` 时请检查当天的录音分钟上限，超出就拒绝并返回 `message`。前端在录音前也会检查，但不能只靠前端。
+- `source: "slides"` 是只用课件、不录音做的学习包：先 `createLecture`，再 `uploadSlides`，再 `finishLecture(id, 0)`。完整流程见 3.6。
 
 `language` 的取值：`en`（英文）、`zh`（普通话）、`yue`（粤语）、`en-zh`（英文夹普通话）、`en-yue`（英文夹粤语）、`auto`。`zh` 和 `yue` 是 2026-11-24 加的（API-CHANGES.md 第 14 节）。
-`source` 的取值：`record`（麦克风）、`tab`（网课，浏览器标签页的声音）、`upload`、`link`。
+`source` 的取值：`record`（麦克风）、`tab`（网课，浏览器标签页的声音）、`upload`、`link`、`slides`（只用课件做的学习包，见 3.6）。
 
 ## 3. 数据结构
 
@@ -165,6 +166,7 @@
 | `ready` | 时长 | 笔记 |
 | `failed` | Not written | 说明录音还在，可以点"Try again"，前端会调 `retryLecture` |
 
+- `lecture.source` 为 `slides`、又没有 `duration` 的课（只用课件做的学习包），列表里不显示时长，显示 Slides 标记。见 3.6。
 - `upcoming` 是从所有课堂的考试和截止日期提示里汇总出来的，`date` 用 `YYYY-MM-DD`，倒计时由前端计算。已过期的前端会自动隐藏。每一条都可以下载成日历文件（全天事件）。学生自己加的日期（`POST /upcoming`）带 `id`，`lecture` 和 `t` 是 `null`，可以删（API-CHANGES.md 第 14 节）。
 - `week.days` 是周一到周五是否录过课。
 
@@ -201,6 +203,7 @@
 - `section.slides` 是显示用的文字，可以不给。各 `section` 的 `start`、`end` 应首尾相接，并且不超过 `lecture.duration`，时间轴按它们的比例画。
 - `alerts.kind` 是直接显示的文字。请用 `Midterm`、`Deadline`、`Exam hint`、`Quiz`、`Final` 这几个英文词，中文界面下它们会被翻译；用别的词则原样显示。
 - `quiz.a` 是正确选项的下标，`quiz.t` 是老师讲到这一点的时间，可以不给。
+- `kind: "slides"` 表示这份内容是只用课件写的学习包（见 3.6）：`point.t` 全是 `null`，`point.slide` 是这一点讲解的那一页，没有 `off`、`alerts`、`transcript`，`section.start`、`section.end` 都是 `0`，`quiz.t` 是 `null`。普通笔记不带 `kind`。
 
 ### 3.3 `GET /courses/:id/review-pack`
 
@@ -252,6 +255,42 @@
 - `GET /home` 的 `user.profile` 在学生存过一次之前是 `null`，前端在去主页时就先打开 `#/welcome`。学生点 “Skip for now” 时前端在浏览器里记下，并调 `profileLater()`；之后 `user.profileSkipped` 是 `true`，换设备也不再问，主页只显示一行提示。
 - `schoolGuess`（`GET /home` 顶层）：`{ en, zhHant, zhHans }`，邮箱域名对得上学校、还没存学校时才给，前端拿来预填 “University”。
 - `updateProfile` 给了的字段才存，没给的不动；返回 `{ profile }`。第一次存（哪怕什么都没填）之后就不再问。同意每次改变都要记下时间。
+
+### 3.6 只用课件做的学习包（`source: "slides"`）
+
+学生没有录音时，可以只交课件（PDF），得到一份学习包：每页的讲解和要点、闪卡和测验。之后再加上这堂课的录音，就变成一堂普通的课，笔记按录音加课件重写。
+
+**流程**
+
+1. `POST /lectures`，`source: "slides"`。`language` 照常传（只用来决定中文解釋用繁体还是简体）。
+2. `POST /lectures/:id/slides`，multipart `file`，必须是 PDF，否则 415。前端在上传失败时会删掉刚建的课（`DELETE /lectures/:id`），表单上保留已选的文件和服务器给的原因。
+3. `POST /lectures/:id/finish`，`duration` 给 `0`。没有课件时返回 409：`Add the slide deck first. A study pack is made from the slides.` 之后课堂是 `processing`，前端轮询 `GET /lectures/:id/status`，和普通的课一样。
+4. `ready` 之后 `GET /lectures/:id` 的 `detail` 带 `kind: "slides"`，格式见 3.2 最后一条。
+
+**服务器怎么写**
+
+- 用读课件的同一段代码（`server/src/slides.ts` `readSlides`）取出每页的文字，再让笔记模型按 `server/src/notes/slidesPack.ts` 的提示写：讲解课件上写了什么，不补课件上没有的内容，不猜老师在课上说了什么，不写考试提醒；封面、目录这类没有内容的页不写要点。
+- 闪卡和测验的数量按有文字的页数算：大约每 2 页一张闪卡、每 4 页一道题，最少 2 张、1 道，最多 15 张、10 道（和录音的上限一样）。
+- 回复不能用时把回复和问题发回给模型再要一次，和写笔记一样。每次调用都记进费用表，`stage` 是 `slides-pack`，`meta.slidePages` 是页数；`npm run costs` 有单独一列和一行汇总。
+- 课件读不出来（加密、损坏）或者没有文字（扫描件），这堂课就是 `failed`，`error` 里写原因。课件文件保留，"Try again"（`POST /lectures/:id/retry`）会重新读。
+
+**额度**
+
+学习包不用录音，所以不计入每月的课堂数（`lecturesPerMonth`），也不占当天的录音分钟：建课时不检查，`quota` 表里不记。怎么给学习包计数（要不要另设上限）还没定，现在是不限。
+
+**之后加录音**
+
+- 在学习包上 `POST /lectures/:id/recording`（multipart `file`）：课堂从此是 `source: "upload"`，按普通上传计数（先检查每月课堂数，超出 429）。
+- 学习包已经写好（`ready`）或者失败了（`failed`）时，这个请求返回之前课堂就已经是 `processing`，按普通流程用录音加原来的课件重写笔记；之后前端照常调 `finishLecture`，只会拿到 `processing`。闪卡的"已掌握"记录会清空，因为闪卡会重写。学生在学习包上改过的要点和自己加的要点不会带到新笔记里。
+- 重写期间 `GET /lectures/:id` 的 `detail` 是 `null`，课堂页显示"正在写笔记"。
+- 学习包还在写（`processing`）时加录音返回 409：`Hal is still reading the slides. Add the recording when the study pack is ready.`
+- 学习包还没开始做（`recording`，课件传了但没调 `finish`）时加录音，就是一次普通上传，之后要调 `finish`。
+
+**前端**
+
+- 新建课堂页最后一个选项是"Slides only, no recording"：只要课件，不问上课语言，按钮是"Make the study pack"。首页的录音卡片、落地页和"超出每月课堂数"的提示窗里都有链接直接打开这个选项。
+- 写的过程中课堂页显示"Hal is reading your slides"；失败时显示"This study pack could not be written"，说明课件还在，可以 Try again。
+- 学习包页面没有时间轴、逐字稿、播放器和"只看课件上没有的"开关；每个要点前显示"Slide N"。顶部有一张卡片：加录音（上传进度显示在这张卡片的位置），或者去录下一堂课。
 
 ## 4. 录音保留与回放
 
@@ -372,6 +411,7 @@
 | 编辑笔记、反馈、停止分享、存到我的课堂 | 界面是真的，只改了本页的示例数据 |
 | 中文解釋的繁体写法 | 示例里是用一张小的对照表从简体转出来的，只覆盖示例用到的字 |
 | 复习包 | 用示例课堂的内容拼出来的 |
+| 只用课件做的学习包 | 不管传什么课件，都是把示例课堂改成学习包（去掉时间、Not on slides、提醒和逐字稿），页面上标着 Sample；之后加录音得到的是示例课堂的完整笔记 |
 | 导出 Markdown、Anki、逐字稿、日历、打印 | 都是真的，在浏览器里生成 |
 | 会员方案 | 示例版本返回空列表，显示占位；付款提示"未接通" |
 | 登录 | 任何非空邀请码都能进 |

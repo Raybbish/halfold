@@ -10,10 +10,11 @@ import { fx } from "../../ui/Fx";
 import { jump, editPoint, delPoint } from "./actions";
 
 /* One point of the notes. Backend text keeps data-notr; "Not on slides" marks a point said in class but not on the slides.
-   "You" marks a point the student added to their own lecture (mine). A point someone else added, on the shared page or
-   in a saved copy, has no time either; an empty cell keeps its text in line. */
+   "You" marks a point the student added to their own lecture (mine). A point of a study pack made from the slides alone
+   has no time either: it shows the slide it explains. A point someone else added, on the shared page or in a saved copy,
+   has neither; an empty cell keeps its text in line. */
 export function Point({ p, si, pi }: { p: P; si: number; pi: number }) { const own = cur && !cur.shared && state.edit, you = cur && !cur.shared && p.mine;
-  return <div className={`pt ${p.off ? "off" : ""}${state.found === p ? " found" : ""}`}>{p.t != null ? <button className="ts" onClick={() => jump(+p.t!)} aria-label={t("Open transcript at " + fmt(p.t))}>{fmt(p.t)}</button> : you ? <span className="tag grey">{t("You")}</span> : <span />}<div className="body">{p.off ? <><span className="tag sn">{t("Not on slides")}</span>{" "}</> : null}<span data-notr="">{fx(p.text)}</span>{state.zh && zhText(p) ? <div className="zh" data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{fx(zhText(p))}</div> : null}{own ? <div className="pt-acts"><button className="ts" onClick={() => editPoint(si, pi)}>{t("Edit")}</button><button className="ts" style={css("color:var(--red)")} onClick={() => delPoint(si, pi)}>{t("Delete")}</button></div> : null}</div></div>; }
+  return <div className={`pt ${p.off ? "off" : ""}${state.found === p ? " found" : ""}`}>{p.t != null ? <button className="ts" onClick={() => jump(+p.t!)} aria-label={t("Open transcript at " + fmt(p.t))}>{fmt(p.t)}</button> : you ? <span className="tag grey">{t("You")}</span> : p.slide != null && !p.mine ? <span className="tag grey">{t("Slide " + p.slide)}</span> : <span />}<div className="body">{p.off ? <><span className="tag sn">{t("Not on slides")}</span>{" "}</> : null}<span data-notr="">{fx(p.text)}</span>{state.zh && zhText(p) ? <div className="zh" data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{fx(zhText(p))}</div> : null}{own ? <div className="pt-acts"><button className="ts" onClick={() => editPoint(si, pi)}>{t("Edit")}</button><button className="ts" style={css("color:var(--red)")} onClick={() => delPoint(si, pi)}>{t("Delete")}</button></div> : null}</div></div>; }
 
 /* The lecture as a coloured bar, one colour per topic, with ! where an exam or deadline was mentioned. The head is
    moved by the player without a redraw (plTick). */
@@ -31,9 +32,10 @@ function ZhPick({ d }: { d: Detail }) { const hans = zhScript() === "hans";
 export const hasSlides = (d: Detail) => d.slides.length > 0;
 
 /* 中文解釋 comes first and stands out (a core feature, on by default: retest of 2026-11-23), written in the reader's
-   script. "Only what is not on the slides" only when there are slides: without them no point is "Not on slides". */
+   script. "Only what is not on the slides" only when there are slides: without them no point is "Not on slides"; never on a study pack
+   made from the slides alone, where nothing is off the slides. */
 export function Tools({ d }: { d: Detail }) { const any = d.sections.some(s => s.points.some(p => p.zhHant || p.zhHans || p.zh));
   return <div className="tools">{any ? <span className={"zh-on" + (state.zh ? " on" : "")}><label><input type="checkbox" name="zh" defaultChecked={state.zh} onChange={e => { state.zh = e.currentTarget.checked; bump(); }} /><span data-notr="" lang={zhScript() === "hans" ? "zh-Hans" : "zh-Hant"}>{zhScript() === "hans" ? "中文解释" : "中文解釋"}</span></label><ZhPick d={d} /></span> : null}
-    {hasSlides(d) ? <label><input type="checkbox" name="onlyOff" defaultChecked={state.onlyOff} onChange={e => { state.onlyOff = e.currentTarget.checked; bump(); }} />{t(" Only what is not on the slides")}</label> : null}
+    {hasSlides(d) && d.kind !== "slides" ? <label><input type="checkbox" name="onlyOff" defaultChecked={state.onlyOff} onChange={e => { state.onlyOff = e.currentTarget.checked; bump(); }} />{t(" Only what is not on the slides")}</label> : null}
     {cur!.shared ? null : <label><input type="checkbox" name="edit" defaultChecked={state.edit} onChange={e => { state.edit = e.currentTarget.checked; bump(); }} />{t(" Edit notes")}</label>}</div>;
 }

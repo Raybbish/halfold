@@ -7,6 +7,7 @@ import { ProviderError, slowAgent, withRetry } from "../stt/types";
 import { systemPrompt, userPrompt } from "./prompt";
 import { slidesPrompt, type SlidesInput } from "./slides";
 import { packPrompt, type PackInput } from "./pack";
+import { slidesPackPrompt, type SlidesPackInput } from "./slidesPack";
 import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "./types";
 
 export type DeepSeekOptions = DeepSeekSettings;
@@ -82,6 +83,7 @@ export class DeepSeekWriter implements NotesWriter {
   write(input: NotesInput, signal?: AbortSignal, repair?: Repair) { return this.ask(systemPrompt(input), userPrompt(input), signal, repair); }
   fileSlides(input: SlidesInput, signal?: AbortSignal, repair?: Repair) { const p = slidesPrompt(input); return this.ask(p.system, p.user, signal, repair); }
   reviewPack(input: PackInput, signal?: AbortSignal, repair?: Repair) { const p = packPrompt(input); return this.ask(p.system, p.user, signal, repair); }
+  slidesPack(input: SlidesPackInput, signal?: AbortSignal, repair?: Repair) { const p = slidesPackPrompt(input); return this.ask(p.system, p.user, signal, repair); }
 
   private ask(system: string, user: string, signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
     const messages: ChatMessage[] = [{ role: "system", content: system }, { role: "user", content: user }];

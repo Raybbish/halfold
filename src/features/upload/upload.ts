@@ -6,16 +6,18 @@
    A failed upload keeps the file in memory, so "Send it again" sends the same file to the same lecture; Cancel upload
    (or Delete this lecture after a failure) stops it and deletes the lecture. The file lives only in this page: a reload
    loses it and the lecture is left unfinished. Leaving the page (main.tsx) or signing out (pages/Settings.tsx) while the
-   file is going asks first or is refused. */
+   file is going asks first or is refused.
+   A recording can also be added to a study pack made from the slides alone (addRecording, up.keep): the pack's page shows
+   the upload, and cancelling it (or giving up after a failure) only drops the file; the pack stays as it was. */
 import { api } from "../../api/api";
 import type { HttpError } from "../../api/http";
 import { bump } from "../../lib/bus";
 import { CONFIG } from "../../config";
-import { R, S, cur } from "../../state/app";
+import { R, S, cur, lecture } from "../../state/app";
 import { toast } from "../../state/overlay";
 import { finalize } from "../recording/finish";
 
-export const up = { id: null as string | null, name: "", file: null as File | null, slides: null as File | null, loaded: 0, total: 0, state: "" as "" | "sending" | "failed", err: "" };
+export const up = { id: null as string | null, name: "", file: null as File | null, slides: null as File | null, loaded: 0, total: 0, state: "" as "" | "sending" | "failed", err: "", keep: false };
 /* Stops the requests of the upload that is running. A new one for each try, so a stopped try notices it is no longer current. */
 let stop: AbortController | null = null;
 
@@ -33,7 +35,7 @@ function reason(e: unknown) { const x = e as HttpError;
 
 const href = (id: string) => "#/lecture/" + encodeURIComponent(id);
 const here = (id: string) => R.a === "lecture" && R.b === id;
-function reset() { stop = null; Object.assign(up, { id: null, name: "", file: null, slides: null, loaded: 0, total: 0, state: "", err: "" }); }
+function reset() { stop = null; Object.assign(up, { id: null, name: "", file: null, slides: null, loaded: 0, total: 0, state: "", err: "", keep: false }); }
 
 /* The bar and the percentages move without a redraw, like the recording clock: the lecture page's card and the link at the top. */
 function paint() { const pct = upPct();
@@ -41,13 +43,16 @@ function paint() { const pct = upPct();
   const b = document.getElementById("upBar"); if (b) { b.style.width = pct + "%"; b.parentElement!.setAttribute("aria-valuenow", String(pct)); } }
 
 /* New lecture -> Upload, after the lecture is created. */
-export function startUpload(id: string, file: File, slides: File | null) { Object.assign(up, { id, name: file.name, file, slides }); runUpload(); }
+export function startUpload(id: string, file: File, slides: File | null, keep = false) { Object.assign(up, { id, name: file.name, file, slides, keep }); runUpload(); }
 
-/* Send a recording file (the lecture page of a lecture that was never finished): to the lecture shown, as one upload. */
-export function reupload(f: File) { if (!cur) return;
+/* Send a recording file (the lecture page of a lecture that was never finished): to the lecture shown, as one upload.
+   keep: the lecture is a study pack that stays whatever happens to the file (addRecording). */
+export function reupload(f: File, keep = false) { if (!cur) return;
   if (up.id) return toast("Another upload is still running. Wait for it to finish first.", { error: true });
   if (f.size > CONFIG.MAX_UPLOAD_MB * 1048576) return toast("That file is larger than " + CONFIG.MAX_UPLOAD_MB + " MB.", { error: true });
-  startUpload(cur.l.id, f, null); }
+  startUpload(cur.l.id, f, null, keep); }
+/* Add a recording of the class to the study pack shown (made from the slides alone). */
+export const addRecording = (f: File) => reupload(f, true);
 
 /* Sends up.file (then up.slides) to up.id. Also "Send it again" after a failure. */
 export async function runUpload() {
@@ -60,6 +65,8 @@ export async function runUpload() {
   try {
     await api.uploadRecording(id, file, { signal: me.signal, onProgress: at(0, file.size) });
     if (!mine()) return;
+    /* A study pack with a recording is an upload from now on, as on the server: its page then says the notes are being written. */
+    const l = lecture(id); if (l && l.source === "slides") l.source = "upload";
     if (slides) { try { await api.uploadSlides(id, slides, { signal: me.signal, onProgress: at(file.size, slides.size) }); }
       catch (e) { if (!mine()) return; toast("Slides did not upload. You can add them later."); } }
     if (!mine()) return;
@@ -76,7 +83,8 @@ export async function runUpload() {
 
 /* Cancel upload, or Delete this lecture after a failure: stops the upload and deletes the lecture, so nothing is left. */
 export function cancelUpload() {
-  const id = up.id; if (!id) return; const s = stop; reset(); if (s) s.abort();
+  const id = up.id; if (!id) return; const s = stop, keep = up.keep; reset(); if (s) s.abort();
+  if (keep) { toast("Upload cancelled."); bump(); return; }
   /* The lists drop it at once. The home data is read again only after the server has deleted it: read sooner, it could
      still list the lecture. */
   api.deleteLecture(id).catch(() => {}).then(() => { S.homeLoaded = false; }); S.lectures = S.lectures.filter(l => l.id !== id); delete S.detail[id];

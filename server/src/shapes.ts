@@ -14,7 +14,7 @@ const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const id = z.string().regex(/^[A-Za-z0-9_-]+$/);   // INTEGRATION.md section 1
 export const StatusSchema = z.enum(["recording", "processing", "ready", "failed"]);
 
-export const SourceSchema = z.enum(["record", "tab", "upload", "link"]);
+export const SourceSchema = z.enum(["record", "tab", "upload", "link", "slides"]);
 /* The profile and consents (API-CHANGES.md 14), in GET /home's user. */
 const instant = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 export const ProfileSchema: z.ZodType<Profile> = z.strictObject({
@@ -62,6 +62,7 @@ export const MarkSchema: z.ZodType<Mark> = z.strictObject({ t: seconds, kind: z.
 const answerIsAnOption = (q: { a: number; opts: string[] }) => q.a < q.opts.length;
 export const QuizSchema: z.ZodType<QuizQuestion> = z.strictObject(quizFields).refine(answerIsAnOption, "the answer index is not one of the options");
 export const DetailSchema: z.ZodType<Detail> = z.strictObject({
+  kind: z.literal("slides").optional(),
   summary: z.array(z.string().min(1)).min(1).max(5).optional(), marks: z.array(MarkSchema).optional(),
   audio: AudioSchema.nullable().optional(), progress: z.strictObject({ known: z.array(z.number().int().nonnegative()) }).optional(),
   alerts: z.array(AlertSchema), sections: z.array(SectionSchema).min(1), slides: z.array(SlideSchema), transcript: z.array(LineSchema),

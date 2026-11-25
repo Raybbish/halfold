@@ -5,7 +5,7 @@ import { CONFIG } from "../config";
 import { wait } from "../lib/helpers";
 import { S } from "../state/app";
 import { http, form1, upload, type UploadOptions } from "./http";
-import { DATA, fakeUpload, fileUnderSlides, mockSlides, withoutSlides } from "./mock";
+import { DATA, fakeUpload, fileUnderSlides, mockSlides, samplePack, withoutSlides } from "./mock";
 import type {
   AskReply, CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, Mark, NewLecture, PackHint, PackQuestion, PackTopic, Plans, Point, ProfileReply,
   ProfileUpdate, ProgressUpdate, ReviewPack, ReviewReply, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, Upcoming, UrlReply
@@ -57,10 +57,11 @@ export const api = {
     await wait(200); const l = DATA.lectures.find(x => x.id === id); if (!l || !DATA.details[id] || l.unshared) throw new Error("This link is no longer shared.");
     return { lecture: l, course: DATA.courses.find(c => c.id === l.course), detail: DATA.details[id], sharedBy: DATA.user.name };
   },
-  /* POST /lectures {courseId, title, language, source:"record"|"tab"|"upload"|"link"} -> lecture */
+  /* POST /lectures {courseId, title, language, source:"record"|"tab"|"upload"|"link"|"slides"} -> lecture   "slides": a study
+     pack from the slide deck alone (POST /lectures/:id/slides, then finish); a recording added later makes it an upload */
   async createLecture(p: NewLecture): Promise<Lecture> {
     if (!CONFIG.USE_MOCK) return http("POST", "/lectures", p);
-    const l: Lecture = { id: "lec-" + Date.now().toString(36), course: p.courseId, title: p.title || "Untitled lecture", date: "Today", duration: 0, status: "recording" };
+    const l: Lecture = { id: "lec-" + Date.now().toString(36), course: p.courseId, title: p.title || "Untitled lecture", date: "Today", duration: 0, status: "recording", ...(p.source === "slides" ? { source: p.source } : {}) };
     DATA.lectures.unshift(l); DATA.feed = 0; return l;
   },
   /* POST /lectures/:id/chunks (multipart: audio, seq) -> {segments:[{t,text}], alerts:[{t,kind,text}]} */
@@ -106,14 +107,16 @@ export const api = {
   /* POST /lectures/:id/finish {duration} -> {status} */
   async finishLecture(id: string, duration: number): Promise<StatusReply> {
     if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/finish", { duration });
-    let l = DATA.lectures.find(x => x.id === id); if (!l) { l = { id, course: DATA.courses[0].id, title: "Recovered recording", date: "Today" }; DATA.lectures.unshift(l); } l.status = "processing"; l.duration = 5400; return { status: "processing" };
+    let l = DATA.lectures.find(x => x.id === id); if (!l) { l = { id, course: DATA.courses[0].id, title: "Recovered recording", date: "Today" }; DATA.lectures.unshift(l); } l.status = "processing"; if (l.source !== "slides") l.duration = 5400; return { status: "processing" };
   },
   /* GET /lectures/:id/status -> {status:"processing"|"ready"|"failed"} */
   async getStatus(id: string): Promise<StatusReply> {
     if (!CONFIG.USE_MOCK) return http("GET", "/lectures/" + id + "/status");
     await wait(1500); const l = DATA.lectures.find(x => x.id === id); if (l) l.status = "ready";
     const prev = DATA.details[id];   // notes with slides stay; slides sent later are filed in; no slides sent: notes without slides
-    DATA.details[id] = prev && prev.slides.length ? prev : mockSlides.has(id) ? (prev ? fileUnderSlides(prev) : DATA.detail) : withoutSlides(DATA.detail); return { status: "ready" };
+    /* A study pack from the slides alone is the sample lecture as a pack; a recording added to a pack gives the full notes, with its slides. */
+    DATA.details[id] = l && l.source === "slides" ? samplePack(DATA.detail) : prev && prev.kind === "slides" ? DATA.detail
+      : prev && prev.slides.length ? prev : mockSlides.has(id) ? (prev ? fileUnderSlides(prev) : DATA.detail) : withoutSlides(DATA.detail); return { status: "ready" };
   },
   /* POST /lectures/:id/retry -> {status}   write the notes again from the kept recording, after status "failed" */
   async retryLecture(id: string): Promise<StatusReply> {

@@ -286,9 +286,11 @@ const DETAIL = () => ({ alerts: [{ t: 18, kind: 'Midterm', text: 'Midterm on Thu
     check('plans from the backend are listed with the current one marked', (await page.locator('.plan').count()) === 2 && (await page.locator('.plan.cur').innerText()).includes('Free')); });
   await session({ init: () => { try { Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', { value: undefined, configurable: true }); } catch (e) {} }, viewport: { width: 390, height: 780 }, ctx: { isMobile: true, hasTouch: true } }, async ({ page, login }) => {
     await login(); await page.goto(ORIGIN + '/#/new'); await page.waitForSelector('.choice');
-    check('where a tab cannot be shared (phones) the online-class option is not offered', (await page.locator('.choice button').count()) === 3, await page.locator('.choice button').allInnerTexts()); });
+    const ways = await page.locator('.choice button').allInnerTexts();   // Record, Upload, Video link and (since 2026-11-24) Slides only
+    check('where a tab cannot be shared (phones) the online-class option is not offered', ways.length === 4 && !ways.some(x => /online class/i.test(x)), ways); });
   await session({}, async ({ page, login }) => { await login(); await page.goto(ORIGIN + '/#/new'); await page.waitForSelector('.choice');
-    check('on a desktop browser the online-class option is offered', (await page.locator('.choice button').count()) === 4); });
+    const ways = await page.locator('.choice button').allInnerTexts();
+    check('on a desktop browser the online-class option is offered', ways.length === 5 && ways.some(x => /online class/i.test(x)), ways); });
 
   await browser.close();
   console.log(`\n${results.filter(Boolean).length} of ${results.length} checks passed`);

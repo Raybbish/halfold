@@ -2,7 +2,8 @@
 
 export type LectureStatus = "recording" | "processing" | "ready" | "failed";
 export type ZhScript = "hant" | "hans";
-export type Source = "record" | "tab" | "upload" | "link";   // language is "en" | "zh" | "yue" | "en-zh" | "en-yue" | "auto" (state/app.ts LANGS)
+/* "slides": a study pack made from the slide deck alone, with no recording; it becomes "upload" when a recording is added. */
+export type Source = "record" | "tab" | "upload" | "link" | "slides";   // language is "en" | "zh" | "yue" | "en-zh" | "en-yue" | "auto" (state/app.ts LANGS)
 
 /* 3.1 GET /home */
 /* profile: the student's profile and consents (API-CHANGES.md 14), null until saved once; left out by a server that does not
@@ -82,6 +83,9 @@ export interface QuizQuestion { q: string; opts: string[]; a: number; why?: stri
 export type MarkKind = "important" | "lost";
 export interface Mark { t: number; kind: MarkKind }
 export interface Detail {
+  /* "slides": a study pack written from the slide deck alone. No transcript, alerts or times: each point has t null and
+     the slide it explains, and nothing is "off". */
+  kind?: "slides";
   summary?: string[];   // the lecture in 3 to 5 sentences, shown above the notes
   marks?: Mark[];       // the owner's marks from class, by time; never on the shared page
   audio?: Audio | null;

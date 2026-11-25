@@ -34,7 +34,7 @@ export interface Deps {
 }
 export type AppEnv = { Variables: { user: UserRow } };
 
-const SOURCES: Source[] = ["record", "tab", "upload", "link"];
+const SOURCES: Source[] = ["record", "tab", "upload", "link", "slides"];
 const COLORS = ["#FF6B57", "#4C7DFF", "#2BB673", "#FFB020", "#9B5DE5", "#00B8D9", "#F15BB5", "#8D6E63"];
 export const str = (v: unknown) => typeof v === "string" ? v.trim() : "";
 
@@ -117,8 +117,9 @@ export function privateRoutes(deps: Deps) {
     if (!CLASS_LANGUAGES.includes(language)) fail(400, "Choose the language of the class.");
     if (!SOURCES.includes(source)) fail(400, "Choose how to add the lecture.");
     if (source === "link" && !deps.links) fail(501, "Adding a link is not available yet. Download the recording and upload the file.");
-    /* The plan's lectures a month (plans.json), recorded or uploaded. */
-    billing.checkLecture(user.id);
+    /* The plan's lectures a month (plans.json), recorded or uploaded. A study pack made from slides alone uses no
+       recording, so it is not counted (store.lecturesUsed); what it should count for is not decided yet. */
+    if (source !== "slides") billing.checkLecture(user.id);
     if (source === "record" || source === "tab") {
       /* The daily limit is on live recording only (uploads are not counted), checked here and not only in the browser,
          and again on every chunk (a recording in progress counts too). */
@@ -131,15 +132,24 @@ export function privateRoutes(deps: Deps) {
     return c.json(lectureView(l, config.timezone));
   });
 
+  /* A study pack made from slides alone (source "slides") takes a recording too: it then becomes an upload and counts as
+     one. That limit is checked once the file has arrived (a reply sent while the browser is still sending can reach it as
+     a network error; the front end checks first). Once the pack is written (ready) or could not be (failed), the notes
+     are written again from the recording with the slides, and the lecture is processing before this reply, as with
+     slides sent later; the POST /finish that follows only returns that status. Before the pack (status recording) it is
+     an upload like any other. */
   r.post("/lectures/:id/recording", async c => {
     const user = c.get("user"), id = c.req.param("id"), l0 = mine(user.id, id);
-    if (l0.status !== "recording") fail(409, "This lecture already has a recording.");
+    const packDone = (l: LectureRow) => l.source === "slides" && (l.status === "ready" || l.status === "failed");
+    if (l0.source === "slides" && l0.status === "processing") fail(409, "Hal is still reading the slides. Add the recording when the study pack is ready.");
+    if (l0.status !== "recording" && !packDone(l0)) fail(409, "This lecture already has a recording.");
     if (isLive(l0)) fail(409, "This lecture is being recorded in Halfold. End the recording to get the notes.");
     const got = await receiveFile(c.req.raw, files, "file", config.maxUploadBytes);
     try {
       const l = store.userLecture(user.id, id);
       if (!l) fail(404, "This lecture was deleted while the file was uploading.");
-      if (l!.status !== "recording") fail(409, "This lecture already has a recording.");
+      if (l!.status !== "recording" && !packDone(l!)) fail(409, "This lecture already has a recording.");
+      if (l!.source === "slides") billing.checkLecture(user.id);
       const info = await media.probe(got.tempPath);
       if (!info || !info.hasAudio) fail(415, "Halfold could not find any audio in this file. Try an MP3, M4A, WAV or MP4 file.");
       /* Stored under a fixed name with no extension: ffmpeg then reads it by its content, as ffprobe just did, and a
@@ -147,6 +157,11 @@ export function privateRoutes(deps: Deps) {
       await files.commit(got.tempPath, id, "recording");
       store.setRecording(id, "recording");
       store.setContentKey(id, fileKey(got.sha256));
+      if (l!.source === "slides") {
+        store.setSource(id, "upload");
+        /* The flashcards are written again too: which ones the student knew no longer applies. */
+        if (packDone(l!)) { if (store.progress(id)) store.saveProgress(id, [], null); if (store.startProcessing(id, ["ready", "failed"])) jobs.enqueue(id); }
+      }
     } finally { await files.discard(got.tempPath); }
     /* Deleted between the check above and the move: the move recreated its folder. */
     if (!store.lecture(id)) await files.removeLecture(id);
@@ -277,6 +292,8 @@ export function privateRoutes(deps: Deps) {
       live.stop(id);
     } else if (l.source === "link") {
       if (!l.recording_file && !l.link) fail(409, "Paste the link to the lecture video first.");
+    } else if (l.source === "slides") {
+      if (!l.has_slides || !files.exists(id, "slides.pdf")) fail(409, "Add the slide deck first. A study pack is made from the slides.");
     } else if (!l.recording_file) fail(409, "Halfold did not receive a recording for this lecture. Delete it and upload the file again.");
     if (store.startProcessing(id, ["recording", "failed"], duration)) jobs.enqueue(id);
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? "processing" });
@@ -288,16 +305,17 @@ export function privateRoutes(deps: Deps) {
      failed lecture is queued; any other status is returned as it is. */
   r.post("/lectures/:id/retry", c => {
     const id = c.req.param("id"), l = mine(c.get("user").id, id);
-    const canRedo = l.recording_file || (isLive(l) && store.hasChunk(id, 0)) || (l.source === "link" && l.link);
+    const canRedo = l.recording_file || (isLive(l) && store.hasChunk(id, 0)) || (l.source === "link" && l.link) || (l.source === "slides" && l.has_slides);
     if (l.status === "failed" && canRedo && store.startProcessing(id, ["failed"])) jobs.enqueue(id);
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? l.status });
   });
 
   /* detail is there once the notes are written, also while slides sent later are being matched to them (processing).
+     Not while the notes are being written again from a recording added to a study pack: the pack is about to go.
      The student's own marks from class come with it (study.ts); the shared page has none. */
   r.get("/lectures/:id", c => {
     const l = mine(c.get("user").id, c.req.param("id"));
-    const detail = store.detail(l.id);
+    const detail = l.status === "processing" && !l.refile ? null : store.detail(l.id);
     if (detail) {
       const audio = audioView(deps, l), progress = store.progress(l.id), marks = store.marks(l.id);
       if (audio) detail.audio = audio;

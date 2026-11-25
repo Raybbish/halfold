@@ -18,6 +18,7 @@ import type { Transcriber, Transcript, Word } from "../src/stt/types";
 import type { NotesCall, NotesInput, NotesWriter, Repair, TokenUsage } from "../src/notes/types";
 import type { SlidesInput } from "../src/notes/slides";
 import type { PackInput } from "../src/notes/pack";
+import type { SlidesPackInput } from "../src/notes/slidesPack";
 import { ReviewPacks } from "../src/packs";
 import { Billing } from "../src/billing";
 import type { Mail, Mailer } from "../src/mail";
@@ -155,6 +156,19 @@ export function goodPack(input: PackInput) {
   };
 }
 
+/* A study pack from slides alone as the model would write it: a section per page with one point on it, a card and a
+   question on the last page. */
+export function goodSlidesPack(input: SlidesPackInput) {
+  return {
+    title: "Opportunity cost from the slides",
+    summary: ["Opportunity cost is the next best alternative given up."],
+    sections: input.slides.map(p => ({ title: "Page " + p.n, points: [{ slide: p.n, text: "Slide " + p.n + " explained: " + (p.text.split("\n")[0] || "nothing"), zh: "第 " + p.n + " 頁的解釋。" }] })),
+    slides: input.slides.map(p => ({ n: p.n, title: "Page " + p.n })),
+    flashcards: [{ q: "What is opportunity cost?", a: "The next best alternative given up." }],
+    quiz: [{ q: "Opportunity cost is...", opts: ["the price", "the next best alternative", "a sunk cost", "a tax"], a: 1, why: "It is what you give up.", slide: input.slides.length }]
+  };
+}
+
 export class StubNotes implements NotesWriter {
   readonly provider = "stub-notes"; readonly model = "stub-notes-1";
   calls: { input: NotesInput; repair?: Repair }[] = [];
@@ -164,6 +178,9 @@ export class StubNotes implements NotesWriter {
   slideReplies: (string | Error)[] = [];
   packCalls: { input: PackInput; repair?: Repair }[] = [];
   packReplies: (string | Error)[] = [];
+  /* Study packs made from slides alone. */
+  slidesPackCalls: { input: SlidesPackInput; repair?: Repair }[] = [];
+  slidesPackReplies: (string | Error)[] = [];
   gate: Promise<void> | null = null;
   usage: TokenUsage = { inputTokens: 30000, cachedInputTokens: 0, outputTokens: 12000, reasoningTokens: 4000 };
   async write(input: NotesInput, _signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
@@ -177,6 +194,10 @@ export class StubNotes implements NotesWriter {
   async reviewPack(input: PackInput, _signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
     this.packCalls.push({ input, repair });
     return this.answer(this.packReplies, () => goodPack(input));
+  }
+  async slidesPack(input: SlidesPackInput, _signal?: AbortSignal, repair?: Repair): Promise<NotesCall> {
+    this.slidesPackCalls.push({ input, repair });
+    return this.answer(this.slidesPackReplies, () => goodSlidesPack(input));
   }
   private async answer(queue: (string | Error)[], good: () => unknown): Promise<NotesCall> {
     if (this.gate) await this.gate;

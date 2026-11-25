@@ -8,7 +8,8 @@ export interface PackLecture { id: string; title: string; date: string; duration
 export interface PackInput {
   courseCode: string;
   courseName: string;
-  lectures: { n: number; title: string; date: string; sections: { title: string; points: { id: number; t: number | null; text: string; off: boolean }[] }[]; alerts: { kind: string; text: string }[] }[];
+  /* slide: the page a point of a study pack made from slides alone explains (it has no time, like the student's own points). */
+  lectures: { n: number; title: string; date: string; sections: { title: string; points: { id: number; t: number | null; text: string; off: boolean; slide?: number }[] }[]; alerts: { kind: string; text: string }[] }[];
 }
 
 /* Stored without lecture titles: those are filled in when the pack is read, so a renamed lecture shows its new title. */
@@ -34,7 +35,8 @@ export function packInput(course: { code: string; name: string }, lectures: Pack
         n: i + 1, title: l.title, date: l.date,
         sections: l.detail.sections.map(s => ({
           title: s.title,
-          points: s.points.map(p => { ctx.points.set(++id, { lectureId: l.id, text: p.text, off: !!p.off, t: p.t }); return { id, t: p.t, text: p.text, off: !!p.off }; })
+          points: s.points.map(p => { ctx.points.set(++id, { lectureId: l.id, text: p.text, off: !!p.off, t: p.t });
+            return { id, t: p.t, text: p.text, off: !!p.off, ...(l.detail.kind === "slides" && p.t == null && !p.mine && p.slide != null ? { slide: p.slide } : {}) }; })
         })),
         alerts: l.detail.alerts.map(a => ({ kind: a.kind, text: a.text }))
       };
@@ -56,7 +58,7 @@ The JSON object has exactly these fields:
   "exam": [{ "q": "...", "opts": ["...", "...", "...", "..."], "a": 1, "why": "...", "lecture": 2, "t": 860 }]
 }`;
   const lectures = input.lectures.map(l => {
-    const notes = l.sections.map(s => `## ${s.title}\n` + s.points.map(p => `[${p.id}] ${p.t == null ? "(added by the student)" : `(t=${p.t})`} ${p.text}${p.off ? " (not on the slides)" : ""}`).join("\n")).join("\n");
+    const notes = l.sections.map(s => `## ${s.title}\n` + s.points.map(p => `[${p.id}] ${p.t != null ? `(t=${p.t})` : p.slide != null ? `(slide ${p.slide})` : "(added by the student)"} ${p.text}${p.off ? " (not on the slides)" : ""}`).join("\n")).join("\n");
     const flagged = l.alerts.length ? `\nFlagged by the lecturer:\n${l.alerts.map(a => `- ${a.kind}: ${a.text}`).join("\n")}` : "";
     return `=== LECTURE ${l.n}: ${l.title} (${l.date}) ===\n${notes}${flagged}`;
   }).join("\n\n");
@@ -91,7 +93,7 @@ export function readPack(reply: string, ctx: PackContext): Pick<StoredPack, "she
   const exam = list(top.exam).flatMap(q => {
     const opts = (Array.isArray(q.opts) ? q.opts : []).map(text), a = num(q.a), from = ctx.lectures.get(num(q.lecture) ?? -1), t = num(q.t);
     if (!text(q.q) || opts.length < 2 || !opts.every(Boolean) || a === null || !Number.isInteger(a) || a < 0 || a >= opts.length || !from) return [];
-    return [{ q: text(q.q), opts, a, ...(text(q.why) ? { why: text(q.why) } : {}), t: t === null ? null : Math.min(Math.round(from.duration), Math.max(0, Math.round(t))), lectureId: from.id }];
+    return [{ q: text(q.q), opts, a, ...(text(q.why) ? { why: text(q.why) } : {}), t: t === null || !from.duration ? null : Math.min(Math.round(from.duration), Math.max(0, Math.round(t))), lectureId: from.id }];   // a study pack from slides alone has no times
   }).slice(0, MAX_EXAM);
   return { sheet, exam };
 }
