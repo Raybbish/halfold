@@ -150,6 +150,10 @@ reference/      最初的单文件原型和接口交接文档
 
 有些老师和课程不允许录音。Halfold 提醒学生先确认自己课堂的规定，不要分享没有同意被录音的人的录音；分享链接只给笔记，不给录音。数据怎么处理见[隐私页](https://halfold.app/#/privacy)。
 
+## 许可
+
+Halfold 不是开源项目。代码公开是为了让人看到它怎么做的，但不授权复制、修改或再分发。保留所有权利。
+
 ## 联系
 
 问题和反馈：[support@halfold.app](mailto:support@halfold.app)，或者开一个 issue。

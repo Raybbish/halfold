@@ -156,6 +156,10 @@ The developer documentation is written in Chinese.
 
 Some lecturers and courses do not allow recording. Halfold asks students to check the rules for their class and not to share a recording of anyone who has not agreed to it; shared links show the notes, never the audio. What happens to the data is on the [Privacy page](https://halfold.app/#/privacy).
 
+## License
+
+Halfold is not open source. The code is public so you can read how it works, but no license is granted to copy, modify or redistribute it. All rights reserved.
+
 ## Contact
 
 Questions and reports: [support@halfold.app](mailto:support@halfold.app), or open an issue.
