@@ -13,7 +13,7 @@ export interface NotesInput {
   duration: number;                   // seconds
   lines: Line[];
   slides: { n: number; text: string }[];   // empty when no slides were sent
-  zh: "hant" | "hans" | null;         // which script the Chinese explanations are written in; null = none
+  zh: boolean;                        // Chinese explanations wanted: the model writes each one in Simplified and in Traditional
 }
 
 export interface TokenUsage { inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningTokens: number }

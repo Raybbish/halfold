@@ -8,7 +8,7 @@ import { http, form1, upload, type UploadOptions } from "./http";
 import { DATA, fakeUpload, fileUnderSlides, mockSlides, withoutSlides } from "./mock";
 import type {
   CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, NewLecture, Plans, Point, ProgressUpdate,
-  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, UrlReply, PackHint, PackTopic, PackQuestion, ProfileReply, ProfileUpdate
+  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, Upcoming, UrlReply, PackHint, PackTopic, PackQuestion, ProfileReply, ProfileUpdate
 } from "../types";
 
 export const api = {
@@ -136,11 +136,11 @@ export const api = {
   async deleteLecture(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/lectures/" + id); DATA.lectures = DATA.lectures.filter(x => x.id !== id); return null; },
   /* PATCH /courses/:id {code, name} (added after the migration) */
   async updateCourse(id: string, code: string, name: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("PATCH", "/courses/" + id, { code, name }); await wait(300);
-    const c = DATA.courses.find(x => x.id === id); if (c) { const ids = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)); DATA.upcoming.forEach(u => { if (ids.has(u.lecture)) u.course = code; }); c.code = code; c.name = name; } return null; },
+    const c = DATA.courses.find(x => x.id === id); if (c) { const ids = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)); DATA.upcoming.forEach(u => { if (u.lecture ? ids.has(u.lecture) : u.course === c.code) u.course = code; }); c.code = code; c.name = name; } return null; },
   /* DELETE /courses/:id -- the course and every lecture in it (added after the migration) */
   async deleteCourse(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/courses/" + id); await wait(300);
-    const gone = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)); DATA.courses = DATA.courses.filter(c => c.id !== id); DATA.lectures = DATA.lectures.filter(l => !gone.has(l.id));
-    DATA.upcoming = DATA.upcoming.filter(u => !gone.has(u.lecture)); gone.forEach(x => delete DATA.details[x]); delete DATA.packs[id]; return null; },
+    const gone = new Set(DATA.lectures.filter(l => l.course === id).map(l => l.id)), code = DATA.courses.find(c => c.id === id)?.code; DATA.courses = DATA.courses.filter(c => c.id !== id); DATA.lectures = DATA.lectures.filter(l => !gone.has(l.id));
+    DATA.upcoming = DATA.upcoming.filter(u => u.lecture ? !gone.has(u.lecture) : u.course !== code); gone.forEach(x => delete DATA.details[x]); delete DATA.packs[id]; return null; },
   /* GET /search?q= -> {results:[{lecture, text, t}]}  points in the notes of every lecture, at most 20 (added after the migration).
      Sample build: every word of the query has to be in the point, in any order. */
   async searchNotes(q: string): Promise<SearchReply> { if (!CONFIG.USE_MOCK) return http("GET", "/search?q=" + encodeURIComponent(q)); await wait(250);
@@ -151,6 +151,12 @@ export const api = {
   async makeReviewPack(courseId: string): Promise<{ status: string }> { if (!CONFIG.USE_MOCK) return http("POST", "/courses/" + courseId + "/review-pack"); await wait(400); DATA.packs[courseId] = "ready"; return { status: "processing" }; },
   /* PUT /lectures/:id/progress {known:[cardIndex], quizScore} */
   async saveProgress(id: string, p: ProgressUpdate): Promise<null> { if (!CONFIG.USE_MOCK) return http("PUT", "/lectures/" + id + "/progress", p); return null; },
+  /* POST /upcoming {course, date, kind, text} -> the date on the exam radar, with its id (added at the retest of 2026-11-23) */
+  async addUpcoming(p: { course: string; date: string; kind: string; text: string }): Promise<Upcoming> { if (!CONFIG.USE_MOCK) return http("POST", "/upcoming", p); await wait(250);
+    const c = DATA.courses.find(x => x.id === p.course); if (!c) throw new Error("That course does not exist.");
+    const u = { date: p.date, kind: p.kind, text: p.text, course: c.code, lecture: null, t: null, id: "rd-" + Date.now().toString(36), day: "", mon: "" }; DATA.upcoming.push(u); return { ...u }; },
+  /* DELETE /upcoming/:id -- only a date added by hand */
+  async deleteUpcoming(id: string): Promise<null> { if (!CONFIG.USE_MOCK) return http("DELETE", "/upcoming/" + encodeURIComponent(id)); await wait(200); DATA.upcoming = DATA.upcoming.filter(u => u.id !== id); return null; },
   /* PUT /profile {school, major, yearOfStudy, gradYear, origin, consentMarketing, consentSurvey} -> {profile}   every field optional; the
      fields given are saved, the rest kept (API-CHANGES.md 14) */
   async updateProfile(p: ProfileUpdate): Promise<ProfileReply> { if (!CONFIG.USE_MOCK) return http("PUT", "/profile", p); await wait(300);

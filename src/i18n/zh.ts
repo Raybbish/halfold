@@ -212,7 +212,6 @@ export const ZH: Record<string, string> = {
   "Contact": "聯絡方式",
   "Sharing": "分享",
   "How to get good notes out of a lecture, and what to do when something looks wrong.": "怎樣從一堂課得到好的筆記，以及內容不對時該怎麼辦。",
-  "Sign in with your email: Halfold sends you a 6-digit code and you type it in. There is no password to remember. Some servers use an invite code instead.": "用電郵登入：Halfold 會寄一個 6 位數登入碼給你，輸入就可以，不用記密碼。有些伺服器改用邀請碼。",
   "Your name is asked once, the first time.": "名字只會在第一次登入時問一次。",
   "Getting a good recording": "錄得清楚",
   "Sit where you can hear the lecturer clearly. The front half of the room is usually enough.": "坐在聽得清楚老師的位置，通常課室前半部分就可以。",
@@ -278,6 +277,22 @@ export const ZH: Record<string, string> = {
   "A lecture recording contains other people's voices. Check your course's rules, ask the lecturer if you are not sure, and keep recordings to yourself unless you have permission to share them.": "課堂錄音包含其他人的聲音。請查看課程的規定，不確定就問老師；除非得到同意，否則錄音只供自己使用。",
   "Works in the browser on a laptop or a phone. Nothing to install.": "在手提電腦或手機的瀏覽器裡就能用，不用安裝。",
   "None of this is written on the slides. Halfold listens for it and pins it to your notes.": "這些都不會寫在簡報上。Halfold 會聽著，並釘在你的筆記上。",
+  /* The retest of 2026-11-23. Help: how to sign in (the heading "Signing in" read as 登入中, the button's busy word). */
+  "How to sign in": "怎樣登入",
+  "Sign in with your email: Halfold sends you a 6-digit code and you type it in. There is no password to remember.": "用電郵登入：Halfold 會寄一個 6 位數登入碼給你，輸入就可以，不用記密碼。",
+  "The first time, you also enter an invite code. Ask a classmate who uses Halfold for one.": "第一次登入時，還要輸入邀請碼，可以向用過 Halfold 的同學要。",
+  "Sign in with the invite code you were given.": "用你收到的邀請碼登入。",
+  /* Classes taught in Mandarin or Cantonese, not only English ones (server/src/config.ts CLASS_LANGUAGES). */
+  "Mandarin": "普通話", "Cantonese": "廣東話",
+  /* Exam radar dates added by hand (POST /upcoming, DELETE /upcoming/:id) */
+  "Add a date": "加入日期", "Add a date to the exam radar": "把日期加到考試雷達", "What it is": "類型", "Date": "日期", "Note (optional)": "備註（可不填）",
+  "For example: chapters 1 to 4, closed book": "例如：第 1 至 4 章，不可帶書", "Add to the radar": "加到雷達", "Added to the exam radar": "已加到考試雷達",
+  "Added by you": "你自己加的", "Removed from the exam radar": "已從考試雷達移除", "Choose a course.": "請選擇課程。",
+  "No dates yet. They appear here when a lecturer mentions an exam or a deadline, or when you add one.": "暫時沒有日期。老師提到考試或截止日期，或者你自己加入日期時，會出現在這裡。",
+  "That course does not exist.": "這個課程不存在。", "Choose the date.": "請選擇日期。", "Choose a date from today on.": "請選擇今天或以後的日期。",
+  "Choose what the date is for.": "請選擇日期的類型。", "The note can be at most 200 characters.": "備註最多 200 個字。", "This date is no longer on the radar.": "這個日期已經不在雷達上。",
+  /* The built-in example notes (server/src/example.ts) */
+  "These are example notes, so they cannot be saved. Record or upload a lecture to get notes like these.": "這是示例筆記，不能儲存。錄下或上載一堂課，就能得到這樣的筆記。",
   /* The profile step and the About you card (pages/Profile.tsx): the designers' draft of 2026-11-24, with its own Chinese
      (halfold(1).html). The consent sentences are the draft's wording; the server's messages about the form too. */
   "One more step": "還有一步",
@@ -381,5 +396,13 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^(\d+) notes?$/, m => m[1] + " 條筆記"],
   [/^Moved to (.+)$/, m => "已移到 " + m[1]],   // added after the migration
   [/^\/ (.+)$/, m => "/ " + trs(m[1])],
-  [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]
+  /* A lecture's date alone (the course page), as the backend writes it: "Today" or "Wed 18 Nov" (zhDate below). */
+  [/^(Today|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec))$/, m => zhTok(m[1]) || zhDate(m[1])],
+  [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t) || zhDate(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]
 ];
+/* "Wed 18 Nov" (server/src/time.ts displayDate, and the sample data) -> 11月18日（週三）; 简体 makes 週 周. Before, the
+   Chinese interface showed the English date (retest of 2026-11-23). */
+export function zhDate(t: string): string | null {
+  const m = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/.exec(t);
+  return m ? ("JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[3]) / 3 + 1) + "月" + m[2] + "日（週" + "一二三四五六日"["MonTueWedThuFriSatSun".indexOf(m[1]) / 3] + "）" : null;
+}

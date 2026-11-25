@@ -27,7 +27,7 @@ npm start                 # http://localhost:8787
 | `npm test` | 类型检查和全部测试（转写服务和 DeepSeek 用假实现，不花钱） |
 | `npm run invite -- add <code> [名字]` / `new` / `list` | 管理邀请码。一个码就是一个账号；邮箱第一次登录时用一次，绑定后用邮箱登录 |
 | `npm run plan -- list` / `show <邮箱或邀请码>` / `give <邮箱或邀请码> <天数>` | 看每个学生的方案和本月用量；手动给几天 Plus（测试的人，或用 FPS、PayMe 转账的人），不经过 Stripe |
-| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本 |
+| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本；同一堂课去重的合并率和每堂课的录音份数 |
 | `npm run feedback` | 学生在课堂页 “What is wrong in these notes?” 里写的反馈，新的在前（`-- --all` 看全部） |
 | `npm run signups` | 每天注册数，填了资料的人数，两个同意各占多少（交接文档第 8 项；`-- --days=90`、`-- --json`，见 API-CHANGES.md 第 14 节） |
 | `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
@@ -174,7 +174,7 @@ R2 和每天的备份（`deploy/server/backup.sh`）可以用同一个 bucket：
 
 学生点 Share 得到的链接是前端的 `#/s/<随机 id>`，地址按顺序取：`WEB_URL`；没设就用学生当时打开的页面的地址；再没有就用 `PUBLIC_URL`。前端放在某个路径下（如 `https://uni.example.com/sidenote/`）时要设 `WEB_URL`。
 
-`EXAMPLE_SHARE_ID`：公开页面（首页、登录页）上 “Example notes” 打开的分享课堂，填分享链接最后那串 id。不设就不显示这个入口。
+`EXAMPLE_SHARE_ID`：公开页面（首页、登录页）上 “Example notes” 打开的分享课堂，填分享链接最后那串 id。不设（或留空）就用服务器自带的示例笔记（ECON 1001 第 9 周，数据在 `src/api/sample.ts`，`server/src/example.ts` 读出），数据库里不用有这堂课；设成 `off` 就不显示这个入口。设成 `econ-w9` 和不设一样。
 
 分享页不带录音（INTEGRATION.md 4.3），也不带学习进度。
 
@@ -311,3 +311,4 @@ test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的
 - 首页的本周统计（`week`）：学习进度和测验分数已经存了，但“本周”“已掌握的闪卡”“平均分”怎么算还没定，不给时前端不显示这一栏。
 - 分享页的录音（4.3）：默认不带，要带是产品和合规上的决定。
 - 搜索逐字稿和中文解释（API-CHANGES.md 第 4 节说以后再考虑）。
+- 同一堂课去重的第 2、3 步（比对文字稿、现场录音），等《同一堂课去重》的详细规则；第 1 步（同一文件、同一个 YouTube 视频）见 DESIGN.md 最后一节。

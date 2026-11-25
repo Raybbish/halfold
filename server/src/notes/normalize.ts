@@ -5,10 +5,11 @@
    numbers exist, alert kinds use the words the front end translates, quiz answers point at an option. No notes at all
    is an error. The pipeline checks the result against DetailSchema. */
 import type { Alert, Detail, Line, Point, QuizQuestion, Section, Slide } from "../../../src/types";
-import { bothScripts } from "./zh";
+import { zhForms } from "./zh";
 import { studyCounts } from "./prompt";
 
-export interface ModelPoint { t: number; text: string; zh: string | null; slide: number | null; off: boolean }
+/* zhHans, zhHant: the Chinese explanation in each script, as the model wrote it; zh: a single one (older replies). */
+export interface ModelPoint { t: number; text: string; zhHans: string | null; zhHant: string | null; zh: string | null; slide: number | null; off: boolean }
 export interface ModelSection { title: string; start: number | null; end: number | null; points: ModelPoint[] }
 export interface ModelNotes {
   sections: ModelSection[];
@@ -45,7 +46,7 @@ export function parseModelNotes(reply: string): ModelNotes {
   const sections = items(top.sections, s => {
     const points = items(s.points, p => {
       const t = num(p.t), text = str(p.text);
-      return t === null || !text ? null : { t, text, zh: str(p.zh) || null, slide: num(p.slide), off: yes(p.off) };
+      return t === null || !text ? null : { t, text, zhHans: str(p.zhHans) || null, zhHant: str(p.zhHant) || null, zh: str(p.zh) || null, slide: num(p.slide), off: yes(p.off) };
     });
     return points.length ? { title: str(s.title), start: num(s.start), end: num(s.end), points } : null;
   });
@@ -64,7 +65,7 @@ export function parseModelNotes(reply: string): ModelNotes {
   };
 }
 
-export interface BuildContext { duration: number; lines: Line[]; slidePages: { n: number; text: string }[]; zh: "hant" | "hans" | null }
+export interface BuildContext { duration: number; lines: Line[]; slidePages: { n: number; text: string }[]; zh: boolean }
 export interface Dated { date: string; kind: string; text: string; t: number }
 
 const KINDS: Record<string, string> = { midterm: "Midterm", "mid-term": "Midterm", deadline: "Deadline", "exam hint": "Exam hint", exam: "Exam hint", quiz: "Quiz", final: "Final", "final exam": "Final" };
@@ -114,7 +115,7 @@ export function buildDetail(m: ModelNotes, ctx: BuildContext): { detail: Detail;
     .map(s => {
       const points: Point[] = s.points.filter(p => p.text).map(p => {
         const slide = hasSlides && p.slide != null && pages.has(Math.round(p.slide)) ? Math.round(p.slide) : null;
-        const zh = ctx.zh && p.zh && p.zh.trim() ? bothScripts(p.zh.trim(), ctx.zh) : {};
+        const zh = ctx.zh ? zhForms(p) : {};
         return { t: at(p.t), text: p.text, ...zh, off: hasSlides ? !!p.off : false, slide };
       }).sort((a, b) => (a.t as number) - (b.t as number));
       /* A section with no start begins at its first point; one with no end is closed below. */

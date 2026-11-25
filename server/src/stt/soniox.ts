@@ -11,7 +11,7 @@ import type { ClassLanguage } from "../config";
 import { ProviderError, slowAgent, withRetry, type Transcriber, type Transcript, type Word } from "./types";
 
 /* Hints, not limits: Soniox still hears a language not listed. */
-const HINTS: Record<ClassLanguage, string[]> = { en: ["en"], "en-yue": ["zh", "en"], "en-zh": ["zh", "en"], auto: ["en", "zh"] };
+const HINTS: Record<ClassLanguage, string[]> = { en: ["en"], zh: ["zh", "en"], yue: ["zh", "en"], "en-yue": ["zh", "en"], "en-zh": ["zh", "en"], auto: ["en", "zh"] };
 
 interface SonioxToken { text: string; start_ms?: number; end_ms?: number; language?: string; is_audio_event?: boolean }
 interface SonioxJob { id: string; status: "queued" | "processing" | "completed" | "error"; audio_duration_ms?: number | null; error_message?: string | null }
