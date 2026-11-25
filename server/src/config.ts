@@ -2,6 +2,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPlans, type PlanBook } from "./plans";
+import type { R2Settings } from "./r2";
 import { ASSEMBLYAI_PRICES } from "./stt/assemblyai";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,7 @@ export interface Config {
     concurrency: number;              // live transcription rounds running at once, all lectures together
   };
   audioLinkHours: number;             // how long a playback link works
+  r2: R2Settings | null;              // where recordings are kept once their notes are written (files.ts); null = this disk
   inviteCodes: string[];
   signIn: SignInMode;
   login: {
@@ -109,6 +111,20 @@ function signInMode(v: string | undefined): SignInMode {
   return m;
 }
 
+/* Cloudflare R2: all four settings, or none (recordings stay on this disk). R2_ENDPOINT is only needed for a bucket in
+   the EU jurisdiction (https://<account>.eu.r2.cloudflarestorage.com) or a stand-in in tests. */
+const R2_KEYS = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"] as const;
+function r2Settings(env: NodeJS.ProcessEnv): R2Settings | null {
+  const v = (k: string) => (env[k] || "").trim(), missing = R2_KEYS.filter(k => !v(k));
+  if (missing.length === R2_KEYS.length) return null;
+  if (missing.length) throw new Error(`R2 needs all of ${R2_KEYS.join(", ")}; ${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set`);
+  const accountId = v("R2_ACCOUNT_ID");
+  return {
+    accountId, accessKeyId: v("R2_ACCESS_KEY_ID"), secretAccessKey: v("R2_SECRET_ACCESS_KEY"), bucket: v("R2_BUCKET"),
+    endpoint: (v("R2_ENDPOINT") || `https://${accountId}.r2.cloudflarestorage.com`).replace(/\/+$/, "")
+  };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const deepseekModel = env.DEEPSEEK_MODEL || "deepseek-v4-pro", catchUpModel = env.CATCHUP_MODEL || "deepseek-flash";
   const deepseekKey = env.DEEPSEEK_API_KEY || "", deepseekBase = (env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
@@ -135,6 +151,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       concurrency: Math.max(1, num(env.LIVE_CONCURRENCY, 4))
     },
     audioLinkHours: Math.max(1, num(env.AUDIO_LINK_HOURS, 12)),
+    r2: r2Settings(env),
     inviteCodes: list(env.INVITE_CODES),
     signIn: signInMode(env.SIGN_IN),
     login: {

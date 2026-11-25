@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { loadConfig, type Config } from "../src/config";
 import { Store } from "../src/db";
-import { LocalFileStore } from "../src/files";
+import { createFileStore, type FileStore } from "../src/files";
 import type { CutOptions, Media, MediaInfo, SpeechOptions } from "../src/media";
 import { Pipeline } from "../src/pipeline";
 import { createApp } from "../src/app";
@@ -255,7 +255,7 @@ export class StubPayments implements Payments {
 }
 
 export interface TestServer {
-  dir: string; config: Config; store: Store; files: LocalFileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
+  dir: string; config: Config; store: Store; files: FileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
   live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks; billing: Billing; mailer: StubMailer; payments: StubPayments;
   links: StubLinks;
   app: ReturnType<typeof createApp>;
@@ -278,7 +278,7 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
   if (o.plans) o.plans(config.plans);
   const store = new Store(path.join(dir, "test.db"));
   store.addInviteCode("CODE-A", "Ann"); store.addInviteCode("CODE-B", "Ben");
-  const files = new LocalFileStore(dir), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
+  const files = createFileStore(config, store), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
   const slides = o.slides || (async () => [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }]);
   const links = new StubLinks(), linksOn = o.links !== false;
   const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides, links: linksOn ? links : null });

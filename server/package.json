@@ -17,7 +17,8 @@
     "costs": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/costs.ts",
     "feedback": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/feedback.ts",
     "signups": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/signups.ts",
-    "compare-stt": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/compare-stt.ts"
+    "compare-stt": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/compare-stt.ts",
+    "move-to-r2": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/move-to-r2.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.8",

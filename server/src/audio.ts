@@ -2,6 +2,9 @@
    works for AUDIO_LINK_HOURS: the <audio> element cannot send the sign-in token, and the front end asks for a fresh
    link (GET /lectures/:id) when one stops working. The file is audio.m4a (AAC, faststart), sent with HTTP Range so the
    player can jump to any second without downloading what comes before.
+   With R2 set, the recording of a lecture with notes is in the bucket (files.ts): the same link then answers with a
+   redirect to a presigned R2 link that works until this one expires. R2 answers Range itself, and the server does not
+   carry the audio. The link the front end gets does not change.
    How long recordings are kept depends on the student's plan (plans.json audioDays, INTEGRATION.md 4.4): null keeps
    them for good and sends neither field; N keeps them N days (detail.audio.keptUntil), then the files are deleted and
    detail.audio is {expired: true}. The N days count from the day of the lecture, but never from before the student's
@@ -14,7 +17,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Audio } from "../../src/types";
 import type { Config } from "./config";
 import type { LectureRow, Store } from "./db";
-import type { FileStore } from "./files";
+import type { FileStore, Moved } from "./files";
 import type { Billing } from "./billing";
 import { localDate } from "./time";
 
@@ -86,6 +89,24 @@ export async function sweepOriginals(d: { store: Store; files: FileStore }) {
     await d.files.remove(l.id, l.recording_file); n++;
   }
   return n;
+}
+
+/* With R2 set: moves the kept files (audio.m4a, slides.pdf) of lectures with notes that are still on this disk (the
+   upload when the notes were written failed; lectures from before R2), and deletes from R2 what could not be deleted
+   before. Stops at the first lecture that cannot be moved (R2 is probably down) unless `all`. Runs at start and every
+   few hours; npm run move-to-r2 runs it by hand, with `report`. */
+export async function sweepKept(d: { store: Store; files: FileStore }, o: { all?: boolean; report?: (id: string, r: Moved[] | Error) => void } = {}) {
+  let moved = 0, failed = 0;
+  if (!d.files.bucket) return { moved, failed, deleted: 0 };
+  for (const l of d.store.lecturesWithStatus("ready")) {
+    if (!d.files.pending(l.id).length) continue;
+    try { const m = await d.files.archive(l.id); moved += m.length; o.report?.(l.id, m); }
+    catch (e) {
+      failed++; o.report?.(l.id, e as Error);
+      if (!o.all) { console.warn(`[sidenote] the kept files of ${l.id} could not be moved to R2 (tried again in six hours): ${(e as Error).message}`); break; }
+    }
+  }
+  return { moved, failed, deleted: await d.files.retryDeletes() };
 }
 
 /* The file, whole (200) or one byte range (206). A range that does not fit is 416; several ranges get the whole file. */

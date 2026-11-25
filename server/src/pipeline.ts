@@ -47,17 +47,21 @@ export class Pipeline implements Jobs {
   private queue: string[] = [];
   private running = new Map<string, AbortController>();    // both lanes
   private downloading = new Set<string>();                  // the ones in `running` that are downloading their link
+  private again = new Set<string>();                        // queued while running (slides sent while the kept files move to R2): run again after
   private waiters: (() => void)[] = [];
   private same = new SameRecording();                       // lectures of the same recording waiting for the one transcribing it (dedupe.ts)
   constructor(private readonly d: PipelineDeps) {}
 
-  enqueue(id: string) { if (!this.running.has(id) && !this.queue.includes(id)) { this.queue.push(id); this.pump(); } }
-  cancel(id: string) { this.queue = this.queue.filter(x => x !== id); this.running.get(id)?.abort(); this.same.forget(id); }
+  enqueue(id: string) {
+    if (this.running.has(id)) this.again.add(id);
+    else if (!this.queue.includes(id)) { this.queue.push(id); this.pump(); }
+  }
+  cancel(id: string) { this.queue = this.queue.filter(x => x !== id); this.again.delete(id); this.running.get(id)?.abort(); this.same.forget(id); }
   /* After a restart: lectures left in "processing" are queued again. */
   resume() { for (const l of this.d.store.lecturesWithStatus("processing")) this.enqueue(l.id); }
   /* Resolves when nothing is queued or running (tests, shutdown). */
   idle() { return this.running.size || this.queue.length ? new Promise<void>(r => this.waiters.push(r)) : Promise.resolve(); }
-  stopAll() { this.queue = []; for (const c of this.running.values()) c.abort(); }
+  stopAll() { this.queue = []; this.again.clear(); for (const c of this.running.values()) c.abort(); }
 
   private needsDownload(id: string) {
     const l = this.d.store.lecture(id);
@@ -76,7 +80,7 @@ export class Pipeline implements Jobs {
       if (download) this.downloading.add(id);
       (download ? this.download(id, ctl.signal) : this.run(id, ctl.signal).then(() => false)).then(next => {
         this.running.delete(id); this.downloading.delete(id);
-        if (next) this.queue.push(id);
+        if ((this.again.delete(id) || next) && !this.queue.includes(id)) this.queue.push(id);
         this.pump();
         if (!this.running.size && !this.queue.length) this.waiters.splice(0).forEach(w => w());
       });
@@ -172,7 +176,7 @@ export class Pipeline implements Jobs {
 
     /* 3. Slide text. */
     let slidePages: { n: number; text: string }[] = [];
-    if (l.has_slides && files.exists(id, "slides.pdf")) {
+    if (l.has_slides && files.where(id, "slides.pdf") === "local") {
       /* Slides that cannot be read (password, damaged file) are left out rather than failing the lecture. */
       try { slidePages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
       catch (e) { console.warn(`[pipeline] ${id} slides could not be read, writing the notes without them: ${(e as Error).message}`); }
@@ -190,7 +194,7 @@ export class Pipeline implements Jobs {
       if (!original || original.zh !== zh) continue;
       this.check(id, signal);
       store.saveNotes(id, original.detail, original.dated, original.title, { original, notesFrom: from.id });
-      return this.dropOriginal(l);
+      return this.afterNotes(l, signal);
     }
     const course = store.course(l.user_id, l.course_id);
     const input: NotesInput = {
@@ -219,15 +223,24 @@ export class Pipeline implements Jobs {
     this.check(id, signal);
     const { detail, dated, title } = detailOut;
     store.saveNotes(id, detail, dated, title, { original: l.content_key && !slidePages.length ? { detail, dated, title, zh } : null });
-    await this.dropOriginal(l);
+    await this.afterNotes(l, signal);
   }
 
   /* 6. The original file was only read to make audio.m4a, which is what is played, downloaded and kept: deleted now that
      the notes are written (it is about twice the size). A lecture that failed keeps it, so a retry can convert it again.
-     If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way. */
-  private async dropOriginal(l: LectureRow) {
+     If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way.
+     7. With R2 set, the files kept from now on (audio.m4a, slides.pdf) move there (files.ts). If that fails they stay
+     here and are played from here, and sweepKept (audio.ts) tries again; the notes are written either way.
+     Both after notes written here and after notes reused from the same recording (dedupe.ts): each lecture keeps its own
+     recording. */
+  private async afterNotes(l: LectureRow, signal: AbortSignal) {
     const { files } = this.d, id = l.id;
     if (files.exists(id, AUDIO) && l.recording_file) await files.remove(id, l.recording_file).catch(e => console.warn(`[pipeline] ${id} original not deleted: ${(e as Error).message}`));
+    await this.archive(id, signal);
+  }
+
+  private async archive(id: string, signal: AbortSignal) {
+    await this.d.files.archive(id, signal).catch(e => { if (!signal.aborted) console.warn(`[pipeline] ${id} kept files not moved to R2 yet: ${(e as Error).message}`); });
   }
 
   /* An upload or a video link: the whole recording in one request. */
@@ -309,6 +322,7 @@ export class Pipeline implements Jobs {
     if (!out) throw new Error("the notes model did not place the points under the slides: " + problem);
     this.check(id, signal);
     store.saveRefiled(id, out);
+    await this.archive(id, signal);
   }
 
   /* Joins the chunks of a live recording in the order they were recorded (seq) into the file "recording", then drops the
