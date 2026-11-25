@@ -30,7 +30,7 @@ export interface DeepSeekSettings { apiKey: string; baseUrl: string; model: stri
 export interface Config {
   port: number;
   host: string | undefined;           // the address to listen on, e.g. 127.0.0.1 behind a reverse proxy; undefined = every address
-  publicUrl: string;                  // where students reach the server, e.g. https://sidenote.example.com; empty = links relative to the page
+  publicUrl: string;                  // where students reach the server, e.g. https://halfold.example.com; empty = links relative to the page
   webUrl: string;                     // where the front end is, for shared links (#/s/:id); empty = the page that asked
   exampleShareId: string | null;      // the shared lecture behind "Example notes" on the public pages (by default the built-in example); null hides those links
   contactEmail: string | null;        // where students write (the Privacy page) and how the server names itself to sites that ask (Wikimedia); null = not set
@@ -53,7 +53,7 @@ export interface Config {
     codeMinutes: number;              // how long an emailed code works
     codesPerHour: number;             // codes sent in an hour, all addresses together (a guard on the mail quota)
     emailDomains: string[];           // only addresses ending in one of these may sign in; empty = any address
-    sessionDays: number;              // a sign-in ends after this many days without using Sidenote
+    sessionDays: number;              // a sign-in ends after this many days without using Halfold
   };
   mail: { resendKey: string; from: string; apiBase: string };
   stripe: { secretKey: string; webhookSecret: string; apiBase: string; allowLive: boolean };

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <rect width="900" height="400" rx="16" fill="#F6F7FB"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#16233B"/></marker>
+  </defs>
+
+  <!-- browser -->
+  <rect x="320" y="24" width="260" height="70" rx="12" fill="#fff" stroke="#16233B" stroke-width="2"/>
+  <text x="450" y="54" text-anchor="middle" font-size="17" font-weight="700" fill="#16233B">浏览器</text>
+  <text x="450" y="77" text-anchor="middle" font-size="13" fill="#4A5568">电脑或手机上的 React 前端</text>
+
+  <path d="M450 96V146" stroke="#16233B" stroke-width="2" marker-end="url(#a)"/>
+  <text x="464" y="118" font-size="12.5" fill="#4A5568">每 15 秒一段录音、</text>
+  <text x="464" y="134" font-size="12.5" fill="#4A5568">上传、链接、课件 PDF</text>
+
+  <!-- server -->
+  <rect x="320" y="150" width="260" height="70" rx="12" fill="#FFD93B" stroke="#16233B" stroke-width="2"/>
+  <text x="450" y="180" text-anchor="middle" font-size="17" font-weight="700" fill="#16233B">Halfold 后端</text>
+  <text x="450" y="203" text-anchor="middle" font-size="13" fill="#16233B">Node, Hono, ffmpeg, yt-dlp</text>
+
+  <!-- fan out -->
+  <g stroke="#16233B" stroke-width="1.6" fill="none" marker-end="url(#a)">
+    <path d="M450 222V246H90V282"/>
+    <path d="M450 246H234V282"/>
+    <path d="M450 246H378V282"/>
+    <path d="M450 246H522V282"/>
+    <path d="M450 246H666V282"/>
+    <path d="M450 246H810V282"/>
+  </g>
+
+  <!-- services -->
+  <g font-size="12" fill="#4A5568" text-anchor="middle">
+    <rect x="25" y="286" width="130" height="90" rx="10" fill="#fff" stroke="#16233B" stroke-width="1.6"/>
+    <text x="90" y="310" font-size="14" font-weight="700" fill="#16233B">转写</text>
+    <text x="90" y="330">Deepgram（默认）</text>
+    <text x="90" y="346">ElevenLabs、Soniox、</text>
+    <text x="90" y="362">AssemblyAI</text>
+
+    <rect x="169" y="286" width="130" height="90" rx="10" fill="#fff" stroke="#16233B" stroke-width="1.6"/>
+    <text x="234" y="310" font-size="14" font-weight="700" fill="#16233B">DeepSeek</text>
+    <text x="234" y="330">笔记、闪卡、</text>
+    <text x="234" y="346">测验、复习包、</text>
+    <text x="234" y="362">回答</text>
+
+    <rect x="313" y="286" width="130" height="90" rx="10" fill="#fff" stroke="#16233B" stroke-width="1.6"/>
+    <text x="378" y="310" font-size="14" font-weight="700" fill="#16233B">SQLite</text>
+    <text x="378" y="330">课堂、笔记、</text>
+    <text x="378" y="346">学生、方案</text>
+
+    <rect x="457" y="286" width="130" height="90" rx="10" fill="#fff" stroke="#16233B" stroke-width="1.6"/>
+    <text x="522" y="310" font-size="14" font-weight="700" fill="#16233B">Cloudflare R2</text>
+    <text x="522" y="330">录音、</text>
+    <text x="522" y="346">每天的备份</text>
+
+    <rect x="601" y="286" width="130" height="90" rx="10" fill="#fff" stroke="#16233B" stroke-width="1.6"/>
+    <text x="666" y="310" font-size="14" font-weight="700" fill="#16233B">Stripe</text>
+    <text x="666" y="330">购买方案</text>
+
+    <rect x="745" y="286" width="130" height="90" rx="10" fill="#fff" stroke="#16233B" stroke-width="1.6"/>
+    <text x="810" y="310" font-size="14" font-weight="700" fill="#16233B">Resend</text>
+    <text x="810" y="330">登录验证码</text>
+    <text x="810" y="346">邮件</text>
+  </g>
+</svg>

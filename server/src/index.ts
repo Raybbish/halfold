@@ -43,33 +43,33 @@ store.plansSince();   // the first start with plans: older recordings are kept a
 const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new DeepSeekCatchUp(config.catchUp), ask: new DeepSeekAsk(config.ask), packs, billing, mailer, links });
 
 /* Recordings past their plan's keep date (plans.json audioDays) are deleted at start and every six hours. */
-const sweep = () => sweepAudio({ config, store, files, billing }).then(n => { if (n) console.log(`[sidenote] deleted ${n} recording(s) past their plan's keep date`); }, e => console.error("[sidenote] sweep:", e));
+const sweep = () => sweepAudio({ config, store, files, billing }).then(n => { if (n) console.log(`[halfold] deleted ${n} recording(s) past their plan's keep date`); }, e => console.error("[halfold] sweep:", e));
 if (config.plans.plans.some(p => p.audioDays !== null)) { void sweep(); setInterval(sweep, 6 * 3600_000).unref(); }
 /* Original files of lectures with notes (only audio.m4a is kept), likewise at start and every six hours. */
-const dropOriginals = () => sweepOriginals({ store, files }).then(n => { if (n) console.log(`[sidenote] deleted the original file of ${n} lecture(s) with notes`); }, e => console.error("[sidenote] originals:", e));
+const dropOriginals = () => sweepOriginals({ store, files }).then(n => { if (n) console.log(`[halfold] deleted the original file of ${n} lecture(s) with notes`); }, e => console.error("[halfold] originals:", e));
 void dropOriginals(); setInterval(dropOriginals, 6 * 3600_000).unref();
 /* With R2: kept files that could not be moved when their notes were written, and deletions R2 did not take, likewise. */
-const keep = () => sweepKept({ store, files }).then(r => { if (r.moved || r.deleted) console.log(`[sidenote] R2: moved ${r.moved} file(s) there, deleted ${r.deleted} left from before`); }, e => console.error("[sidenote] R2 sweep:", e));
+const keep = () => sweepKept({ store, files }).then(r => { if (r.moved || r.deleted) console.log(`[halfold] R2: moved ${r.moved} file(s) there, deleted ${r.deleted} left from before`); }, e => console.error("[halfold] R2 sweep:", e));
 if (files.bucket) {
-  files.check().catch(e => console.warn(`[sidenote] R2 does not work with the R2_* settings in server/.env (${(e as Error).message}): recordings stay on this disk until it does.`));
+  files.check().catch(e => console.warn(`[halfold] R2 does not work with the R2_* settings in server/.env (${(e as Error).message}): recordings stay on this disk until it does.`));
   void keep(); setInterval(keep, 6 * 3600_000).unref();
 }
 
 const missing = missingKeys(config);
-if (missing.length) console.warn(`[sidenote] not set in server/.env: ${missing.join(", ")}. Notes cannot be written until they are.`);
-if (!store.listUsers().length) console.warn("[sidenote] no invite codes yet: set INVITE_CODES in server/.env, or run npm run invite -- add <code>");
-if (config.retired.length) console.warn(`[sidenote] ${config.retired.join(" and ")} in server/.env no longer do anything: each plan's limits are in plans.json.`);
-if (config.signIn === "email" && mailer.provider === "console") console.warn("[sidenote] RESEND_API_KEY is not set: sign-in codes are printed here instead of emailed. Fine on your own computer; set it before anyone else uses this server.");
-if (!ytdlp) console.warn(`[sidenote] yt-dlp was not found (YTDLP=${config.links.ytdlp}): video links are refused and students are asked to upload the file.`);
+if (missing.length) console.warn(`[halfold] not set in server/.env: ${missing.join(", ")}. Notes cannot be written until they are.`);
+if (!store.listUsers().length) console.warn("[halfold] no invite codes yet: set INVITE_CODES in server/.env, or run npm run invite -- add <code>");
+if (config.retired.length) console.warn(`[halfold] ${config.retired.join(" and ")} in server/.env no longer do anything: each plan's limits are in plans.json.`);
+if (config.signIn === "email" && mailer.provider === "console") console.warn("[halfold] RESEND_API_KEY is not set: sign-in codes are printed here instead of emailed. Fine on your own computer; set it before anyone else uses this server.");
+if (!ytdlp) console.warn(`[halfold] yt-dlp was not found (YTDLP=${config.links.ytdlp}): video links are refused and students are asked to upload the file.`);
 const inR2 = store.remoteTotals().files;
-if (!files.bucket && inR2) console.warn(`[sidenote] ${inR2} recording file(s) are in R2, but the R2 settings are not in server/.env: they cannot be played or deleted until they are.`);
-if (problem) console.warn("[sidenote] payments are off: " + problem);
-else if (!payments) console.warn("[sidenote] STRIPE_SECRET_KEY is not set: plans are shown, but choosing one says checkout is not connected yet.");
-else if (!config.stripe.webhookSecret) console.warn("[sidenote] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but refunds, disputes and payments that arrive later (Alipay, WeChat Pay) need the webhook.");
+if (!files.bucket && inR2) console.warn(`[halfold] ${inR2} recording file(s) are in R2, but the R2 settings are not in server/.env: they cannot be played or deleted until they are.`);
+if (problem) console.warn("[halfold] payments are off: " + problem);
+else if (!payments) console.warn("[halfold] STRIPE_SECRET_KEY is not set: plans are shown, but choosing one says checkout is not connected yet.");
+else if (!config.stripe.webhookSecret) console.warn("[halfold] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but refunds, disputes and payments that arrive later (Alipay, WeChat Pay) need the webhook.");
 
 /* Node ends a request after 5 minutes by default, which cuts off a 500 MB upload on a slow connection. */
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host, serverOptions: { requestTimeout: 3 * 3600_000 } }, info => {
-  console.log(`[sidenote] http://localhost:${info.port}  sign-in: ${config.signIn === "email" ? "email code (" + mailer.provider + ")" : "invite code"}  payments: ${payments ? "Stripe " + (config.stripe.secretKey.includes("_test_") ? "test mode" : "LIVE") : "off"}` +
+  console.log(`[halfold] http://localhost:${info.port}  sign-in: ${config.signIn === "email" ? "email code (" + mailer.provider + ")" : "invite code"}  payments: ${payments ? "Stripe " + (config.stripe.secretKey.includes("_test_") ? "test mode" : "LIVE") : "off"}` +
     `  speech-to-text: ${stt.provider} ${stt.model}  notes: ${notes.provider} ${notes.model}` +
     `  links: ${ytdlp ? "yt-dlp " + ytdlp : "off"}  recordings: ${files.bucket || "this disk"}` +
     `  live: ${!config.liveRecording ? "off" : config.live.transcript ? "on, with transcript and Catch me up (" + config.catchUp.model + ")" : "on, no live transcript"}` +

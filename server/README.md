@@ -1,4 +1,4 @@
-# Sidenote 后端（第一到四阶段）
+# Halfold 后端
 
 把课堂录音（可带 PDF 课件）变成笔记，前端用 `USE_MOCK: false` 就能显示。录音可以上传，也可以在浏览器里现场录（实时逐字稿、考试提示、Catch me up）；写好笔记后可以回放。之后学生可以改笔记、补传课件、分享给同学、做整门课的复习包、搜索全部笔记。学生用邮箱验证码登录（第一次加邀请码），有免费和付费方案，用 Stripe 付款。设计和取舍见 [DESIGN.md](DESIGN.md)，接口约定见 `../reference/INTEGRATION.md` 和 `../API-CHANGES.md`。
 

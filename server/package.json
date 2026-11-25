@@ -1,9 +1,9 @@
 {
-  "name": "sidenote-server",
+  "name": "halfold-server",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Sidenote backend: lecture recordings become notes the student can edit, share, search and revise from. See DESIGN.md.",
+  "description": "Halfold server: lecture recordings become notes the student can edit, share, search and revise from. See DESIGN.md.",
   "engines": {
     "node": ">=22.12"
   },

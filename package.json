@@ -1,9 +1,9 @@
 {
-  "name": "sidenote-web",
+  "name": "halfold-web",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Sidenote front end: the single-file sidenote.html moved to React + TypeScript, same look and behaviour.",
+  "description": "Halfold web app: record a lecture and read notes filed under each slide, with flashcards, a quiz and exam dates.",
   "engines": {
     "node": ">=22.12"
   },

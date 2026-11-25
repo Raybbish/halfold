@@ -103,7 +103,7 @@ export async function sweepKept(d: { store: Store; files: FileStore }, o: { all?
     try { const m = await d.files.archive(l.id); moved += m.length; o.report?.(l.id, m); }
     catch (e) {
       failed++; o.report?.(l.id, e as Error);
-      if (!o.all) { console.warn(`[sidenote] the kept files of ${l.id} could not be moved to R2 (tried again in six hours): ${(e as Error).message}`); break; }
+      if (!o.all) { console.warn(`[halfold] the kept files of ${l.id} could not be moved to R2 (tried again in six hours): ${(e as Error).message}`); break; }
     }
   }
   return { moved, failed, deleted: await d.files.retryDeletes() };
