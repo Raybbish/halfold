@@ -311,11 +311,16 @@ export function fileForm(content: string | Uint8Array, filename: string, field =
   const f = new FormData(); f.append(field, new Blob([content]), filename); return f;
 }
 
+/* A fake recording that is a different file each time, as two students' recordings of a class are: the same file
+   would reuse the transcript of the first (dedupe.ts). dedupe.test.ts passes the same bytes on purpose. */
+let recordings = 0;
+export const anotherRecording = () => `${FAKE_AUDIO}-bytes-${++recordings}`;
+
 /* Creates a course and an upload lecture, uploads a fake recording (and slides), and returns the lecture id. */
-export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string; title?: string; autoTitle?: boolean } = {}) {
+export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string; title?: string; autoTitle?: boolean; bytes?: string } = {}) {
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: o.title ?? "Week 9", language: o.language || "en-yue", source: "upload", ...(o.autoTitle !== undefined ? { autoTitle: o.autoTitle } : {}) } })).body;
-  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
+  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(o.bytes ?? anotherRecording(), "lecture.mp3") });
   if (up.status !== 204) throw new Error("upload failed: " + up.text);
   if (o.slides) { const sl = await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") }); if (sl.status !== 204) throw new Error("slides failed: " + sl.text); }
   return lec.id as string;
@@ -351,7 +356,7 @@ export async function linkLecture(s: TestServer, token: string, url = "https://w
 export async function readyLecture(s: TestServer, token: string, o: { courseId?: string; title?: string; slides?: boolean } = {}) {
   const courseId = o.courseId ?? (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body.id;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId, title: o.title || "Week 9", language: "en-yue", source: "upload" } })).body;
-  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
+  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(anotherRecording(), "lecture.mp3") });
   if (up.status !== 204) throw new Error("upload failed: " + up.text);
   if (o.slides) await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") });
   await s.call("POST", `/lectures/${lec.id}/finish`, { token, json: { duration: 600 } });
