@@ -46,7 +46,7 @@ test("a study pack from slides alone: not one of the month's lectures, the PDF r
   assert.deepEqual(d.quiz.map(q => q.t), [null]); assert.equal(d.flashcards.length, 1); assert.deepEqual(d.summary, ["Opportunity cost is the next best alternative given up."]);
 
   /* Read from the PDF; nothing transcribed or converted, and the call is in the cost log under its own stage. */
-  assert.deepEqual(s.notes.slidesPackCalls[0].input, { courseCode: "ECON 1001", courseName: "Microeconomics", title: "Lecture, Tue 24 Nov, 10:00", zh: "hant",
+  assert.deepEqual(s.notes.slidesPackCalls[0].input, { courseCode: "ECON 1001", courseName: "Microeconomics", title: "Lecture, Tue 24 Nov, 10:00", zh: true,
     slides: [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }] });
   assert.equal(s.stt.calls, 0); assert.equal(s.notes.calls.length, 0);
   const costs = s.store.costs().filter(c => c.lecture_id === id);
@@ -65,12 +65,12 @@ test("a study pack from slides alone: not one of the month's lectures, the PDF r
 });
 
 test("the slides-only prompt has the deck and asks for explanations, not what was said; the review pack labels its points by slide", async t => {
-  const input = { courseCode: "ECON 1001", courseName: "Micro", title: "Week 10", zh: null, slides: [{ n: 1, text: "Opportunity cost" }, { n: 2, text: "" }] };
+  const input = { courseCode: "ECON 1001", courseName: "Micro", title: "Week 10", zh: false, slides: [{ n: 1, text: "Opportunity cost" }, { n: 2, text: "" }] };
   const p = slidesPackPrompt(input);
   assert.match(p.user, /--- Slide 1 ---\nOpportunity cost\n--- Slide 2 ---\n\(no text\)/);
   assert.match(p.system, /no recording of the class/); assert.match(p.system, /do not add to it/);
   assert.doesNotMatch(p.system + p.user, /TRANSCRIPT|"t":|"off"|"alerts"|"zh"/);
-  assert.match(slidesPackPrompt({ ...input, zh: "hans" }).system, /"zh" on each point: one short explanation of the point in Simplified Chinese/);
+  assert.match(slidesPackPrompt({ ...input, zh: true }).system, /"zhHans" and "zhHant" on each point[\s\S]*"zhHans": Simplified Chinese as written in mainland China[\s\S]*Never make one by changing the characters of the other/);
 
   const s = setup(); t.after(() => s.close());
   const token = await s.signIn(), { id } = await slidesLecture(s, token);

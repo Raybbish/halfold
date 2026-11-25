@@ -301,7 +301,7 @@ export class Pipeline implements Jobs {
     if (!pages.some(p => p.text)) throw new Error("the slides have no text to read (scanned pages, or an empty file)");
     this.check(id, signal);
     const course = store.course(l.user_id, l.course_id);
-    const zh = config.zhExplanations ? (l.language === "en-zh" ? "hans" : "hant") : null;
+    const zh = config.zhExplanations;   // both scripts, as for notes (notes/prompt.ts)
     const input: SlidesPackInput = { courseCode: course?.code || "", courseName: course?.name || "", title: l.title, slides: pages, zh };
     let out: ReturnType<typeof buildSlidesPack> | null = null, repair: Repair | undefined, problem = "";
     for (let attempt = 1; attempt <= NOTES_ATTEMPTS && !out; attempt++) {

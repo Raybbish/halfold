@@ -5,7 +5,7 @@
    The reply is read leniently, item by item, like the notes (normalize.ts); an item that cannot be used is dropped on
    its own. No usable point at all is an error that can be shown to the model to correct itself. */
 import type { Detail, Point, QuizQuestion, Section } from "../../../src/types";
-import { bothScripts } from "./zh";
+import { zhForms } from "./zh";
 import { slideLabels, slideList } from "./normalize";
 
 export interface SlidesPackInput {
@@ -13,7 +13,7 @@ export interface SlidesPackInput {
   courseName: string;
   title: string;
   slides: { n: number; text: string }[];
-  zh: "hant" | "hans" | null;         // which script the Chinese explanations are written in; null = none
+  zh: boolean;                        // Chinese explanations wanted: the model writes each in Simplified and in Traditional (as notes/prompt.ts)
 }
 
 /* How many flashcards and quiz questions a deck is worth, at most: about one card for every 2 pages with text and one
@@ -24,7 +24,6 @@ export function packCounts(pages: { text: string }[]) {
 }
 
 export function slidesPackPrompt(input: SlidesPackInput) {
-  const zh = input.zh === "hans" ? "Simplified Chinese (as used in mainland China)" : "Traditional Chinese (as used in Hong Kong)";
   const n = packCounts(input.slides);
   const system = `You write a study pack for Halfold, an app for university students. The student has the lecturer's slide deck but no recording of the class; you get the text of each slide page. Reply with one JSON object and nothing else.
 
@@ -34,7 +33,11 @@ What the student needs:
 - Notes grouped by topic, in the order of the slides. Each section is one topic: one slide or a run of slides.
 - Points: short, clear sentences in English that explain what the slides say, so that a student who was not in class understands them: what a term means, what a formula or a table shows, how one idea leads to the next. Keep the slides' definitions, numbers, formulas and examples. "slide" is the number of the slide page the point explains.
 - Pages with nothing to learn (the title page, an outline, "Questions?", a list of references) get no points.${input.zh ? `
-- "zh" on each point: one short explanation of the point in ${zh}, written for a student whose first language is Chinese. Use standard written Chinese (書面語). Explain the idea; do not just translate word for word. Keep key English terms in brackets where they help.` : ""}
+- "zhHans" and "zhHant" on each point: one short explanation of the point for a student whose first language is Chinese, written twice, once for each script. Students choose which one they read.
+  - "zhHans": Simplified Chinese as written in mainland China, with the terms used there: 美联储 (not 联储局), 商品 (not 货品), 实际 GDP (not 实质本地生产总值), 视频 (not 影片), 信息 (not 资讯).
+  - "zhHant": Traditional Chinese as written in Hong Kong, with the terms used there: 聯儲局, 貨品, 實質本地生產總值.
+  - Write each one in its own words for its readers. Never make one by changing the characters of the other.
+  - Use standard written Chinese (書面語). Explain the idea; do not just translate word for word. Keep key English terms in brackets where they help.` : ""}
 - Up to ${n.cards} flashcards and up to ${n.quiz} multiple-choice question${n.quiz === 1 ? "" : "s"} with 4 options each, on the ideas worth remembering; fewer when the deck teaches less. Never ask about how the course is run. "a" is the index (0 to 3) of the right option, "why" explains it in one sentence, "slide" is the page it is taught on. The options are shown in a mixed order, so no option may refer to another ("all of the above", "both A and B").
 - "slides": one entry per slide page you were given, with a short title (at most 8 words).
 
@@ -48,7 +51,7 @@ The JSON object has exactly these fields:
 {
   "title": "...",
   "summary": ["...", "..."],
-  "sections": [{ "title": "Opportunity cost", "points": [{ "slide": 3, "text": "..."${input.zh ? `, "zh": "..."` : ""} }] }],
+  "sections": [{ "title": "Opportunity cost", "points": [{ "slide": 3, "text": "..."${input.zh ? `, "zhHans": "...", "zhHant": "..."` : ""} }] }],
   "slides": [{ "n": 3, "title": "Opportunity cost" }],
   "flashcards": [{ "q": "...", "a": "..." }],
   "quiz": [{ "q": "...", "opts": ["...", "...", "...", "..."], "a": 1, "why": "...", "slide": 3 }]
@@ -62,7 +65,8 @@ The JSON object has exactly these fields:
 export interface PackModel {
   title: string;
   summary: string[];
-  sections: { title: string; points: { slide: number | null; text: string; zh: string | null }[] }[];
+  /* zhHans, zhHant: the explanation in each script as the model wrote it; zh: a single one (an older or partial reply). */
+  sections: { title: string; points: { slide: number | null; text: string; zhHans: string | null; zhHant: string | null; zh: string | null }[] }[];
   slides: { n: number; title: string }[];
   flashcards: { q: string; a: string }[];
   quiz: { q: string; opts: string[]; a: number | null; why: string | null }[];
@@ -90,7 +94,7 @@ export function readSlidesPack(reply: string): PackModel {
   const top = obj(json);
   if (!top || !Array.isArray(top.sections)) throw new Error('it does not have the fields asked for: "sections" must be a list');
   const sections = items(top.sections, s => {
-    const points = items(s.points, p => { const text = str(p.text); return text ? { slide: num(p.slide), text, zh: str(p.zh) || null } : null; });
+    const points = items(s.points, p => { const text = str(p.text); return text ? { slide: num(p.slide), text, zhHans: str(p.zhHans) || null, zhHant: str(p.zhHant) || null, zh: str(p.zh) || null } : null; });
     return points.length ? { title: str(s.title), points } : null;
   });
   if (!sections.length) throw new Error('it has no sections with points (each point needs a "text" and the "slide" it explains)');
@@ -107,13 +111,13 @@ export function readSlidesPack(reply: string): PackModel {
 /* The pack as the front end reads it (INTEGRATION.md 3.2, kind "slides"). Sections have no time: start and end are 0,
    so they still follow one another. A point whose slide is not a page of the deck keeps its text and loses the number.
    title: the model's title for the deck, a single line of at most 120 characters, or null. */
-export function buildSlidesPack(m: PackModel, ctx: { pages: { n: number; text: string }[]; zh: "hant" | "hans" | null }): { detail: Detail; title: string | null } {
+export function buildSlidesPack(m: PackModel, ctx: { pages: { n: number; text: string }[]; zh: boolean }): { detail: Detail; title: string | null } {
   const pages = new Set(ctx.pages.map(p => p.n)), most = packCounts(ctx.pages);
   const sections: Section[] = m.sections.map(s => ({
     title: s.title || "Notes", start: 0, end: 0,
     points: s.points.map((p): Point => {
       const slide = p.slide !== null && pages.has(Math.round(p.slide)) ? Math.round(p.slide) : null;
-      const zh = ctx.zh && p.zh ? bothScripts(p.zh, ctx.zh) : {};
+      const zh = ctx.zh ? zhForms(p) : {};
       return { t: null, text: p.text, ...zh, off: false, slide };
     })
   }));
