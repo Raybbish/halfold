@@ -2,7 +2,7 @@
    pipeline store goes through Store, so another database means rewriting this file only. */
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
-import type { Alert, Detail, Line, LectureStatus, Source } from "../../src/types";
+import type { Alert, Detail, Line, LectureStatus, Mark, MarkKind, ReviewCard, Source } from "../../src/types";
 import type { ClassLanguage } from "./config";
 import { mixQuiz } from "./notes/mix";
 import { slideLabels } from "./notes/normalize";
@@ -81,9 +81,10 @@ export interface ClassRecordingRow {
 export interface UpcomingRow { lecture_id: string | null; date: string; kind: string; text: string; t: number | null; course_code: string; id: string | null }
 export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
 export interface FeedbackRow { id: number; lecture_id: string; user_id: string; text: string; created_at: string; title: string; course_code: string; user_name: string }
-/* stage "slides": matching slides sent later to the notes; "pack": a review pack, logged with the course id in lecture_id. */
+/* stage "slides": matching slides sent later to the notes; "pack": a review pack, logged with the course id in lecture_id;
+   "ask": a question about one lecture (POST /lectures/:id/ask). */
 export interface CostEntry {
-  lectureId: string; userId: string | null; stage: "stt" | "notes" | "live" | "catchup" | "slides" | "pack"; provider: string; model: string;
+  lectureId: string; userId: string | null; stage: "stt" | "notes" | "live" | "catchup" | "slides" | "pack" | "ask"; provider: string; model: string;
   audioSeconds?: number | null; inputTokens?: number | null; cachedInputTokens?: number | null; outputTokens?: number | null;
   reasoningTokens?: number | null; usd: number | null; meta?: Record<string, unknown>;
 }
@@ -144,6 +145,9 @@ CREATE TABLE IF NOT EXISTS checkouts (
 CREATE TABLE IF NOT EXISTS quota (
   kind TEXT NOT NULL, ref TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (kind, ref));
 CREATE INDEX IF NOT EXISTS quota_user ON quota(user_id, kind, created_at);
+CREATE TABLE IF NOT EXISTS marks (
+  lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE, t REAL NOT NULL, kind TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY (lecture_id, t, kind));
 CREATE TABLE IF NOT EXISTS remote_files (
   lecture_id TEXT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE, name TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL,
   PRIMARY KEY (lecture_id, name));
@@ -704,6 +708,38 @@ export class Store {
     const r = this.db.prepare("SELECT known_json, quiz_score FROM progress WHERE lecture_id = ?").get(lectureId) as { known_json: string; quiz_score: number | null } | undefined;
     return r ? { known: JSON.parse(r.known_json) as number[], quizScore: r.quiz_score } : null;
   }
+  /* One flashcard known or not, from the Review page (PUT /lectures/:id/cards/known): the other cards and the quiz score stay. */
+  setCardKnown(lectureId: string, index: number, known: boolean) {
+    const p = this.progress(lectureId), set = new Set(p ? p.known : []);
+    if (known) set.add(index); else set.delete(index);
+    this.saveProgress(lectureId, [...set].sort((a, b) => a - b), null);
+  }
+  /* Every flashcard not marked as known, in the student's lectures with notes: newest lecture first, each lecture's cards
+     in their order (GET /review; its count is reviewCount in GET /home). */
+  reviewCards(userId: string): ReviewCard[] {
+    const rows = this.db.prepare(`SELECT lectures.id AS lecture_id, lectures.title AS title, f.key AS idx, json_extract(f.value, '$.q') AS q, json_extract(f.value, '$.a') AS a, progress.known_json AS known
+      FROM lectures JOIN details ON details.lecture_id = lectures.id CROSS JOIN json_each(details.detail_json, '$.flashcards') AS f LEFT JOIN progress ON progress.lecture_id = lectures.id
+      WHERE lectures.user_id = ? ORDER BY lectures.created_at DESC, lectures.rowid DESC, f.key`).all(userId) as unknown as { lecture_id: string; title: string; idx: number; q: unknown; a: unknown; known: string | null }[];
+    const known = new Map<string, Set<number>>(), out: ReviewCard[] = [];
+    for (const r of rows) {
+      if (typeof r.q !== "string" || typeof r.a !== "string" || !r.q || !r.a) continue;
+      let k = known.get(r.lecture_id);
+      if (!k) { k = new Set(r.known ? JSON.parse(r.known) as number[] : []); known.set(r.lecture_id, k); }
+      if (!k.has(Number(r.idx))) out.push({ lectureId: r.lecture_id, lecture: r.title, index: Number(r.idx), q: r.q, a: r.a });
+    }
+    return out;
+  }
+
+  /* ---- marks made while recording (POST /lectures/:id/marks) ---- */
+  /* The same moment marked the same way twice is kept once. false when it was there already. */
+  addMark(lectureId: string, t: number, kind: MarkKind) {
+    return Number(this.db.prepare("INSERT OR IGNORE INTO marks (lecture_id, t, kind, created_at) VALUES (?, ?, ?, ?)").run(lectureId, t, kind, now()).changes) > 0;
+  }
+  marks(lectureId: string): Mark[] {
+    return (this.db.prepare("SELECT t, kind FROM marks WHERE lecture_id = ? ORDER BY t, kind").all(lectureId) as unknown as Mark[]).map(m => ({ t: m.t, kind: m.kind }));
+  }
+  markCount(lectureId: string) { return Number((this.db.prepare("SELECT COUNT(*) AS n FROM marks WHERE lecture_id = ?").get(lectureId) as { n: number }).n); }
+
   addFeedback(lectureId: string, userId: string, text: string) {
     this.db.prepare("INSERT INTO feedback (lecture_id, user_id, text, created_at) VALUES (?, ?, ?, ?)").run(lectureId, userId, text, now());
   }

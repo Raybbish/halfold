@@ -98,6 +98,10 @@
 | `getPlans()` | `GET /plans` | 见 3.4 |
 | `startCheckout(planId)` | `POST /checkout` | `{ url }`，浏览器会跳到这个地址 |
 | `updateSettings({name, classLanguage, zhDefault, zhScript})` | `PUT /settings` | 无 |
+| `addMark(id, {t, kind})` | `POST /lectures/:id/marks` | 无。`kind` 是 `important`（重点）或 `lost`（没听懂）（2026-11-24 加） |
+| `ask(id, question)` | `POST /lectures/:id/ask`，body `{ question }` | `{ answer, refs: [{ t, text }] }`（2026-11-24 加） |
+| `getReview()` | `GET /review` | `{ cards: [{ lectureId, lecture, index, q, a }] }`（2026-11-24 加） |
+| `setCardKnown(id, index, known)` | `PUT /lectures/:id/cards/known`，body `{ index, known }` | 无（2026-11-24 加） |
 | `addUpcoming({course, date, kind, text})` | `POST /upcoming` | `upcoming` 的一条（带 `id`） |
 | `deleteUpcoming(id)` | `DELETE /upcoming/:id` | 无 |
 | `updateProfile({school, major, yearOfStudy, gradYear, origin, consentMarketing, consentSurvey})` | `PUT /profile` | `{ profile }`，见 3.5 |
@@ -115,6 +119,9 @@
 - `createShareLink` 返回的 `url` 要指向前端的 `#/s/:id`，例如 `https://你的域名/#/s/k3J9xQ`。分享 id 建议用猜不到的随机串。`revokeShareLink` 之后旧链接必须失效。
 - `saveShared` 把分享的笔记复制一份到当前用户名下。分享页默认不带录音（见 4.3），这份副本也不应带。
 - `getPlans` 接口不存在或出错时，设置页照常打开，只是不显示方案。
+- `addMark` 在录音页点"Important"或"Lost me"时调用，`t` 是录音开始后的秒数。前端不等结果、出错不提示，标记同时存在本机；所以后端同一个标记收到两次要只留一个。
+- `ask` 用这堂课的逐字稿回答，`refs` 是答案依据的逐字稿原句和时间（最多 4 条），界面上点时间就跳过去播放。问题最多 300 字。讲不到就在 `answer` 里直说，`refs` 给空数组。出错回 `{ message }`，前端原样显示。
+- `getReview` 给所有有笔记的课里还没标"记得"的闪卡，新课在前；`index` 是这张卡在那堂课 `flashcards` 里的下标。`setCardKnown` 只改这一张，测验分数不动；和 `saveProgress` 存的是同一份 `progress.known`。
 - `createLecture` 时请检查当天的录音分钟上限，超出就拒绝并返回 `message`。前端在录音前也会检查，但不能只靠前端。
 
 `language` 的取值：`en`（英文）、`zh`（普通话）、`yue`（粤语）、`en-zh`（英文夹普通话）、`en-yue`（英文夹粤语）、`auto`。`zh` 和 `yue` 是 2026-11-24 加的（API-CHANGES.md 第 14 节）。
@@ -135,11 +142,13 @@
   "week": { "lectures": 4, "known": 23, "quiz": 86, "days": [1, 1, 1, 0, 0] },
   "settings": { "classLanguage": "en", "zhDefault": false, "zhScript": "hant" },
   "usage": { "minutesToday": 90, "minutesLimit": 240 },
-  "today": "2026-11-11"
+  "today": "2026-11-11",
+  "reviewCount": 12
 }
 ```
 
 - `course.color`、`lecture.week`、`week`、`usage`、`today` 都可以不给，界面会自动隐藏对应部分。
+- `reviewCount` 是所有课堂里还没标"记得"的闪卡总数，显示在侧栏的"Review"旁边和首页的"Review"卡片上（2026-11-24 加）。不给时首页写"Go over your flashcards"，侧栏不显示数字。
 - `user.profile`、`user.profileSkipped` 和 `schoolGuess`：学生的资料和两个同意，见 3.5。不给 `user.profile` 时前端不问资料。
 - `usage.audioDays` 是当前套餐下录音保留的天数，给了就显示在设置页。会员功能上线前不用给。
 - `settings.zhScript` 是用户选的中文解釋写法：`hant`（繁體）或 `hans`（简体）。用户没选过就不要给，前端会按浏览器语言决定起始写法。
@@ -165,6 +174,7 @@
 {
   "audio": { "url": "https://..." },
   "progress": { "known": [0, 3] },
+  "marks": [{ "t": 408, "kind": "important" }, { "t": 1652, "kind": "lost" }],
   "alerts": [{ "t": 18, "kind": "Midterm", "text": "..." }],
   "sections": [{
     "title": "Opportunity cost", "slides": "Slides 3 to 6", "start": 200, "end": 640,
@@ -180,6 +190,7 @@
 - `audio.url` 是保留下来的录音。不给 `audio`（或给 `null`）时不显示播放器，其他功能不受影响。要求见第 4 节。
 - `audio.keptUntil`（`YYYY-MM-DD`）是这份录音按用户当前套餐保留到哪一天；`audio.expired = true`（不带 `url`）表示录音已经按期限删除。两个都是为会员功能预留的，现在不用给，见 4.4。
 - `progress.known` 是用户标记为"已掌握"的闪卡下标，打开课堂时恢复。就是 `saveProgress` 存进去的那个数组。
+- `marks` 是用户在录音时点的标记（`addMark`），按时间排，可以不给（2026-11-24 加）。显示在笔记上方的"Your marks from class"，每条带那一刻的逐字稿原句，点时间从标记前 15 秒开始播放。只给课堂的主人：分享页的 `detail` 不要带。
 - `transcript` 必须按 `t` 从小到大排列。前端用"最后一句 `t` 不大于当前时间的"来确定正在说的那一句。
 - `point.off = true` 表示"老师讲了但课件上没有"，界面会标成黄色的 Sidenote。这是产品的核心卖点，需要模型在有课件时做这个判断。
 - `point.t` 为 `null` 的是用户自己加的要点，不显示时间戳。

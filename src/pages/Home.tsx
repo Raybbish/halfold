@@ -67,10 +67,12 @@ function RecordCard() {
     <button className="rec-btn" onClick={() => { quickRecord(); }} aria-label={t("Record this class")}><i></i><span>{t("Record")}</span></button></div>;
 }
 
-/* The lecture opened last, to carry on from. */
-function LastCard() {
-  const id = store.get("lastLec"), l = id ? lecture(id) : undefined; if (!l) return null;
-  return <div className="today"><a className="card tcard" href={"#/lecture/" + encodeURIComponent(l.id)}><span className="small muted">{t("Pick up where you left off")}</span><b data-notr="">{l.title}</b><span className="small muted">{t(meta(l, course(l.course)))}</span></a></div>;
+/* The lecture opened last, to carry on from, and the flashcards waiting in Review (S.reviewCount; null when the server
+   does not count them). */
+function Today() {
+  const id = store.get("lastLec"), l = id ? lecture(id) : undefined, rc = S.reviewCount;
+  return <div className="today">{l ? <a className="card tcard" href={"#/lecture/" + encodeURIComponent(l.id)}><span className="small muted">{t("Pick up where you left off")}</span><b data-notr="">{l.title}</b><span className="small muted">{t(meta(l, course(l.course)))}</span></a> : null}
+    <a className={"card tcard" + (rc === 0 ? " dim" : "")} href="#/review" data-act="review"><span className="small muted">{t("Review")}</span><b>{t(rc ? plural(rc, "card") + " to go over" : rc === 0 ? "No cards waiting" : "Go over your flashcards")}</b><span className="small muted">{t(rc === 0 ? "Flashcards from your lectures collect here." : "From all your lectures: the ones you have not marked as known.")}</span></a></div>;
 }
 
 export function Home() {
@@ -82,7 +84,7 @@ export function Home() {
     <div className="page-h"><div className="hello"><Hal size={52} mood="smile" /><div><h1>{t("Hi " + S.user!.name)}</h1><p className="muted" style={css("margin-top:4px")}>{t(n ? `Next up: ${n.kind.toLowerCase()} for ${n.course}, ${daysLeft(n.date) === 0 ? "today" : "in " + plural(daysLeft(n.date), "day")}.` : "No exam dates on the radar.")}</p></div></div>
       <a className="btn primary desk" href="#/new">{t("New lecture")}</a></div>
     <ProfileNudge />
-    <div className="top2"><RecordCard /><LastCard /></div>
+    <div className="top2"><RecordCard /><Today /></div>
     {w ? <div className="stats">
       <div className="stat" style={css("background:var(--blue-soft)")}><b className="num">{w.lectures}</b><span>{t("lectures recorded this week")}</span></div>
       <div className="stat" style={css("background:var(--mint-soft)")}><b className="num">{w.known}</b><span>{t("flashcards you know")}</span></div>

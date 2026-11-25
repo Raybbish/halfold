@@ -501,6 +501,14 @@ sup,sub{font-size:.72em;line-height:0}
 /* Sign-in: the invite code field once the server asks for it, and the note that says why (not an error). */
 .field.need input{border-color:var(--ink);box-shadow:3px 3px 0 var(--yellow)}
 .need-note{margin:-6px 0 14px;color:var(--ink)}
+
+/* Marks made in class: the row on the recording page, and the card above the notes. The Ask tab's question box. */
+.markrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;padding:12px 16px;background:#fff;border:1.5px solid var(--line);border-radius:var(--r-lg);color:var(--ink)}
+.marks{padding:16px 22px;margin-bottom:14px;background:var(--yellow-soft)}
+.marks h3{font-size:16px;margin-bottom:4px}
+.askbox{display:flex;gap:10px;flex-wrap:wrap}
+@media print{.marks .ts,.askbox{display:none!important}}
+
 /* The profile form and the home page's reminder for someone who skipped it (pages/Profile.tsx; the designers' draft of 2026-11-24). */
 .consent{display:grid;gap:10px;margin:4px 0 18px;padding:14px 16px;background:var(--bg);border-radius:var(--r)}
 .consent label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:15px}

@@ -11,6 +11,7 @@ import { pl, plPlay, plSeek, segAt } from "../../features/player/player";
 import { doExport } from "../../features/export";
 import { holdWatch, isFiling, watchSlides } from "../../features/notes/watch";
 import { forgetOrphan } from "../../features/recording/orphan";
+import { forgetMarks } from "../../features/marks";
 import { openModal } from "../../ui/Overlay";
 import { css } from "../../ui/css";
 import { val } from "../../ui/form";
@@ -27,9 +28,23 @@ export function setTab(k: Tab) {
   const top = document.getElementById("tabtop"), y = top ? top.getBoundingClientRect().top : 0; if (y < 0) window.scrollBy(0, y);   // the tabs stick on phones: start the new tab from its top
 }
 export function refreshLecture() { delete S.detail[R.b]; route(); }
-export function progress() { if (!C().shared) api.saveProgress(C().l.id, { known: [...state.known], quizScore: state.done ? state.score : null }).catch(() => {}); }
+/* The kept notes carry what was saved, so coming back to the lecture (or Review) shows the same cards as known. */
+export function progress() { if (C().shared) return; D().progress = { known: [...state.known].sort((a, b) => a - b) }; api.saveProgress(C().l.id, { known: [...state.known], quizScore: state.done ? state.score : null }).catch(() => {}); }
 export function card(d: number) { const n = D().flashcards.length; state.fc = (state.fc + d + n) % n; state.flip = false; bump(); }
-export function know() { state.known.add(state.fc); progress(); card(1); }
+/* A card newly known here is one fewer waiting in Review. */
+export function know() { if (!state.known.has(state.fc) && !C().shared && S.reviewCount) S.reviewCount--; state.known.add(state.fc); progress(); card(1); }
+
+/* ---------- Ask: a question about this lecture ----------
+   The answer belongs to the lecture it was asked about: one that arrives after the student has moved to another
+   lecture is dropped. */
+export async function askLecture(q: string) {
+  q = q.trim(); if (!q || (state.ask && state.ask.busy)) return; const id = C().l.id;
+  state.ask = { q, busy: true }; bump();
+  let next: typeof state.ask;
+  try { next = { q, res: await api.ask(id, q) }; } catch (e) { next = { q, err: (e as Error).message || "" }; }
+  if (!cur || cur.l.id !== id) return;
+  state.ask = next; if (R.a === "lecture" && state.tab === "ask") bump();
+}
 
 /* ---------- quiz ---------- */
 export function quizOrder() { return state.order || D().quiz.map((_, i) => i); }
@@ -95,7 +110,7 @@ export function deleteModal() { openModal(() => <><h3>{t("Delete this lecture?")
   <div style={css("display:flex;gap:10px;justify-content:flex-end;margin-top:16px")}><button className="btn plain" onClick={closeModal}>{t("Keep lecture")}</button><button className="btn dark" onClick={doDelete}>{t("Delete lecture")}</button></div></>); }
 /* An interrupted recording on this device (the never-finished card offers Delete for it too) is forgotten with its lecture,
    as Discard it would. */
-function doDelete() { act(async () => { const id = C().l.id, c = C().c; await api.deleteLecture(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id];
+function doDelete() { act(async () => { const id = C().l.id, c = C().c; await api.deleteLecture(id); forgetMarks(id); S.lectures = S.lectures.filter(x => x.id !== id); delete S.detail[id];
   if (S.orphan && S.orphan.id === id) await forgetOrphan();
   closeModal(); toast("Lecture deleted"); location.hash = c ? "#/course/" + encodeURIComponent(c.id) : "#/home"; }); }
 

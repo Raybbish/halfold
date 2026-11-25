@@ -16,6 +16,7 @@ import { findOrphan } from "./features/recording/orphan";
 import { uploading } from "./features/upload/upload";
 import { installTestBridge } from "./testBridge";
 import { onLectureKey } from "./pages/lecture/actions";
+import { onReviewKey } from "./pages/Review";
 import { App } from "./App";
 
 /* bump() redraws before it returns, like render() did. */
@@ -28,6 +29,7 @@ document.addEventListener("visibilitychange", onVisibilityChange);
 window.addEventListener("online", flush); setInterval(() => { if (outbox.length) flush(); }, 10000);
 window.addEventListener("beforeunload", e => { if (live.active || uploading()) { e.preventDefault(); e.returnValue = ""; } });   // a recording, or a file being uploaded (it lives only in this page)
 document.addEventListener("keydown", onLectureKey);   // flashcard and quiz keys
+document.addEventListener("keydown", onReviewKey);    // the Review page's keys
 window.addEventListener("online", net); window.addEventListener("offline", net);
 window.addEventListener("hashchange", route);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !(overlay.modal && overlay.modal.locked)) closeModal(); });

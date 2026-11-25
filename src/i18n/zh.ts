@@ -276,6 +276,25 @@ export const ZH: Record<string, string> = {
   "A lecture recording contains other people's voices. Check your course's rules, ask the lecturer if you are not sure, and keep recordings to yourself unless you have permission to share them.": "課堂錄音包含其他人的聲音。請查看課程的規定，不確定就問老師；除非得到同意，否則錄音只供自己使用。",
   "Works in the browser on a laptop or a phone. Nothing to install.": "在手提電腦或手機的瀏覽器裡就能用，不用安裝。",
   "None of this is written on the slides. Halfold listens for it and pins it to your notes.": "這些都不會寫在簡報上。Halfold 會聽著，並釘在你的筆記上。",
+  /* Marks made in class, Ask, and Review across lectures (added 2026-11-24, from the designer's halfold.html). */
+  "Mark this moment": "標記這一刻", "Important": "重點", "Lost me": "沒聽懂",
+  "Marked as important.": "已標記為重點。", "Marked. The notes will point back to this moment.": "已標記，筆記會帶你回到這一刻。",
+  "One tap. Your marks are waiting at the top of the notes after class.": "按一下就好。下課後，你的標記會排在筆記最上方。",
+  "Your marks from class": "你在課上的標記", "Play from just before this mark": "從這個標記前一點開始播放",
+  "Tap a time to hear it again from 15 seconds before your mark.": "點一下時間，就會從你標記前 15 秒重新播放。",
+  "Ask": "提問", "Ask about this lecture": "就這堂課提問", "What did the lecturer say about the midterm?": "老師對期中考說了甚麼？", "Looking": "正在查找",
+  "Where it was said": "老師在哪裡說的", "Nothing in this lecture matches that. Try other words.": "這堂課裡找不到相關內容，換個說法試試。",
+  "Ask anything about this lecture. Every answer points to the moment it was said, so you can check it.": "這堂課的任何內容都可以問。每個答案都會指向老師說那句話的時間點，方便你核對。",
+  "That question could not be answered right now.": "暫時無法回答這個問題。",
+  "Sample build: this finds the moments in this lecture that mention your words. A written answer comes from the Halfold service.": "示範版本：這裡只會找出這堂課裡提到這些字詞的片段。文字回答由 Halfold 服務提供。",
+  "Review": "溫習", "From": "來自", "Again later": "稍後再看",
+  "Cards from all your lectures that you have not marked as known.": "來自你所有課堂、還沒標記為「記得」的閃卡。",
+  "From all your lectures: the ones you have not marked as known.": "來自你所有課堂、還沒標記為「記得」的閃卡。",
+  "Space flips the card. Right arrow: I know this. Down arrow: again later.": "空白鍵翻卡。右方向鍵：我記得。下方向鍵：稍後再看。",
+  "No cards to review": "沒有要溫習的閃卡", "Flashcards from your lectures collect here until you mark them as known.": "課堂的閃卡會集中在這裡，直到你把它們標記為「記得」。",
+  "Nothing left to review. Record another lecture to get more.": "全部溫習完了。再錄一堂課，就會有新的閃卡。",
+  "The rest come back the next time you open Review.": "其餘的，下次打開「溫習」時會再出現。", "Go through the rest again": "把剩下的再看一遍",
+  "No cards waiting": "沒有待溫習的閃卡", "Go over your flashcards": "溫習閃卡", "Flashcards from your lectures collect here.": "課堂的閃卡會集中在這裡。",
   /* The retest of 2026-11-23. Help: how to sign in (the heading "Signing in" read as 登入中, the button's busy word). */
   "How to sign in": "怎樣登入",
   "Sign in with your email: Halfold sends you a 6-digit code and you type it in. There is no password to remember.": "用電郵登入：Halfold 會寄一個 6 位數登入碼給你，輸入就可以，不用記密碼。",
@@ -311,11 +330,14 @@ export const ZH: Record<string, string> = {
   "Choose your year from the list.": "請從清單中選擇年級。", "Choose the year you graduate from the list.": "請從清單中選擇畢業年份。",
   "Choose where you studied before university from the list.": "請從清單中選擇入讀大學前在哪裡讀書。", "Tick or untick each box.": "請勾選或取消勾選每一項。",
 };
-/* Sentences our server writes about video links (server/src/links: ytdlp.ts STUDENT_MESSAGE, guard.ts linkProblem). A
-   failed lecture's reason (lecture.error) is backend text and normally shown as it is; these exact sentences are ours,
-   so serverText() in i18n/index.ts shows them in Chinese (test of 2026-11-18). They are in ZH as well, for the form on
-   New lecture. server/test/zh-messages.test.ts checks that every one of the server's sentences is here. */
+
 export const SERVER: Record<string, string> = {
+  /* Ask and Review (server/src/study.ts) */
+  "Hal could not answer that just now. Try again in a moment.": "Hal 暫時答不了這個問題，請稍後再試。",
+  "Ask about this lecture once its notes are ready.": "筆記整理好之後，才可以就這堂課提問。",
+  "This lecture has nothing to ask about yet.": "這堂課還沒有可以提問的內容。",
+  "Write a question first.": "請先寫下問題。", "A question can be at most 300 characters.": "問題最多 300 個字。",
+  "This flashcard is no longer there. Open the lecture again to see its cards.": "這張閃卡已經不在了。請重新打開課堂查看閃卡。",
   "This video needs a sign-in or permission to watch, so it could not be downloaded. Record it with Record an online class while it plays, or download the video and upload the file.": "這段影片要登入或取得權限才能觀看，所以無法下載。可以在播放時用「錄網上課堂」錄下來，或自行下載影片後上載檔案。",
   "The video site refused the download for now. Try again later, or download the video and upload the file.": "影片網站暫時拒絕下載。請稍後再試，或自行下載影片後上載檔案。",
   "Only recorded lectures up to 5 hours long can be used. This video is longer, or it is a live stream.": "只能使用 5 小時以內的課堂錄影。這段影片比較長，或者是直播。",
@@ -335,6 +357,9 @@ export const SERVER: Record<string, string> = {
 for (const [k, v] of Object.entries(SERVER)) if (!(k in ZH)) ZH[k] = v;
 export const zhTok = (t: string): string | null => { let m: RegExpMatchArray | null; return t === "Today" ? "今天" : (m = t.match(/^week (\d+)$/)) ? "第 " + m[1] + " 週" : (m = t.match(/^(\d+) min$/)) ? m[1] + " 分鐘" : null; };
 export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
+  [/^(\d+) marks? so far\. They are waiting at the top of your notes\.$/, m => "已標記 " + m[1] + " 處，下課後會排在筆記最上方。"],
+  [/^(\d+) of (\d+) marked as known$/, m => "已記得 " + m[1] + "／" + m[2] + " 張"],
+  [/^(\d+) cards? to go over$/, m => m[1] + " 張閃卡待溫習"],
   [/^We sent a 6-digit code to (\S+@\S+)\. Check your inbox and spam folder\.$/, m => "已把 6 位數登入碼寄到 " + m[1] + "。請查看收件匣和垃圾郵件。"],
   [/^Recording stopped for about (\d+) seconds while Halfold was in the background\. Keep this page open with the screen on\.$/, m => "Halfold 在背景時，錄音停了大約 " + m[1] + " 秒。請保持這個頁面開啟、螢幕亮著。"],
   [/^Recording stopped for about (\d+) min while Halfold was in the background\. Keep this page open with the screen on\.$/, m => "Halfold 在背景時，錄音停了大約 " + m[1] + " 分鐘。請保持這個頁面開啟、螢幕亮著。"],

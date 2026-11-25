@@ -6,6 +6,7 @@ import { bodyLimit } from "hono/body-limit";
 import { onError } from "./http/errors";
 import { privateRoutes, publicRoutes, type AppEnv, type Deps } from "./routes";
 import { libraryRoutes, sharedRoutes } from "./library";
+import { studyRoutes } from "./study";
 import { loginRoutes } from "./login";
 import { accountRoutes, webhookRoutes } from "./account";
 import { profileRoutes } from "./profile";
@@ -41,6 +42,7 @@ export function createApp(deps: Deps) {
   });
   api.route("/", privateRoutes(deps));
   api.route("/", libraryRoutes(deps));
+  api.route("/", studyRoutes(deps));
   api.route("/", accountRoutes(deps));
   api.route("/", profileRoutes(deps));
   api.notFound(c => c.json({ message: "This is not available yet." }, 404));

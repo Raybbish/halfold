@@ -74,6 +74,7 @@ export interface Config {
     deepseek: DeepSeekSettings;
   };
   catchUp: DeepSeekSettings;          // "Catch me up": a small, fast model without thinking
+  ask: DeepSeekSettings;              // a question about one lecture (POST /lectures/:id/ask): by default the same model as Catch me up
 }
 
 function num(v: string | undefined, d: number) { const n = Number(v); return v !== undefined && v.trim() !== "" && Number.isFinite(n) ? n : d; }
@@ -96,8 +97,8 @@ function languageMap(v: string | undefined, d: Record<ClassLanguage, string>): R
   return out;
 }
 
-function prices(env: NodeJS.ProcessEnv, prefix: string, model: string): TokenPrices {
-  const base = DEEPSEEK_PRICES[model] || DEEPSEEK_PRICES["deepseek-v4-pro"];
+function prices(env: NodeJS.ProcessEnv, prefix: string, model: string, fallback?: TokenPrices): TokenPrices {
+  const base = fallback || DEEPSEEK_PRICES[model] || DEEPSEEK_PRICES["deepseek-v4-pro"];
   return {
     inputCacheHit: num(env[prefix + "_USD_PER_M_INPUT_CACHE_HIT"], base.inputCacheHit),
     inputCacheMiss: num(env[prefix + "_USD_PER_M_INPUT"], base.inputCacheMiss),
@@ -198,6 +199,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     catchUp: {
       apiKey: deepseekKey, baseUrl: deepseekBase, model: catchUpModel, reasoningEffort: env.CATCHUP_REASONING_EFFORT || "none",
       maxTokens: num(env.CATCHUP_MAX_TOKENS, 2000), prices: prices(env, "CATCHUP", catchUpModel)
+    },
+    /* ASK_* not set: what Catch me up uses (its model, thinking, prices). */
+    ask: {
+      apiKey: deepseekKey, baseUrl: deepseekBase, model: env.ASK_MODEL || catchUpModel,
+      reasoningEffort: env.ASK_REASONING_EFFORT || env.CATCHUP_REASONING_EFFORT || "none", maxTokens: num(env.ASK_MAX_TOKENS, 2000),
+      prices: prices(env, "ASK", env.ASK_MODEL || catchUpModel, env.ASK_MODEL ? undefined : prices(env, "CATCHUP", catchUpModel))
     }
   };
 }

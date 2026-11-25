@@ -17,6 +17,7 @@ import { isLive } from "./pipeline";
 import { heldWords, type LiveJobs } from "./live/transcriber";
 import { joinTokens } from "./stt/lines";
 import type { CatchUpWriter } from "./notes/catchup";
+import type { AskWriter } from "./notes/ask";
 import type { ReviewPacks } from "./packs";
 import type { Billing } from "./billing";
 import type { Mailer } from "./mail";
@@ -28,7 +29,7 @@ import { fileKey, linkKey } from "./dedupe";
 export interface Jobs { enqueue(lectureId: string): void; cancel(lectureId: string): void }
 /* links: yt-dlp, or null when it is not on this machine (link lectures are then refused). */
 export interface Deps {
-  config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter; packs: ReviewPacks;
+  config: Config; store: Store; files: FileStore; jobs: Jobs; media: Media; live: LiveJobs; catchUp: CatchUpWriter; ask: AskWriter; packs: ReviewPacks;
   billing: Billing; mailer: Mailer; links: LinkDownloader | null;
 }
 export type AppEnv = { Variables: { user: UserRow } };
@@ -292,14 +293,16 @@ export function privateRoutes(deps: Deps) {
     return c.json<StatusReply>({ status: store.lecture(id)?.status ?? l.status });
   });
 
-  /* detail is there once the notes are written, also while slides sent later are being matched to them (processing). */
+  /* detail is there once the notes are written, also while slides sent later are being matched to them (processing).
+     The student's own marks from class come with it (study.ts); the shared page has none. */
   r.get("/lectures/:id", c => {
     const l = mine(c.get("user").id, c.req.param("id"));
     const detail = store.detail(l.id);
     if (detail) {
-      const audio = audioView(deps, l), progress = store.progress(l.id);
+      const audio = audioView(deps, l), progress = store.progress(l.id), marks = store.marks(l.id);
       if (audio) detail.audio = audio;
       if (progress) detail.progress = { known: progress.known };
+      if (marks.length) detail.marks = marks;
     }
     return c.json({ lecture: lectureView(l, config.timezone), detail });
   });
