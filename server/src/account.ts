@@ -37,8 +37,8 @@ export function accountRoutes(deps: Deps) {
     return c.json<Plans>(billing.plans(user.id));
   });
 
-  /* {planId} -> {url}: Stripe Checkout, or Stripe's billing page (to cancel or change the card). url null: payments are
-     not set up on this server; the front end says checkout is not connected yet. */
+  /* {planId} -> {url}: Stripe Checkout, to pay once for a pass. url null: payments are not set up on this server; the
+     front end says checkout is not connected yet. */
   r.post("/checkout", async c => {
     const user = c.get("user"), planId = str((await jsonBody(c)).planId);
     if (!planId) fail(400, "Choose a plan.");
@@ -50,8 +50,9 @@ export function accountRoutes(deps: Deps) {
 }
 
 /* Stripe calls this (public, checked by its signature): STRIPE_WEBHOOK_SECRET is the signing secret of the endpoint
-   https://<server>/api/stripe/webhook in the Stripe Dashboard, or the one `stripe listen` prints. An error that is ours
-   is a 500, and Stripe sends the event again later. */
+   https://<server>/api/stripe/webhook in the Stripe Dashboard, or the one `stripe listen` prints. Events used:
+   checkout.session.completed, .async_payment_succeeded, .async_payment_failed, .expired; charge.refunded;
+   charge.dispute.closed (billing.ts handle). An error that is ours is a 500, and Stripe sends the event again later. */
 export function webhookRoutes(deps: Deps) {
   const r = new Hono<AppEnv>();
   r.post("/stripe/webhook", async c => {
