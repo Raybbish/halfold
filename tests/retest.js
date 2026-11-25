@@ -17,7 +17,8 @@ const EN_DATE = /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (Jan|Feb|Mar|Apr|May|Ju
 function serverExample() {
   const r = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--import', 'tsx', '-e', 'import("./src/example.ts").then(m => process.stdout.write(JSON.stringify(m.exampleNotes())))'],
     { cwd: path.join(ROOT, 'server'), encoding: 'utf8' });
-  try { return JSON.parse(r.stdout); } catch (e) { return null; }
+  try { return JSON.parse(r.stdout); }
+  catch (e) { const err = (r.stderr || '').split('\n').find(l => /Error|Cannot find/.test(l)) || (r.error && r.error.message) || 'no output'; console.log('   (the server\'s example notes could not be loaded: ' + err.trim().slice(0, 300) + ')'); return null; }
 }
 
 (async () => {
