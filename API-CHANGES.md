@@ -303,28 +303,29 @@
 
 ### `getPlans`
 
-`{ plans, current }`，形状同 INTEGRATION.md 3.4。方案在 `server/plans.json`，现在是三张卡片：
+`{ plans, current }`，形状同 INTEGRATION.md 3.4。方案在 `server/plans.json`，现在是三张卡片，付费的都是一次付清、不续费（2026-11-24 起，之前的按月订阅去掉了）：
 
 | `id` | `name` | `priceText` |
 |---|---|---|
 | `free` | Free | Free |
-| `plus` | Plus | HK$98 / month（按月订阅，自动续费） |
-| `plus-semester` | Plus for a semester | HK$348 for 120 days（一次付清，不续费） |
+| `plus-month` | Plus for a month | HK$98 for 30 days |
+| `plus-semester` | Plus for a semester | HK$348 for 120 days |
 
-- `features` 是这个方案每天能现场录几分钟、每月几堂课、每月几个复习包、录音保留多久，加一句怎么付款。当前方案的第一条是 `Renews on 14 Dec 2026`、`Ends on 14 Dec 2026`（已取消、到期结束）或 `Paid until 14 Mar 2027`。
+- `features` 是这个方案每天能现场录几分钟、每月几堂课、每月几个复习包、录音保留多久，加一句怎么付款。付费期间，最后买的那张卡片（`current`）第一条是 `Paid until 14 Mar 2027`，同一方案的其他卡片第一条是 `Adds 120 days after 14 Mar 2027`（买了接在后面）。
 - 文字只有英文：界面语言只在浏览器里，后端不知道（INTEGRATION.md 3.4）。
 
 ### `startCheckout`
 
 回 `{ url }`，前端跳过去：
 
-- 付费方案：Stripe Checkout 页面。付完或取消都回到 `<前端地址>/#/settings`，地址的取法和分享链接一样（`WEB_URL` > 页面的 `Origin` > `PUBLIC_URL`）。
-- 按月订阅中选 `free`：Stripe 的账单页面，在那里取消（用到这个月底）或换卡。上一次续费没扣成功时，选 `plus` 也去账单页面换卡。
-- 服务器没设 Stripe：`{ url: null }`，前端提示 “Checkout is not connected yet.”。
-- 409（带说明）：选的就是现在的方案；学期通行证没到期时选 `free` 或 `plus`；按月订阅中选 `plus-semester`。
+- 付费卡片：Stripe Checkout 页面，付一次。付完或取消都回到 `<前端地址>/#/settings`，地址的取法和分享链接一样（`WEB_URL` > 页面的 `Origin` > `PUBLIC_URL`）。付费期间买同一方案的卡片（包括现在这张）：天数接在后面。
+- 服务器没设 Stripe：`{ url: null }`，前端提示付款还没开通。
+- 409（带说明）：在 Free 时选 `free`；付费期间选 `free`（说明哪天结束、不续费）；付费期间选另一个付费方案的卡片（以后有两个付费方案时）。
 - 方案不存在 404；Stripe 出错 502。
 
-每次 `startCheckout` 都会关掉这个学生之前还没付的 Checkout，旧标签页里的付款页会显示已过期，不会重复订阅。
+每次 `startCheckout` 都会关掉这个学生之前还没付的 Checkout，旧标签页里的付款页会显示已过期，不会一不小心付两次。
+
+在 Stripe 后台退款后，服务器按退回的比例扣掉那笔买的天数（全额退款马上回到 Free），`GET /plans` 跟着变。
 
 付完回到设置页时，即使 Stripe 的通知（webhook）还没到，`GET /home` 和 `GET /plans` 也会先问 Stripe 这笔付款，所以页面上马上是新方案。
 

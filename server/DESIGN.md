@@ -5,6 +5,7 @@
 - [第三阶段](#第三阶段学生用已有的课堂)（2026-11-14）：改标题、换课程、编辑笔记、学习进度、反馈、分享和存副本、改删课程、复习包、搜索、课后补传课件。
 - [第四阶段](#第四阶段邮箱登录方案和付款保存设置)（2026-11-15）：邮箱验证码登录（第一次加邀请码）、方案和额度、Stripe 付款（按月订阅和学期通行证）、保存设置。
 - [现场录只转写一次](#现场录只转写一次)（2026-11-19）：笔记用实时转写的逐字稿，结束后只补转没转到的部分，现场录的转写费从 2.12 倍降到约 1.13 倍。
+- [一次付清和退款](#一次付清和退款)（2026-11-24）：去掉按月订阅，每个付费卡片都是一次付清买一段时间；Stripe 后台退款按退回的比例扣天数。第四阶段里讲订阅的部分以这一节为准。
 
 第一阶段的接口表里，第二阶段改过的行标了“第二阶段”。第三阶段改了 `GET /lectures/:id`（补传课件处理中也给 `detail`，并带 `progress`）和 `POST /lectures/:id/slides`（笔记写好后也收），见第三阶段。
 
@@ -483,6 +484,8 @@
 
 ## 付款（Stripe）
 
+（2026-11-24 起没有订阅了，见[一次付清和退款](#一次付清和退款)。下面讲订阅、账单页面的部分只是当时的设计。）
+
 不用 Stripe 的 SDK，直接调 HTTP 接口（五个：建、查、关 Checkout，查订阅，建账单页面），少一个依赖，测试也简单。价格用 `price_data` 现场给，不用在 Stripe 后台建商品和价格；以后改价只改 `plans.json`，已订阅的人继续按原价续费。
 
 支付方式不在请求里写死（`payment_method_types`），用 Stripe 后台开了的那些；Stripe 在订阅里只给能续费的。所以要在后台打开支付宝和微信支付，学期通行证才有这两个选项。
@@ -715,6 +718,62 @@ React 前端（本仓库）：失败的课堂页有 `lecture.error` 时显示它
 - 过了保留期，R2 上的录音删掉，课件留着。
 - 录音还在往 R2 传时补传课件：课件照样放进笔记，也传上 R2（去掉 `Pipeline.again` 这个测试就失败，课停在 `processing`）。
 - `move-to-r2`：真的跑脚本（子进程），先 `--dry-run`，再搬（一个文件读回不对，留在本机，退出码 1），再跑一次搬完，第三次什么都不做；没写好笔记的课不动；服务器的临时文件不碰。
+
+# 一次付清和退款
+
+日期：2026-11-24。交接文档第 5 项：接通付款，一次性付款，不做自动续费；档位和价格可配置，具体档位之后给；验收是真实付一笔再退款。
+
+## 用户定的
+
+- 只收一次性付款，不自动续费。
+- 档位和价格之后给，不能写死；这次不改档位、价格和额度。
+- 要处理退款（规则由我定，见下面）。
+- 支付方式：卡（连带 Apple Pay、Google Pay）、支付宝、微信支付。请求里不写 `payment_method_types`，所以这只是在 Stripe 后台打开，代码不用改；设置页卡片上的那句 “Pay once by card, Alipay or WeChat Pay” 照这个写。
+
+## 改了什么
+
+**`plans.json`**：付费方案的 `monthly`（订阅）和 `pass` 换成一个列表 `passes`，每项 `{ id, name, price, days }` 是设置页的一张卡片。原来的 HK$98 / 月变成 “Plus for a month”（`plus-month`，HK$98，30 天，一次付清），学期版不变（`plus-semester`，HK$348，120 天）。价格和额度都没改；卡片 id `plus` 变成 `plus-month`。旧格式启动时报错并说明怎么改，免得把月费悄悄当成别的东西。只有一个 `passes` 列表而不是固定的“月”和“学期”两个字段：以后的档位可以是一周、一个月、一学期、一年，几个付费方案各自几张卡片，都只改这个文件。
+
+**Checkout** 只用 `mode=payment`，`price_data` 现场给价格（不用在 Stripe 建商品）。`metadata` 和付款（`payment_intent_data.metadata`）上都写学生、方案、卡片、天数，`payment_intent_data.description` 写商品名，在 Stripe 后台看到一笔付款就知道是谁买了什么。`checkouts` 表在建 Checkout 时记下方案和天数（`plan`、`days`），付完记下付款 id（`payment_intent`）；之后改了 `plans.json`，已经打开的 Checkout 还是按学生看到的价格和天数算。
+
+去掉的：订阅、Stripe 账单页面（取消和换卡）、`subscriptions` 表的读写（表本身留在旧数据库里，不再用；线上从来没有接过 Stripe，所以没有订阅要迁移）、`users.stripe_customer` 的使用。
+
+**学生现在的方案**只看 `passes` 一行：`until` 没过就是那个方案，否则 Free（`paidEnd` 是 `until`）。`passes.card` 记最后买的那张卡片，设置页在它上面显示 “Your plan” 和 “Paid until …”；同一方案的其他卡片显示 “Adds N days after …”。
+
+**再买**：付费期内买同一方案的任何一张卡片（包括现在这张），天数接在 `until` 后面（原来的 `extendPass`）。买另一个付费方案 409，等现在的用完：`passes` 一行只有一个方案，换方案会丢掉剩下的天数，而现在只有一个付费方案，用不到。付费期间选 Free 409，说明哪天结束、不续费。前端 “Your plan” 那张卡片没有按钮，所以现在页面上要再买同一张得选同一方案的另一张；服务器已经接受，定价页重做时加按钮就行。
+
+## 退款（我定的规则）
+
+**按退回的比例扣掉这笔付款买的天数**：退全额扣全部，退一半扣一半。
+
+- 天数从付费期的末尾扣（`Store.takeBack`）：学生买过几次时，扣掉的只是被退那一笔的天数，其余的照旧。
+- **最早扣到现在**，不扣到过去：学期版用了 100 天后全额退款，学生马上回到 Free，但付费结束算今天，而不是 100 天前。原因：付费结束那天是录音保留的起点（`audio.ts`），扣到过去会让付费期间录的课在退款那一刻就超过 30 天被删掉。退款收回的是钱，不应该顺带删掉学生的内容。
+- 付费期已经结束了的那笔，退款不再扣（也不改结束那天）。
+- 被退的正好是 “Your plan” 那张、而且退全额：改成同一方案里最近一笔还没退的卡片。
+- 为什么按比例：一次付清没有“取消”按钮，学生想退掉没用完的部分时，后台按没用的天数退一部分钱，扣掉的天数正好让付费期在今天结束，不用再手动改。缺点：只是想补偿一点钱（比如某堂课转写不好）时也会扣天数，要用 `npm run plan -- give` 补回。另一个做法是“部分退款不动方案、全额退款才结束”，补偿方便，但退一半时学生钱和时间都留着，要手动结束，而且现在没有手动结束的命令。我选了不用手动就对的那个。
+
+**一笔只扣一次**：`checkouts.returned` 记这笔已经按多少比例扣过（0 到 1）。`charge.refunded` 每次带的是这笔到现在一共退了多少（`amount_refunded / amount`），只扣比上次多出来的部分。同一个事件来两次、两次部分退款的事件先后颠倒，都不会多扣。
+
+**还没记上的付款被退款**：付款的 webhook 漏了、学生也没回来过，Checkout 在数据库里还是 `open`，没有 `payment_intent`。退款到的时候先用付款 id 去 Stripe 查是哪个 Checkout（`GET /v1/checkout/sessions?payment_intent=`），按平常的规则记上（给天数），再扣掉。不这样的话，学生之后回到设置页，`refresh` 去问 Stripe，Stripe 说这个 Checkout 已付，学生会在退款之后拿到这段时间。Stripe 连不上时回 500，Stripe 过一会儿再发。
+
+**争议**（学生向银行拒付）：`charge.dispute.closed` 状态 `lost`（钱回到学生那边）算全额退款；`won` 不变。争议开着的时候不动：大多数争议最后是我们赢。
+
+**退款失败**（很少见，比如卡已经注销）：扣掉的天数不会自动补回，Stripe 会发邮件，用 `npm run plan -- give` 补。自动补要在每次事件里比较“退了多少”的减少，还要处理 Stripe 对失败退款怎么改 `amount_refunded`，为一件很少见的事加的复杂度不值。
+
+## Stripe 告诉我们的事（现在）
+
+webhook 用到：`checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`charge.refunded`、`charge.dispute.closed`。其他事件回 200、不处理。签名、5 分钟、“不只靠 webhook”（学生回到设置页时去问还开着的 Checkout）、新 Checkout 关掉旧的，和第四阶段一样。没有 webhook 时付款还是能在学生回来时生效，但退款和争议只能靠 webhook，所以正式收款前一定要配。
+
+## 测试
+
+`npm test` 175 项：
+
+- `billing.test.ts`：三张卡片的文字；一个月从下单到付款（回来时去问、webhook 只算一次）、选 Free 的说明、到期回到 Free；学期版和再买（接在后面，同一张卡片也可以，手动给的天数不改卡片）；延迟到账和失败；`POST /checkout` 的拒绝（不存在、计划不是卡片、另一个付费方案要等）、Stripe 出错、没有 key；新 Checkout 关掉旧的；webhook 签名和按 metadata 补记；全额退款（扣到现在为止、录音从今天起留 30 天、重复的消息不再扣）；部分退款（按比例、顺序颠倒）；两笔里退一笔（剩下的那张变成 “Your plan”）、争议输赢；还没记上的付款被退款、Stripe 连不上时 500、到期后的退款不扣。
+- `payments.test.ts`：Checkout 请求只用 `mode=payment`、没有 `recurring`、付款上带 metadata；按付款找 Checkout；读事件里的退款和争议；`plans.json` 的检查，包括旧格式的报错。
+- `stripe-flow.test.ts`（新）：真正的 `StripePayments`（按 `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_API_BASE` 建，和 `index.ts` 一样）对着一个记状态的假 Stripe 服务器：建 Checkout、用测试卡付款、回来时去问、签名的 webhook（错的密钥 400）、退一半再退剩下的；旧标签页的 Checkout 在 Stripe 被关掉；付款没记上就被退款；争议。
+- 前端 `tests/limits.js`：卡片的英文、繁体、简体（“Plus 一個月”“已付費至 …”“在 … 後再加 120 天”）。
+
+没有在真的 Stripe 测试模式里跑过：没有测试 key。真实付款和退款是交给用户的验收。
 
 # 课上标记、向课堂提问、跨课复习（2026-11-24）
 

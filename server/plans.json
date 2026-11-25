@@ -16,8 +16,10 @@
       "lecturesPerMonth": 40,
       "packsPerMonth": null,
       "audioDays": null,
-      "monthly": 98,
-      "pass": { "id": "plus-semester", "name": "Plus for a semester", "price": 348, "days": 120 }
+      "passes": [
+        { "id": "plus-month", "name": "Plus for a month", "price": 98, "days": 30 },
+        { "id": "plus-semester", "name": "Plus for a semester", "price": 348, "days": 120 }
+      ]
     }
   ]
 }

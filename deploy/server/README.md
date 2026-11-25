@@ -42,13 +42,41 @@ ssh ubuntu@<IP>
 halfold env
 ```
 
-打开的是 `server/.env.example` 的内容，`PUBLIC_URL` 和 `WEB_URL` 已经填成你的域名。要填的和本机一样（见 `server/README.md`）：`DEEPGRAM_API_KEY`（转写，默认用 Deepgram；`STT_PROVIDER=elevenlabs` 时填 `ELEVENLABS_API_KEY`）、`DEEPSEEK_API_KEY`；给别人用之前一定要填 `RESEND_API_KEY`，`MAIL_FROM` 换成在 Resend 验证过的域名（没填时登录码打印在日志里）；付款用 `STRIPE_SECRET_KEY`，webhook 在 Stripe 后台建 `https://<你的域名>/api/stripe/webhook`，把 Signing secret 填进 `STRIPE_WEBHOOK_SECRET`。存盘退出后自动重启。`HOST` 和 `PORT` 在这里写了也不生效，由 `halfold.service` 定。
+打开的是 `server/.env.example` 的内容，`PUBLIC_URL` 和 `WEB_URL` 已经填成你的域名。要填的和本机一样（见 `server/README.md`）：`DEEPGRAM_API_KEY`（转写，默认用 Deepgram；`STT_PROVIDER=elevenlabs` 时填 `ELEVENLABS_API_KEY`）、`DEEPSEEK_API_KEY`；给别人用之前一定要填 `RESEND_API_KEY`，`MAIL_FROM` 换成在 Resend 验证过的域名（没填时登录码打印在日志里）；付款用 `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`，见下面的“收款”。存盘退出后自动重启。`HOST` 和 `PORT` 在这里写了也不生效，由 `halfold.service` 定。
 
 然后发邀请码，打开 `https://<你的域名>` 登录：
 
 ```bash
 halfold invite new
 ```
+
+## 收款（Stripe）
+
+方案都是一次付清（Stripe Checkout），不自动续费；退款在 Stripe 后台点，服务器按退回的比例扣掉天数（规则见 `server/README.md` 的“方案和付款”）。价格和天数在 `server/plans.json`，改了要提交再 `push.sh`。
+
+先用测试模式（`sk_test_` 开头的 key，测试卡 `4242 4242 4242 4242`）在服务器上走一遍，再换成收真钱：
+
+1. **Stripe 账户**：在 [dashboard.stripe.com](https://dashboard.stripe.com) 用香港的商户资料激活账户（Activate payments）：公司或个人的资料、负责人身份证明、收款的香港银行账户。“Public business name” 和 “Statement descriptor” 会出现在学生的收据和信用卡账单上，写 Halfold。
+2. **支付方式**（2026-11-24 定的：卡、支付宝、微信支付）：关掉 Test mode，Settings → Payment methods，确认卡开着（Apple Pay 和 Google Pay 跟着卡），再打开 Alipay 和 WeChat Pay（要另外打开，有的要先审核，审核过了才会出现在付款页）。设置页的卡片上写着 “Pay once by card, Alipay or WeChat Pay”；以后去掉其中一种的话要改 `server/src/billing.ts` 里这句（和 `src/i18n/zh.ts` 的中文）。
+3. **收据**：Settings → Customer emails，打开 Successful payments 和 Refunds，学生付款和退款后收到 Stripe 的邮件。
+4. **Webhook**（正式模式下）：Developers → Webhooks → Add endpoint，地址 `https://<你的域名>/api/stripe/webhook`，事件选 `checkout.session.completed`、`checkout.session.async_payment_succeeded`、`checkout.session.async_payment_failed`、`checkout.session.expired`、`charge.refunded`、`charge.dispute.closed`。建好后复制 Signing secret（`whsec_` 开头；正式模式和测试模式的不一样）。
+5. **Key**：Developers → API keys 的 Secret key（`sk_live_` 开头）。服务器只用它建、查、关 Checkout，所以也可以建一个只开 Checkout Sessions 权限的 Restricted key（`rk_live_` 开头），用测试模式的同样一个先试通。
+6. 填进服务器，存盘后自动重启：
+
+   ```bash
+   halfold env
+   ```
+
+   ```
+   STRIPE_SECRET_KEY=sk_live_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   STRIPE_ALLOW_LIVE=on
+   ```
+
+   不设 `STRIPE_ALLOW_LIVE=on` 时 live key 会被拒绝，付款关掉，日志里说明原因。`halfold status` 的日志里应该是 `payments: Stripe LIVE`。
+7. **验收**：自己买一个 Plus for a month（真卡，HK$98）。设置页显示 “Paid until …”，`halfold plan show <你的邮箱>` 也是；Stripe 后台 → Webhooks 里这个地址的事件都是 200。然后在 Payments 里找到这笔点 Refund（全额）：几秒后设置页回到 Free，`halfold logs` 里有一行 `[billing] refund: ...`。退款几天后回到卡上；Stripe 退款时不退手续费。
+
+回到只收测试付款：`halfold env` 里换回 `sk_test_` 的 key 和测试模式的 `whsec_`，删掉 `STRIPE_ALLOW_LIVE`。
 
 ## 以后更新
 
@@ -71,7 +99,7 @@ deploy/server/push.sh ubuntu@<IP>
 | `halfold restart` | 重启 |
 | `halfold env` | 改设置和 key，存盘后重启 |
 | `halfold invite new` / `add <code>` / `list` | 邀请码，同 `npm run invite` |
-| `halfold plan list` / `show` / `give` | 方案和用量，同 `npm run plan` |
+| `halfold plan list` / `show` / `give` | 方案和用量，同 `npm run plan`（`give` 也用来补回退款扣掉的天数） |
 | `halfold costs` | 每堂课的成本，同 `npm run costs` |
 | `halfold feedback` | 学生的反馈，同 `npm run feedback` |
 | `halfold backup` | 马上备份一次，看结果 |

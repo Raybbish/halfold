@@ -4,7 +4,9 @@
      npm run plan -- give <email|invite code> <days> [plan]
                                                    days of a paid plan (default: the first paid one in plans.json),
                                                    added after the days the student already has; for testers, or a
-                                                   payment taken another way (FPS, PayMe). Does not touch Stripe. */
+                                                   payment taken another way (FPS, PayMe), or to give back days a
+                                                   refund took that should not have (a refund that failed). Does not
+                                                   touch Stripe. */
 import fs from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../src/config";
@@ -20,7 +22,7 @@ const [cmd, who, ...rest] = process.argv.slice(2);
 const find = (w: string) => store.userByEmail(w.trim().toLowerCase()) ?? store.userByCode(w);
 const line = (u: NonNullable<ReturnType<typeof find>>) => {
   const e = billing.entitlement(u.id);
-  return `${(u.email || "(no email yet)").padEnd(32)} ${u.invite_code.padEnd(12)} ${e.current.padEnd(16)} ${e.until ? (e.renews ? "renews " : "until ") + e.until.slice(0, 10) : ""}`;
+  return `${(u.email || "(no email yet)").padEnd(32)} ${u.invite_code.padEnd(12)} ${e.current.padEnd(16)} ${e.until ? "until " + e.until.slice(0, 10) : e.paidEnd ? "(ended " + e.paidEnd.slice(0, 10) + ")" : ""}`;
 };
 
 if (cmd === "list") for (const u of store.listUsers()) console.log(line(u));
