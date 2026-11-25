@@ -138,6 +138,9 @@ npm test
 | `tests/formulas.js` | 7 | 笔记、中文解释、闪卡、测验里的公式显示成上下标，其他文字不当作标记 |
 | `tests/review-pack.js` | 7 | 复习包在后台制作：页面显示正在制作并自己检查，别的页面有带链接的提示，刷新后接着查，502 时说明，中文 |
 | `tests/slides-pack.js` | 20 | 只用课件做的学习包：新建课堂的 Slides only、首页和落地页和超额提示窗里的入口、"Hal is reading your slides"、学习包页面（没有时间、时间轴、逐字稿，每点标 Slide N）、列表里的 Slides 标记、失败和 Try again、服务器拒收 PDF、之后加录音和超额；中文 |
+| `tests/marks.js` | 17 | 录音页的"Important / Lost me"发出标记并存在本机，课堂页"Your marks from class"（服务器的加本机多的，按时间，点时间从前 15 秒放），分享页没有，中文 |
+| `tests/ask.js` | 18 | 课堂页"Ask"标签：发问题、答案和"Where it was said"、点时间跳过去，出错时的说明，换课后迟到的答案不显示，分享页没有，示例数据版本，中文 |
+| `tests/review.js` | 23 | 复习页：首页卡片和侧栏的数字、翻卡和键盘、记得和稍后、看完再来一遍、课堂页和复习页同步、出错提示、中文、示例数据、手机 |
 
 加上 `overflow5.js`、`printcheck.js` 和 `shots5.js`（390 和 375 两遍）。
 

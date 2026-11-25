@@ -9,6 +9,7 @@ import { live, saveLiveMeta, stopRecording } from "./recorder";
 import { outbox, dropped, flush } from "./outbox";
 import { unmark } from "./orphan";
 import { watch } from "../notes/watch";
+import { forgetMarks } from "../marks";
 
 /* A title still being typed is sent first: on an iPhone, tapping End with the keyboard up does not leave the title box, so its blur never comes. */
 export function endLive() { saveLiveMeta(); const id = live.id!, dur = live.sec, stopped = stopRecording(); live.active = false; finishAfterUpload(id, dur, stopped); }
@@ -17,7 +18,7 @@ export function endLive() { saveLiveMeta(); const id = live.id!, dur = live.sec,
 export function finishAfterUpload(id: string, dur: number, stopped?: Promise<unknown>) { act(async () => { busy("Sending the last of the audio", "Keep this page open."); await stopped;
   if (!(await flush())) { modal({ kind: "waiting", id, dur }, true); return; }
   await finalize(id, dur); }); }
-export function doDiscard() { const id = live.id!; dropped.add(id); stopRecording(); outbox.forEach(c => { if (c.id === id && c.key) idb.del(c.key); }); unmark(); live.active = false; live.id = null; flush(); api.deleteLecture(id).catch(() => {}); closeModal(); toast("Recording discarded"); location.hash = "#/home"; }
+export function doDiscard() { const id = live.id!; dropped.add(id); forgetMarks(id); stopRecording(); outbox.forEach(c => { if (c.id === id && c.key) idb.del(c.key); }); unmark(); live.active = false; live.id = null; flush(); api.deleteLecture(id).catch(() => {}); closeModal(); toast("Recording discarded"); location.hash = "#/home"; }
 /* What the live transcript heard, kept for each recording that ended in this visit, so the lecture page has something to
    read while the notes are written (test of 2026-11-18: the waiting page was empty). Gone after a reload. */
 export const heardLive = new Map<string, { t: number; text: string }[]>();

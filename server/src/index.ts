@@ -11,6 +11,7 @@ import { createApp } from "./app";
 import { createNotesWriter, createTranscriber, missingKeys } from "./providers";
 import { LiveTranscriber } from "./live/transcriber";
 import { DeepSeekCatchUp } from "./notes/catchup";
+import { DeepSeekAsk } from "./notes/ask";
 import { sweepAudio, sweepKept, sweepOriginals } from "./audio";
 import { ReviewPacks } from "./packs";
 import { Billing } from "./billing";
@@ -39,7 +40,7 @@ const packs = new ReviewPacks({ config, store, notes });
 const { payments, problem } = createPayments(config.stripe);
 const billing = new Billing({ config, store, payments }), mailer = createMailer(config);
 store.plansSince();   // the first start with plans: older recordings are kept as if made today
-const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new DeepSeekCatchUp(config.catchUp), packs, billing, mailer, links });
+const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp: new DeepSeekCatchUp(config.catchUp), ask: new DeepSeekAsk(config.ask), packs, billing, mailer, links });
 
 /* Recordings past their plan's keep date (plans.json audioDays) are deleted at start and every six hours. */
 const sweep = () => sweepAudio({ config, store, files, billing }).then(n => { if (n) console.log(`[sidenote] deleted ${n} recording(s) past their plan's keep date`); }, e => console.error("[sidenote] sweep:", e));

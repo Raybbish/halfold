@@ -24,6 +24,7 @@ import { Slides } from "./lecture/Slides";
 import { Transcript } from "./lecture/Transcript";
 import { Cards } from "./lecture/Cards";
 import { Quiz } from "./lecture/Quiz";
+import { Ask } from "./lecture/Ask";
 import { deleteModal, detailsModal, moreMenu, refreshLecture, setTab, share } from "./lecture/actions";
 import { limitModal } from "../ui/limit";
 
@@ -130,10 +131,12 @@ export function LectureBody() {
   const keep = au && au.expired ? <div className="alert noprint"><span className="tag grey">{t("Recording")}</span><span>{t("The recording of this lecture is no longer kept. The notes, transcript, flashcards and quiz are still here.")}</span>{plans}</div>
     : au && left != null && left >= 0 && left <= 7 ? <div className="alert noprint"><span className="tag amber">{t("Recording")}</span><span>{t("The recording of this lecture is kept until " + dayMon(au.keptUntil!) + (left ? ", " + plural(left, "more day") : ", which is today") + ". The notes stay after that.")}</span>{plans}</div> : null;
   const hasSlides = d.slides && d.slides.length;
-  /* A tab appears only when it has something in it; if the one on screen is gone, the notes come back. */
-  const tabs: [Tab, string][] = [["notes", "Notes"], ...(hasSlides ? [["slides", "Slides"] as [Tab, string]] : []), ...(d.transcript.length ? [["transcript", "Transcript"] as [Tab, string]] : []), ["cards", `Flashcards (${d.flashcards.length})`], ...(d.quiz.length ? [["quiz", `Quiz (${d.quiz.length})`] as [Tab, string]] : [])];
+  /* A tab appears only when it has something in it; if the one on screen is gone, the notes come back. Ask: on the
+     student's own lectures that have something to ask about. */
+  const askable = !shared && (d.transcript.length > 0 || d.sections.some(s => s.points.some(p => p.t != null)));
+  const tabs: [Tab, string][] = [["notes", "Notes"], ...(hasSlides ? [["slides", "Slides"] as [Tab, string]] : []), ...(d.transcript.length ? [["transcript", "Transcript"] as [Tab, string]] : []), ["cards", `Flashcards (${d.flashcards.length})`], ...(d.quiz.length ? [["quiz", `Quiz (${d.quiz.length})`] as [Tab, string]] : []), ...(askable ? [["ask", "Ask"] as [Tab, string]] : [])];
   if (!tabs.some(x => x[0] === state.tab)) state.tab = "notes";
-  const Body = state.tab === "notes" ? Notes : state.tab === "slides" ? Slides : state.tab === "transcript" ? Transcript : state.tab === "cards" ? Cards : Quiz;
+  const Body = state.tab === "notes" ? Notes : state.tab === "slides" ? Slides : state.tab === "transcript" ? Transcript : state.tab === "cards" ? Cards : state.tab === "ask" ? Ask : Quiz;
   return <>
     <Title actions={shared ? null : <div style={css("display:flex;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={moreMenu}>{t("More")}</button><button className="btn primary" onClick={share}>{t("Share with class")}</button></div>} />
     {keep}{!shared && isFiling(l.id) ? <div className="alert noprint" role="status"><span className="tag grey">{t("Slides")}</span><span>{t("Hal is putting your notes under the slides. This takes a minute or two, and you can keep reading.")}</span></div> : null}

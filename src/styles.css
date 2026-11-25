@@ -515,6 +515,13 @@ sup,sub{font-size:.72em;line-height:0}
 @media (max-width:600px){.addrec .grow{min-width:0}}
 @media print{.addrec{display:none!important}}
 
+/* Marks made in class: the row on the recording page, and the card above the notes. The Ask tab's question box. */
+.markrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px;padding:12px 16px;background:#fff;border:1.5px solid var(--line);border-radius:var(--r-lg);color:var(--ink)}
+.marks{padding:16px 22px;margin-bottom:14px;background:var(--yellow-soft)}
+.marks h3{font-size:16px;margin-bottom:4px}
+.askbox{display:flex;gap:10px;flex-wrap:wrap}
+@media print{.marks .ts,.askbox{display:none!important}}
+
 /* The profile form and the home page's reminder for someone who skipped it (pages/Profile.tsx; the designers' draft of 2026-11-24). */
 .consent{display:grid;gap:10px;margin:4px 0 18px;padding:14px 16px;background:var(--bg);border-radius:var(--r)}
 .consent label{display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:15px}

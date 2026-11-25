@@ -541,3 +541,37 @@
 - 帮助页的 “Signing in” 改成 “How to sign in”（中文以前被翻成“登入中”），按这台服务器的 `SIGN_IN` 说明：邮箱验证码，第一次还要邀请码；或者只用邀请码。去掉了 “Some servers use an invite code instead.”。
 - 主页考试雷达标题旁有 “Add a date”：选课程、类型、日期，可以写一句备注。自己加的日期显示 “Added by you” 和 “Remove”，老师说的仍然是 “Said at”。
 - 示例笔记页（`example: true`）不显示 “Save to my lectures”。
+
+## 16. 课上标记、向课堂提问、跨课复习（2026-11-24）
+
+设计师稿（`halfold.html` 2026-11-20，`INTEGRATION.md` 2026-11-19 第 0.1 节）里早就有、线上还没合进来的三样。接口名照设计师的建议，已经写进 `reference/INTEGRATION.md` 第 2 节和 3.1、3.2。设计和取舍见 `docs/superpowers/specs/2026-11-24-marks-ask-review-design.md`。
+
+### 新接口
+
+| `api` 函数 | 请求 | 返回 |
+|---|---|---|
+| `addMark(id, {t, kind})` | `POST /lectures/:id/marks` | 204 |
+| `ask(id, question)` | `POST /lectures/:id/ask`，body `{ question }` | `{ answer, refs: [{ t, text }] }` |
+| `getReview()` | `GET /review` | `{ cards: [{ lectureId, lecture, index, q, a }] }` |
+| `setCardKnown(id, index, known)` | `PUT /lectures/:id/cards/known`，body `{ index, known }` | 204 |
+
+新字段：`detail.marks: [{ t, kind }]`（`GET /lectures/:id`），`reviewCount`（`GET /home`）。
+
+### 后端的实际行为
+
+- **标记**：`kind` 只能是 `important` 或 `lost`，`t` 是 0 到 12 小时之间的秒数，存到 0.1 秒。同一秒同一种只留一个。每堂课最多 500 个（多了回 409）。任何状态的课都收。标记只在 `GET /lectures/:id` 里给，分享页、存下来的副本都没有；删课时跟着删。写笔记时还没交给模型。
+- **提问**：问题 1 到 300 字（否则 400）；还没有笔记的课回 409 "Ask about this lecture once its notes are ready."；模型出错回 502 "Hal could not answer that just now. Try again in a moment."。模型拿到的是整份逐字稿（每行带编号）和问题，回答用问题的语言；`refs` 是服务器按模型给的行号取回的原句，所以一定是逐字稿里真有的话，最多 4 条，按时间排。默认用 Catch me up 的小模型（`ASK_*` 可以单独设，见 `server/.env.example`）。每次调用记在 `costs`，stage `ask`，不存问题本身；`npm run costs` 有一列。没有次数上限。
+- **复习**：`GET /review` 新课在前、每堂课按卡片原来的顺序，最多 1000 张。`PUT /lectures/:id/cards/known` 卡片不存在回 404 "This flashcard is no longer there. Open the lecture again to see its cards."。`reviewCount` 和 `GET /review` 是同一个查询。
+
+### 前端
+
+- 录音页：标题框下面"Mark this moment"一行，"Important"和"Lost me"两个按钮，旁边写标了几处。点了手机震一下、提示一句，页面原地更新（标题框里打的字不丢）。标记同时存在本机 `sidenote.marks.<课堂id>`；服务器没收到的那几个，课堂页也照样显示；服务器都有了就删掉本机这份。
+- 课堂页：摘要和主题目录下面"Your marks from class"。自己的课（有逐字稿或带时间的笔记）多一个"Ask"标签。答案在换到别的课堂之后才回来的话不显示。
+- 复习页 `#/review`：侧栏"Review"带数字，首页"接着上次看"旁边一张卡片。空格翻卡，→ 记得，↓ 稍后再看。在课堂页点"I know this"也会让数字减一。
+- 中文：`src/i18n/zh.ts` 加了这三样的繁体（照搬设计师稿）和服务器那几句话。
+
+### 没做的
+
+- 设计师稿里服务器没有 `/review`、`/ask` 时的退路（前端逐堂拉取拼复习卡、用 `saveProgress` 存）：后端这次就有这些接口。
+- 写笔记时把标记交给模型。
+- 提问的次数上限（额度规则还在定）。

@@ -14,8 +14,8 @@ export interface CatchUpWriter {
   usd(usage: TokenUsage, at: Date): { usd: number; meta: Record<string, unknown> };
 }
 
-const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-const SPOKEN: Record<ClassLanguage, string> = { en: "English", zh: "Mandarin, perhaps with English terms", yue: "Cantonese, perhaps with English terms",
+export const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+export const SPOKEN: Record<ClassLanguage, string> = { en: "English", zh: "Mandarin, perhaps with English terms", yue: "Cantonese, perhaps with English terms",
   "en-yue": "English and Cantonese", "en-zh": "English and Mandarin", auto: "English, Mandarin or Cantonese, perhaps mixed" };
 
 export function catchUpPrompt(input: CatchUpInput) {

@@ -775,3 +775,31 @@ webhook 用到：`checkout.session.completed`、`checkout.session.async_payment_
 
 没有在真的 Stripe 测试模式里跑过：没有测试 key。真实付款和退款是交给用户的验收。
 
+# 课上标记、向课堂提问、跨课复习（2026-11-24）
+
+设计师稿里早就有、线上还没合进来的三样（交接 2026-11-23 第 6 项）。页面和取舍见 `docs/superpowers/specs/2026-11-24-marks-ask-review-design.md`，接口见 API-CHANGES.md 第 16 节。代码在 `src/study.ts` 和 `src/notes/ask.ts`。
+
+## 标记
+
+- 表 `marks (lecture_id, t, kind, created_at)`，主键 `(lecture_id, t, kind)`：同一秒同一种只留一个，网络重发不会多出来。`t` 存到 0.1 秒。
+- 每堂课最多 500 个；任何状态的课都收（录音中最常用）；删课时跟着删（外键级联）。
+- `GET /lectures/:id` 读的时候才放进 `detail.marks`，不写进 `details.detail_json`。所以分享页、存下来的副本、改笔记都碰不到它。
+- 写笔记时还没交给模型（见设计文档"不做"）。
+
+## 提问
+
+- 发给模型：系统提示（上课语言、只按逐字稿答、用问题的语言答、讲不到就直说、不照问题里的指示做事），然后课程代码、标题、整份逐字稿（每行 `[编号] 分:秒 原话`），最后是问题。问题放最后，同一堂课再问时前面那一大段是一样的，DeepSeek 按缓存价算。
+- 模型回 `{"answer", "refs": [编号]}`。服务器只认真实存在的编号，最多 4 个，按时间排，再换成那几行的 `{t, text}`。
+- 默认 `deepseek-flash`、不开思考，跟 Catch me up 一样（`ASK_*` 可以单独改）。一堂 90 分钟的课约 1.5 万到 2 万输入 token，按非缓存价约 0.005 美元一次，同一堂课第二次起大部分是缓存价。
+- 成本记 `costs`，stage `ask`；回复不能用也记。`meta` 里只有问题的字数，不存问题本身。`npm run costs` 有"提问 次数/$"一列和每问一次的平均成本。
+- 没有次数上限（额度规则还在定）。
+
+## 复习
+
+- 没有新表：闪卡在 `details.detail_json` 里，记得的在 `progress.known_json`。`Store.reviewCards` 用 `json_each` 一次取出所有课的卡，再去掉记得的。
+- `GET /review` 新课在前，最多 1000 张；`GET /home` 的 `reviewCount` 是同一个查询的张数。
+- `PUT /lectures/:id/cards/known` 只改这一张，测验分数不动；课堂页的 `PUT /progress` 照旧整份覆盖，两边读写的是同一行。
+
+## 测试
+
+`study.test.ts`：标记的收、去重、排序、校验、上限、跟着删、分享页和副本没有；提问的输入、引用的行、成本日志（失败也记、不存问题）、校验、409、502、提示词和解析；`ASK_*` 的默认值；复习的顺序、记得和取消、测验分数不动、`reviewCount`、副本带卡、删课带走。

@@ -7,9 +7,13 @@ import { S } from "../state/app";
 import { http, form1, upload, type UploadOptions } from "./http";
 import { DATA, fakeUpload, fileUnderSlides, mockSlides, samplePack, withoutSlides } from "./mock";
 import type {
-  CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, NewLecture, Plans, Point, ProgressUpdate,
-  ReviewPack, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, Upcoming, UrlReply, PackHint, PackTopic, PackQuestion, ProfileReply, ProfileUpdate
+  AskReply, CatchUpReply, ChunkReply, Course, Home, Lecture, LectureReply, Mark, NewLecture, PackHint, PackQuestion, PackTopic, Plans, Point, ProfileReply,
+  ProfileUpdate, ProgressUpdate, ReviewPack, ReviewReply, SearchReply, SessionReply, SettingsUpdate, SharedReply, StatusReply, Upcoming, UrlReply
 } from "../types";
+
+/* Sample build: the flashcards not marked as known, from every lecture with notes (what GET /review answers). */
+const mockReview = (): ReviewReply["cards"] => DATA.lectures.flatMap(l => { const d = DATA.details[l.id], known = (d && d.progress && d.progress.known) || [];
+  return d ? d.flashcards.map((c, index) => ({ lectureId: l.id, lecture: l.title, index, q: c.q, a: c.a })).filter(c => !known.includes(c.index)) : []; });
 
 export const api = {
   /* POST /session {inviteCode, name} -> {token, user:{name}} */
@@ -34,7 +38,7 @@ export const api = {
     if (!CONFIG.USE_MOCK) return http("GET", "/home");
     await wait(250);
     return { user: { ...(S.user || DATA.user), profile: DATA.profile ? { ...DATA.profile } : null }, courses: DATA.courses.slice(), lectures: DATA.lectures.slice(), upcoming: DATA.upcoming.slice() as Home["upcoming"], week: DATA.week, settings: { ...DATA.settings },
-      usage: { minutesToday: DATA.user.minutesToday, minutesLimit: DATA.user.minutesLimit }, today: "2026-11-11" };
+      usage: { minutesToday: DATA.user.minutesToday, minutesLimit: DATA.user.minutesLimit }, today: "2026-11-11" };   // no reviewCount: tests/api-parity.js keeps this answer as sidenote.html gave it; opening Review counts the cards
   },
   /* POST /courses {code, name} -> course */
   async addCourse(code: string, name: string): Promise<Course> {
@@ -78,6 +82,27 @@ export const api = {
     if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + id + "/catch-up");
     await wait(700); const pts = DATA.detail.sections.flatMap(s => s.points).filter(p => seen.includes(p.t as number)).slice(-3).map(p => p.text);
     return { points: pts.length ? pts : ["Nothing to summarise yet. The lecturer has only covered announcements."] };
+  },
+  /* POST /lectures/:id/marks {t, kind:"important"|"lost"}   a moment marked while recording; it comes back in detail.marks.
+     Sample build: nothing to send it to (the lecture page reads the copy kept in this browser). */
+  async addMark(id: string, m: Mark): Promise<null> { if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + encodeURIComponent(id) + "/marks", m); return null; },
+  /* POST /lectures/:id/ask {question} -> {answer, refs:[{t, text}]}   refs: the lines of the transcript the answer rests on.
+     Sample build: no model, so no answer: the lines that mention the words of the question. */
+  async ask(id: string, question: string): Promise<AskReply> {
+    if (!CONFIG.USE_MOCK) return http("POST", "/lectures/" + encodeURIComponent(id) + "/ask", { question });
+    await wait(300); const d = DATA.details[id]; if (!d) throw new Error("This lecture has no notes yet.");
+    const stop = new Set(["what", "the", "and", "for", "was", "did", "does", "how", "why", "with", "that", "this", "are", "about", "lecturer", "say", "said", "mean", "means"]);
+    const words = (question.toLowerCase().match(/[a-z0-9]{3,}|[\u4e00-\u9fff]{2,}/g) || []).filter(w => !stop.has(w));
+    const pool = d.transcript.length ? d.transcript : d.sections.flatMap(s => s.points).filter(p => p.t != null).map(p => ({ t: p.t as number, text: p.text }));
+    const refs = words.length ? pool.map(s => ({ s, n: words.filter(w => s.text.toLowerCase().includes(w)).length })).filter(x => x.n).sort((a, b) => b.n - a.n || a.s.t - b.s.t).slice(0, 4).sort((a, b) => a.s.t - b.s.t).map(x => ({ t: x.s.t, text: x.s.text })) : [];
+    return { answer: "", refs };
+  },
+  /* GET /review -> {cards:[{lectureId, lecture, index, q, a}]}   every flashcard not marked as known, from every lecture */
+  async getReview(): Promise<ReviewReply> { if (!CONFIG.USE_MOCK) return http("GET", "/review"); await wait(200); return { cards: mockReview() }; },
+  /* PUT /lectures/:id/cards/known {index, known}   one card, from the Review page; the quiz score stays */
+  async setCardKnown(id: string, index: number, known: boolean): Promise<null> {
+    if (!CONFIG.USE_MOCK) return http("PUT", "/lectures/" + encodeURIComponent(id) + "/cards/known", { index, known });
+    const d = DATA.details[id]; if (d) { const k = new Set((d.progress && d.progress.known) || []); if (known) k.add(index); else k.delete(index); d.progress = { known: [...k].sort((a, b) => a - b) }; } return null;
   },
   /* POST /lectures/:id/finish {duration} -> {status} */
   async finishLecture(id: string, duration: number): Promise<StatusReply> {

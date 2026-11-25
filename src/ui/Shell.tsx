@@ -27,6 +27,7 @@ export function Shell({ active, children }: { active: string; children: ReactNod
       <div style={css("display:flex;align-items:center;justify-content:space-between;gap:8px")}><Logo href="#/home" /><LangBtn /></div>
       <a className="btn primary new" href="#/new">{t("New lecture")}</a>
       <a className={`n ${active === "home" ? "on" : ""}`} href="#/home">{t("Home")}</a>
+      <a className={`n ${active === "review" ? "on" : ""}`} href="#/review">{t("Review")}{S.reviewCount ? <span className="ct num">{S.reviewCount}</span> : null}</a>
       <a className={`n ${active === "settings" ? "on" : ""}`} href="#/settings">{t("Settings")}</a>
       <a className="n" href="#/help">{t("Help")}</a>
       <div className="lbl">{t("Courses")}</div>
