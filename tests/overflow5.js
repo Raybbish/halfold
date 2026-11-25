@@ -19,7 +19,7 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     await page.goto(FILE + '#/courses'); await probe('courses'); await page.goto(FILE + '#/course/econ1001'); await probe('course'); await page.goto(FILE + '#/pack/econ1001'); await page.waitForSelector('.page-h'); await page.click('.main .card button.btn.primary'); await page.waitForSelector('.pk', { timeout: 20000 }); await probe('pack');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs');
     for (const i of [1, 2, 3, 4, 5]) { await page.click(`.tabs button:nth-child(${i})`); await probe('lecture tab ' + i); }
-    await page.click('.tabs button:nth-child(1)'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.locator('.tools input[type=checkbox]').nth(2).check(); await probe('edit mode with 中文解釋'); await page.click('.tabs button:nth-child(5)');
+    await page.click('.tabs button:nth-child(1)'); await page.locator('.tools input[name=zh]').check(); await page.locator('.tools input[name=edit]').check(); await probe('edit mode with 中文解釋'); await page.click('.tabs button:nth-child(5)');
     await page.click('.qz .opt:nth-of-type(2)'); await probe('quiz answered');
     await page.goto(FILE + '#/new'); await probe('new'); await page.click('.choice button:nth-child(2)'); await probe('new upload'); await page.click('.choice button:nth-child(1)');
     await page.click('form button.btn.blue'); await page.waitForSelector('.live-top'); await page.waitForTimeout(3500); await page.click('.catch .btn'); await page.waitForTimeout(900); await probe('live');

@@ -98,6 +98,8 @@
 | `getPlans()` | `GET /plans` | 见 3.4 |
 | `startCheckout(planId)` | `POST /checkout` | `{ url }`，浏览器会跳到这个地址 |
 | `updateSettings({name, classLanguage, zhDefault, zhScript})` | `PUT /settings` | 无 |
+| `addUpcoming({course, date, kind, text})` | `POST /upcoming` | `upcoming` 的一条（带 `id`） |
+| `deleteUpcoming(id)` | `DELETE /upcoming/:id` | 无 |
 | `updateProfile({school, major, yearOfStudy, gradYear, origin, consentMarketing, consentSurvey})` | `PUT /profile` | `{ profile }`，见 3.5 |
 | `profileLater()` | `POST /profile/later` | 无（学生点了 “Skip for now”，见 3.5） |
 
@@ -116,7 +118,7 @@
 - `createLecture` 时请检查当天的录音分钟上限，超出就拒绝并返回 `message`。前端在录音前也会检查，但不能只靠前端。
 - `source: "slides"` 是只用课件、不录音做的学习包：先 `createLecture`，再 `uploadSlides`，再 `finishLecture(id, 0)`。完整流程见 3.6。
 
-`language` 的取值：`en`、`en-yue`（英文夹广东话）、`en-zh`（英文夹普通话）、`auto`。
+`language` 的取值：`en`（英文）、`zh`（普通话）、`yue`（粤语）、`en-zh`（英文夹普通话）、`en-yue`（英文夹粤语）、`auto`。`zh` 和 `yue` 是 2026-11-24 加的（API-CHANGES.md 第 14 节）。
 `source` 的取值：`record`（麦克风）、`tab`（网课，浏览器标签页的声音）、`upload`、`link`、`slides`（只用课件做的学习包，见 3.6）。
 
 ## 3. 数据结构
@@ -155,8 +157,8 @@
 | `ready` | 时长 | 笔记 |
 | `failed` | Not written | 说明录音还在，可以点"Try again"，前端会调 `retryLecture` |
 
-- `lecture.source` 为 `slides`、又没有 `duration` 的课（只用课件做的学习包），列表里不显示时长，显示 Slides 标记。见 3.5。
-- `upcoming` 是从所有课堂的考试和截止日期提示里汇总出来的，`date` 用 `YYYY-MM-DD`，倒计时由前端计算。已过期的前端会自动隐藏。每一条都可以下载成日历文件（全天事件）。
+- `lecture.source` 为 `slides`、又没有 `duration` 的课（只用课件做的学习包），列表里不显示时长，显示 Slides 标记。见 3.6。
+- `upcoming` 是从所有课堂的考试和截止日期提示里汇总出来的，`date` 用 `YYYY-MM-DD`，倒计时由前端计算。已过期的前端会自动隐藏。每一条都可以下载成日历文件（全天事件）。学生自己加的日期（`POST /upcoming`）带 `id`，`lecture` 和 `t` 是 `null`，可以删（API-CHANGES.md 第 14 节）。
 - `week.days` 是周一到周五是否录过课。
 
 ### 3.2 `detail`（一堂课的全部内容）

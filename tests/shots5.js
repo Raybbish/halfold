@@ -19,8 +19,8 @@ const FILE = ORIGIN + '/';   // was: 'file://' + argv[2]
     await page.goto(FILE + '#/signin'); await shot('02-signin');
     await page.fill('input[name=code]', 'a3f9c2'); await page.click('form.auth button'); await page.waitForSelector('.shell'); await shot('03-home');
     await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await shot('04-notes');
-    await page.locator('.tools input[type=checkbox]').nth(2).check(); await page.evaluate(() => window.scrollTo(0, 620)); await shot('04b-edit-mode');
-    await page.locator('.tools input[type=checkbox]').nth(2).uncheck();
+    await page.locator('.tools input[name=edit]').check(); await page.evaluate(() => window.scrollTo(0, 620)); await shot('04b-edit-mode');
+    await page.locator('.tools input[name=edit]').uncheck();
     await page.click('.pt .ts >> nth=4'); await scrolled(); await page.click('#pPlay'); await page.waitForTimeout(1500); await shot('05-transcript-playing'); await page.click('#pPlay');
     await page.click('.tabs button:nth-child(2)'); await shot('06-slides');
     await page.click('.tabs button:nth-child(4)'); await shot('07-cards');

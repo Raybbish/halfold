@@ -145,8 +145,7 @@ export const ZH: Record<string, string> = {
   /* settings */
   "Name": "名字", "Language usually spoken in class": "課堂通常使用的語言", "Show 中文解釋 under each point by default": "預設在每個重點下顯示中文解釋", "Interface language": "介面語言", "Save settings": "儲存設定", "Settings saved": "已儲存設定",
   /* The plan cards (server/src/billing.ts plans()): names from plans.json and the fixed sentences; the ones with numbers are rules (ZHR). */
-  "Free": "免費", "Plus for a semester": "Plus 學期版", "Unlimited lectures": "課堂數量不限", "Unlimited review packs": "溫習包數量不限", "Recordings kept for good": "錄音一直保留",
-  "Pay by card, Apple Pay or Google Pay. Renews every month; cancel any time.": "可用信用卡、Apple Pay 或 Google Pay 付款。每月自動續費，隨時可以取消。",
+  "Free": "免費", "Plus for a month": "Plus 一個月", "Plus for a semester": "Plus 學期版", "Unlimited lectures": "課堂數量不限", "Unlimited review packs": "溫習包數量不限", "Recordings kept for good": "錄音一直保留",
   "Pay once by card, Alipay or WeChat Pay. Does not renew.": "一次付清，可用信用卡、支付寶或微信支付，不會自動續費。",
   "Plan and usage": "方案與用量", "Plans and prices are not decided yet. This space is reserved for them.": "方案和價錢尚未決定，這個位置預留給它們。", "Your plan": "你的方案", "Choose this plan": "選擇這個方案", "Paying is not switched on yet": "付款功能還沒開通", "You cannot change your plan from here yet. Nothing was charged.": "目前還不能在這裡更改方案，沒有扣任何費用。", "OK": "好",
   "Sign out": "登出", "This device will no longer remember you.": "這部裝置將不再記住你。",
@@ -212,7 +211,6 @@ export const ZH: Record<string, string> = {
   "Contact": "聯絡方式",
   "Sharing": "分享",
   "How to get good notes out of a lecture, and what to do when something looks wrong.": "怎樣從一堂課得到好的筆記，以及內容不對時該怎麼辦。",
-  "Sign in with your email: Halfold sends you a 6-digit code and you type it in. There is no password to remember. Some servers use an invite code instead.": "用電郵登入：Halfold 會寄一個 6 位數登入碼給你，輸入就可以，不用記密碼。有些伺服器改用邀請碼。",
   "Your name is asked once, the first time.": "名字只會在第一次登入時問一次。",
   "Getting a good recording": "錄得清楚",
   "Sit where you can hear the lecturer clearly. The front half of the room is usually enough.": "坐在聽得清楚老師的位置，通常課室前半部分就可以。",
@@ -264,7 +262,8 @@ export const ZH: Record<string, string> = {
   "Payments go through a payment service. Halfold never sees your card number.": "付款經由付款服務處理，Halfold 不會看到你的卡號。",
   "The sign-in email with your code is sent through an email delivery service, which gets your email address.": "載有登入碼的電郵經由電郵發送服務寄出，這項服務會收到你的電郵地址。",
   "Where the server is": "伺服器所在地",
-  "The Halfold server is at a cloud provider in Singapore. Your account, recordings, transcripts and notes are stored there.": "Halfold 的伺服器設在新加坡的雲端服務商。你的帳戶、錄音、逐字稿和筆記都存放在那裡。",
+  "Once the notes are written, your recording and slides are kept at a cloud storage service, set to store them in the Asia-Pacific region.": "筆記寫好後，你的錄音和簡報會存放在雲端儲存服務，並設定存放在亞太區。",
+  "The Halfold server is at a cloud provider in Singapore. Your account, transcripts and notes are stored there, and your recording until its notes are written.": "Halfold 的伺服器設在新加坡的雲端服務商。你的帳戶、逐字稿和筆記都存放在那裡；錄音在筆記寫好之前也存放在那裡。",
   "Video links": "影片連結",
   "When you paste a public video link, the Halfold server downloads that video to make the notes.": "你貼上公開的影片連結時，Halfold 的伺服器會下載那段影片來製作筆記。",
   "How long it is kept": "保留多久",
@@ -306,6 +305,22 @@ export const ZH: Record<string, string> = {
   /* the server's sentences about study packs (server/src/routes.ts) */
   "Add the slide deck first. A study pack is made from the slides.": "請先加入簡報。學習包是用簡報做的。",
   "Hal is still reading the slides. Add the recording when the study pack is ready.": "Hal 還在讀簡報。學習包做好後再加入錄音。",
+  /* The retest of 2026-11-23. Help: how to sign in (the heading "Signing in" read as 登入中, the button's busy word). */
+  "How to sign in": "怎樣登入",
+  "Sign in with your email: Halfold sends you a 6-digit code and you type it in. There is no password to remember.": "用電郵登入：Halfold 會寄一個 6 位數登入碼給你，輸入就可以，不用記密碼。",
+  "The first time, you also enter an invite code. Ask a classmate who uses Halfold for one.": "第一次登入時，還要輸入邀請碼，可以向用過 Halfold 的同學要。",
+  "Sign in with the invite code you were given.": "用你收到的邀請碼登入。",
+  /* Classes taught in Mandarin or Cantonese, not only English ones (server/src/config.ts CLASS_LANGUAGES). */
+  "Mandarin": "普通話", "Cantonese": "廣東話",
+  /* Exam radar dates added by hand (POST /upcoming, DELETE /upcoming/:id) */
+  "Add a date": "加入日期", "Add a date to the exam radar": "把日期加到考試雷達", "What it is": "類型", "Date": "日期", "Note (optional)": "備註（可不填）",
+  "For example: chapters 1 to 4, closed book": "例如：第 1 至 4 章，不可帶書", "Add to the radar": "加到雷達", "Added to the exam radar": "已加到考試雷達",
+  "Added by you": "你自己加的", "Removed from the exam radar": "已從考試雷達移除", "Choose a course.": "請選擇課程。",
+  "No dates yet. They appear here when a lecturer mentions an exam or a deadline, or when you add one.": "暫時沒有日期。老師提到考試或截止日期，或者你自己加入日期時，會出現在這裡。",
+  "That course does not exist.": "這個課程不存在。", "Choose the date.": "請選擇日期。", "Choose a date from today on.": "請選擇今天或以後的日期。",
+  "Choose what the date is for.": "請選擇日期的類型。", "The note can be at most 200 characters.": "備註最多 200 個字。", "This date is no longer on the radar.": "這個日期已經不在雷達上。",
+  /* The built-in example notes (server/src/example.ts) */
+  "These are example notes, so they cannot be saved. Record or upload a lecture to get notes like these.": "這是示例筆記，不能儲存。錄下或上載一堂課，就能得到這樣的筆記。",
   /* The profile step and the About you card (pages/Profile.tsx): the designers' draft of 2026-11-24, with its own Chinese
      (halfold(1).html). The consent sentences are the draft's wording; the server's messages about the form too. */
   "One more step": "還有一步",
@@ -370,10 +385,10 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^(\d+) lectures? a month$/, m => "每月 " + m[1] + " 堂課"],
   [/^(\d+) review packs? a month$/, m => "每月 " + m[1] + " 個溫習包"],
   [/^Recordings kept for (\d+) days$/, m => "錄音保留 " + m[1] + " 天"],
-  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) \/ month$/, m => m[1] + "／月"],
-  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) for (\d+) days$/, m => m[1] + "，可用 " + m[2] + " 天"],
-  [/^(Paid until|Renews on|Ends on) (\d{1,2}) ([A-Z][a-z]{2}) (\d{4})$/, m => { const n = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[3]) / 3 + 1; if (n < 1) return null;
-    const d = m[4] + "年" + n + "月" + m[2] + "日"; return m[1] === "Paid until" ? "已付費至 " + d : m[1] === "Renews on" ? d + " 自動續費" : d + " 結束"; }],
+  [/^(\S*\d[\d.]*(?: [A-Z]{3})?) for (\d+) days?$/, m => m[1] + "，可用 " + m[2] + " 天"],
+  /* Every paid card is paid once (2026-11-24): the card bought says until when; the other passes of that plan add after it. */
+  [/^(?:Paid until|Adds (\d+) days? after) (\d{1,2}) ([A-Z][a-z]{2}) (\d{4})$/, m => { const n = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[3]) / 3 + 1; if (n < 1) return null;
+    const d = m[4] + "年" + n + "月" + m[2] + "日"; return m[1] ? "在 " + d + " 後再加 " + m[1] + " 天" : "已付費至 " + d; }],
   /* The server's plan limits (server/src/billing.ts checkLecture, checkPack); the date it gives ("1 Dec") becomes 12月1日. */
   [/^You have (?:used|made) the (\d+) (lectures?|review packs?) that (.+?) includes this month\. (?:Choose (.+?) in Settings for more (?:lectures|review packs), or wait until (.+)|More are available from (.+))\.$/, m => {
     const day = (s: string) => { const d = /^(\d{1,2}) ([A-Z][a-z]{2})$/.exec(s), n = d ? "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(d[2]) / 3 + 1 : 0; return n >= 1 ? n + "月" + d![1] + "日" : s; };
@@ -409,5 +424,13 @@ export const ZHR: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^(\d+) notes?$/, m => m[1] + " 條筆記"],
   [/^Moved to (.+)$/, m => "已移到 " + m[1]],   // added after the migration
   [/^\/ (.+)$/, m => "/ " + trs(m[1])],
-  [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]
+  /* A lecture's date alone (the course page), as the backend writes it: "Today" or "Wed 18 Nov" (zhDate below). */
+  [/^(Today|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec))$/, m => zhTok(m[1]) || zhDate(m[1])],
+  [/^(.+, .+)$/, m => { let hit = false; const o = m[1].split(", ").map(t => { const z = zhTok(t) || zhDate(t); if (z) hit = true; return z || t; }); return hit ? o.join("，") : null; }]
 ];
+/* "Wed 18 Nov" (server/src/time.ts displayDate, and the sample data) -> 11月18日（週三）; 简体 makes 週 周. Before, the
+   Chinese interface showed the English date (retest of 2026-11-23). */
+export function zhDate(t: string): string | null {
+  const m = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) (\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/.exec(t);
+  return m ? ("JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(m[3]) / 3 + 1) + "月" + m[2] + "日（週" + "一二三四五六日"["MonTueWedThuFriSatSun".indexOf(m[1]) / 3] + "）" : null;
+}

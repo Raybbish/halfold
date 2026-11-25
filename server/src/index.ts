@@ -4,14 +4,14 @@ import path from "node:path";
 import { serve } from "@hono/node-server";
 import { loadConfig } from "./config";
 import { Store } from "./db";
-import { LocalFileStore } from "./files";
+import { createFileStore } from "./files";
 import { Ffmpeg } from "./media";
 import { Pipeline } from "./pipeline";
 import { createApp } from "./app";
 import { createNotesWriter, createTranscriber, missingKeys } from "./providers";
 import { LiveTranscriber } from "./live/transcriber";
 import { DeepSeekCatchUp } from "./notes/catchup";
-import { sweepAudio, sweepOriginals } from "./audio";
+import { sweepAudio, sweepKept, sweepOriginals } from "./audio";
 import { ReviewPacks } from "./packs";
 import { Billing } from "./billing";
 import { createMailer } from "./mail";
@@ -23,7 +23,8 @@ const config = loadConfig();
 fs.mkdirSync(config.dataDir, { recursive: true });
 const store = new Store(path.join(config.dataDir, "sidenote.db"));
 for (const code of config.inviteCodes) store.addInviteCode(code);
-const files = new LocalFileStore(config.dataDir);
+/* With R2 set, recordings move there once their notes are written (files.ts). */
+const files = createFileStore(config, store);
 const media = new Ffmpeg();
 const stt = createTranscriber(config), notes = createNotesWriter(config);
 /* Video links need yt-dlp; every download goes through the proxy that only reaches public addresses (links/guard.ts). */
@@ -46,6 +47,12 @@ if (config.plans.plans.some(p => p.audioDays !== null)) { void sweep(); setInter
 /* Original files of lectures with notes (only audio.m4a is kept), likewise at start and every six hours. */
 const dropOriginals = () => sweepOriginals({ store, files }).then(n => { if (n) console.log(`[sidenote] deleted the original file of ${n} lecture(s) with notes`); }, e => console.error("[sidenote] originals:", e));
 void dropOriginals(); setInterval(dropOriginals, 6 * 3600_000).unref();
+/* With R2: kept files that could not be moved when their notes were written, and deletions R2 did not take, likewise. */
+const keep = () => sweepKept({ store, files }).then(r => { if (r.moved || r.deleted) console.log(`[sidenote] R2: moved ${r.moved} file(s) there, deleted ${r.deleted} left from before`); }, e => console.error("[sidenote] R2 sweep:", e));
+if (files.bucket) {
+  files.check().catch(e => console.warn(`[sidenote] R2 does not work with the R2_* settings in server/.env (${(e as Error).message}): recordings stay on this disk until it does.`));
+  void keep(); setInterval(keep, 6 * 3600_000).unref();
+}
 
 const missing = missingKeys(config);
 if (missing.length) console.warn(`[sidenote] not set in server/.env: ${missing.join(", ")}. Notes cannot be written until they are.`);
@@ -53,15 +60,17 @@ if (!store.listUsers().length) console.warn("[sidenote] no invite codes yet: set
 if (config.retired.length) console.warn(`[sidenote] ${config.retired.join(" and ")} in server/.env no longer do anything: each plan's limits are in plans.json.`);
 if (config.signIn === "email" && mailer.provider === "console") console.warn("[sidenote] RESEND_API_KEY is not set: sign-in codes are printed here instead of emailed. Fine on your own computer; set it before anyone else uses this server.");
 if (!ytdlp) console.warn(`[sidenote] yt-dlp was not found (YTDLP=${config.links.ytdlp}): video links are refused and students are asked to upload the file.`);
+const inR2 = store.remoteTotals().files;
+if (!files.bucket && inR2) console.warn(`[sidenote] ${inR2} recording file(s) are in R2, but the R2 settings are not in server/.env: they cannot be played or deleted until they are.`);
 if (problem) console.warn("[sidenote] payments are off: " + problem);
 else if (!payments) console.warn("[sidenote] STRIPE_SECRET_KEY is not set: plans are shown, but choosing one says checkout is not connected yet.");
-else if (!config.stripe.webhookSecret) console.warn("[sidenote] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but renewals and cancellations need the webhook.");
+else if (!config.stripe.webhookSecret) console.warn("[sidenote] STRIPE_WEBHOOK_SECRET is not set: payments are picked up when the student comes back from Stripe, but refunds, disputes and payments that arrive later (Alipay, WeChat Pay) need the webhook.");
 
 /* Node ends a request after 5 minutes by default, which cuts off a 500 MB upload on a slow connection. */
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host, serverOptions: { requestTimeout: 3 * 3600_000 } }, info => {
   console.log(`[sidenote] http://localhost:${info.port}  sign-in: ${config.signIn === "email" ? "email code (" + mailer.provider + ")" : "invite code"}  payments: ${payments ? "Stripe " + (config.stripe.secretKey.includes("_test_") ? "test mode" : "LIVE") : "off"}` +
     `  speech-to-text: ${stt.provider} ${stt.model}  notes: ${notes.provider} ${notes.model}` +
-    `  links: ${ytdlp ? "yt-dlp " + ytdlp : "off"}` +
+    `  links: ${ytdlp ? "yt-dlp " + ytdlp : "off"}  recordings: ${files.bucket || "this disk"}` +
     `  live: ${!config.liveRecording ? "off" : config.live.transcript ? "on, with transcript and Catch me up (" + config.catchUp.model + ")" : "on, no live transcript"}` +
     (config.webDir && fs.existsSync(path.join(config.webDir, "index.html")) ? `  web: ${config.webDir}` : "  (API only: no built front end found)"));
   pipeline.resume(); packs.resume();

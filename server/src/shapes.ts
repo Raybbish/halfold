@@ -29,7 +29,8 @@ export const LectureSchema: z.ZodType<Lecture> = z.strictObject({
   id, course: id, title: z.string(), week: z.number().int().optional(), date: z.string(), duration: seconds.optional(),
   status: StatusSchema.optional(), shareUrl: z.string().nullable().optional(), link: z.string().nullable().optional(), source: SourceSchema.optional(), error: z.string().min(1).optional()
 });
-export const UpcomingSchema: z.ZodType<Upcoming> = z.strictObject({ date: ymd, kind: z.string(), text: z.string(), course: z.string(), lecture: id, t: seconds });
+export const UpcomingSchema: z.ZodType<Upcoming> = z.strictObject({ date: ymd, kind: z.string(), text: z.string(), course: z.string(), lecture: id.nullable(), t: seconds.nullable(), id: id.optional() })
+  .refine(u => u.id ? u.lecture === null && u.t === null : u.lecture !== null && u.t !== null, "a date added by hand has an id and no lecture or time; a date said in a lecture has both");
 export const WeekSchema: z.ZodType<Week> = z.strictObject({ lectures: z.number(), known: z.number(), quiz: z.number(), days: z.array(z.number()).optional() });
 export const SettingsSchema: z.ZodType<Settings> = z.strictObject({ classLanguage: z.string(), zhDefault: z.boolean(), zhScript: z.enum(["hant", "hans"]).optional() });
 export const UsageSchema: z.ZodType<Usage> = z.strictObject({ minutesToday: z.number().nonnegative(), minutesLimit: z.number().nonnegative(), audioDays: z.number().optional(),
@@ -86,7 +87,7 @@ export const ChunkReplySchema: z.ZodType<ChunkReply> = z.strictObject({ segments
 export const CatchUpReplySchema: z.ZodType<CatchUpReply> = z.strictObject({ points: z.array(z.string().min(1)).min(1) });
 /* Phase 3: sharing, review packs, search. */
 export const UrlReplySchema: z.ZodType<UrlReply> = z.strictObject({ url: z.string().nullable() });
-export const SharedReplySchema: z.ZodType<SharedReply> = z.strictObject({ lecture: LectureSchema, course: CourseSchema.optional(), detail: DetailSchema, sharedBy: z.string().min(1) });
+export const SharedReplySchema: z.ZodType<SharedReply> = z.strictObject({ lecture: LectureSchema, course: CourseSchema.optional(), detail: DetailSchema, sharedBy: z.string().min(1), example: z.boolean().optional() });
 export const PackHintSchema: z.ZodType<PackHint> = z.strictObject({ t: seconds, kind: z.string().min(1), text: z.string().min(1), lecture: z.string(), lectureId: id });
 export const PackPointSchema: z.ZodType<PackPoint> = z.strictObject({ text: z.string().min(1), off: z.boolean(), t: seconds.nullable(), lecture: z.string(), lectureId: id });
 export const PackTopicSchema: z.ZodType<PackTopic> = z.strictObject({ topic: z.string().min(1), points: z.array(PackPointSchema).min(1) });

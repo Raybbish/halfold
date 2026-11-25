@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { loadConfig, type Config } from "../src/config";
 import { Store } from "../src/db";
-import { LocalFileStore } from "../src/files";
+import { createFileStore, type FileStore } from "../src/files";
 import type { CutOptions, Media, MediaInfo, SpeechOptions } from "../src/media";
 import { Pipeline } from "../src/pipeline";
 import { createApp } from "../src/app";
@@ -21,7 +21,7 @@ import type { SlidesPackInput } from "../src/notes/slidesPack";
 import { ReviewPacks } from "../src/packs";
 import { Billing } from "../src/billing";
 import type { Mail, Mailer } from "../src/mail";
-import { verifySignature, type CheckoutInfo, type CheckoutRequest, type PaymentEvent, type Payments, type SubscriptionInfo } from "../src/pay/stripe";
+import { verifySignature, type CheckoutInfo, type CheckoutRequest, type PaymentEvent, type Payments } from "../src/pay/stripe";
 import { LinkError, type LinkDownloader, type LinkFailure } from "../src/links/ytdlp";
 import { createHmac } from "node:crypto";
 
@@ -112,8 +112,8 @@ export class StubCatchUp implements CatchUpWriter {
 export function goodNotes(withSlides = false) {
   return {
     sections: [
-      { title: "Admin", start: 0, end: 200, points: [{ t: 18, text: "The midterm is on 26 November.", zh: "期中考試在十一月二十六日。", slide: withSlides ? 1 : null, off: true }] },
-      { title: "Opportunity cost", start: 200, end: 600, points: [{ t: 252, text: "Opportunity cost is the next best thing you give up.", zh: "機會成本是你放棄的次佳選擇。", slide: withSlides ? 2 : null, off: false }] }
+      { title: "Admin", start: 0, end: 200, points: [{ t: 18, text: "The midterm is on 26 November.", zhHans: "期中考试在十一月二十六日。", zhHant: "期中考試在十一月二十六日。", slide: withSlides ? 1 : null, off: true }] },
+      { title: "Opportunity cost", start: 200, end: 600, points: [{ t: 252, text: "Opportunity cost is the next best thing you give up.", zhHans: "机会成本是你放弃的次佳选择。", zhHant: "機會成本是你放棄的次佳選擇。", slide: withSlides ? 2 : null, off: false }] }
     ],
     slides: withSlides ? [{ n: 1, title: "Course admin" }, { n: 2, title: "Opportunity cost" }] : [],
     alerts: [{ t: 18, kind: "midterm", text: "Midterm on 26 November, chapters 1 to 5.", date: "2099-11-26" }],
@@ -218,19 +218,20 @@ export class StubMailer implements Mailer {
   code(to: string) { const m = [...this.sent].reverse().find(x => x.to === to); return m ? /\b(\d{6})\b/.exec(m.subject)![1] : null; }
 }
 
-/* Stripe without Stripe: Checkouts and subscriptions kept in memory, changed by the test (pay, setSubscription), and
-   webhook events signed with the same scheme as Stripe's (signed). */
+/* Stripe without Stripe: Checkouts kept in memory, paid by the test (pay), and webhook events signed with the same
+   scheme as Stripe's (signed). The real requests, and the whole flow against a fake Stripe server, are in
+   payments.test.ts and stripe-flow.test.ts. */
 export class StubPayments implements Payments {
   readonly webhookSecret = "whsec_stub";
-  requests: CheckoutRequest[] = []; portals: { customer: string; returnUrl: string }[] = []; fetched: string[] = [];
-  checkouts = new Map<string, CheckoutInfo>(); subs = new Map<string, SubscriptionInfo>();
+  requests: CheckoutRequest[] = []; fetched: string[] = [];
+  checkouts = new Map<string, CheckoutInfo>();
   error: Error | null = null;
-  private n = { checkout: 0, sub: 0, event: 0 };
+  private n = { checkout: 0, event: 0, payment: 0 };
   async createCheckout(r: CheckoutRequest) {
     if (this.error) throw this.error;
     this.requests.push(r);
     const id = `cs_test_${++this.n.checkout}`;
-    this.checkouts.set(id, { id, status: "open", paymentStatus: "unpaid", mode: r.mode, subscription: null, customer: r.customer ?? null, metadata: { ...r.metadata } });
+    this.checkouts.set(id, { id, status: "open", paymentStatus: "unpaid", paymentIntent: null, metadata: { ...r.metadata } });
     return { id, url: `https://checkout.stripe.test/${id}` };
   }
   async checkout(id: string) {
@@ -239,6 +240,12 @@ export class StubPayments implements Payments {
     const c = this.checkouts.get(id); if (!c) throw new Error("no such checkout: " + id);
     return { ...c };
   }
+  async checkoutOfPayment(paymentIntent: string) {
+    this.fetched.push(paymentIntent);
+    if (this.error) throw this.error;
+    const c = [...this.checkouts.values()].find(x => x.paymentIntent === paymentIntent);
+    return c ? { ...c } : null;
+  }
   expired: string[] = [];
   async expireCheckout(id: string) {
     if (this.error) throw this.error;
@@ -246,28 +253,16 @@ export class StubPayments implements Payments {
     if (c.status !== "open") throw new Error(`Only Checkout Sessions with a status in ["open"] can be expired.`);
     c.status = "expired"; this.expired.push(id);
   }
-  async subscription(id: string) {
-    if (this.error) throw this.error;
-    const s = this.subs.get(id); if (!s) throw new Error("no such subscription: " + id);
-    return { ...s };
-  }
-  async billingPortal(customer: string, returnUrl: string) { if (this.error) throw this.error; this.portals.push({ customer, returnUrl }); return `https://billing.stripe.test/${customer}`; }
   event(payload: string, signature: string | undefined, at = new Date()): PaymentEvent {
     verifySignature(payload, signature, this.webhookSecret, at);
     const e = JSON.parse(payload); return { id: e.id, type: e.type, object: e.data.object };
   }
-  /* The student pays for a Checkout: a pass is paid; a monthly plan makes a subscription, active for 30 days. */
-  pay(id: string, o: { paymentStatus?: string; periodEnd?: Date } = {}) {
+  /* The student pays for a Checkout: it is complete, with a payment (pi_test_N) a refund can name. */
+  pay(id: string, o: { paymentStatus?: string } = {}) {
     const c = this.checkouts.get(id)!;
-    c.status = "complete"; c.paymentStatus = o.paymentStatus ?? "paid";
-    if (c.mode === "subscription") {
-      const n = ++this.n.sub, sub = `sub_${n}`, customer = c.customer ?? `cus_${n}`;
-      this.subs.set(sub, { id: sub, customer, status: "active", periodEnd: (o.periodEnd ?? new Date(Date.now() + 30 * 86400_000)).toISOString(), cancelAtEnd: false, endedAt: null, metadata: { ...c.metadata } });
-      c.subscription = sub; c.customer = customer;
-    }
+    c.status = "complete"; c.paymentStatus = o.paymentStatus ?? "paid"; c.paymentIntent ??= `pi_test_${++this.n.payment}`;
     return c;
   }
-  setSubscription(id: string, change: Partial<SubscriptionInfo>) { Object.assign(this.subs.get(id)!, change); }
   /* A webhook request body and its Stripe-Signature header. */
   signed(type: string, object: unknown, at = new Date(), secret = this.webhookSecret) {
     const payload = JSON.stringify({ id: `evt_${++this.n.event}`, type, data: { object } }), t = Math.floor(at.getTime() / 1000);
@@ -276,7 +271,7 @@ export class StubPayments implements Payments {
 }
 
 export interface TestServer {
-  dir: string; config: Config; store: Store; files: LocalFileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
+  dir: string; config: Config; store: Store; files: FileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
   live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks; billing: Billing; mailer: StubMailer; payments: StubPayments;
   links: StubLinks;
   app: ReturnType<typeof createApp>;
@@ -290,22 +285,23 @@ export interface TestServer {
    those phases run on it; the tests of plans (billing.test.ts) use plans.json as committed (realPlans). */
 export function openPlans(p: Config["plans"]) { Object.assign(p.plans[0], { dailyLiveMinutes: 240, lecturesPerMonth: null, packsPerMonth: null, audioDays: null }); }
 
-/* plans: changes to the plans for this test. payments: false = no Stripe key. links: false = no yt-dlp on the machine. */
+/* plans: changes to the plans for this test. payments: false = no Stripe key; a Payments object = that one instead of
+   StubPayments (the real StripePayments against a fake Stripe server). links: false = no yt-dlp on the machine. */
 export function setup(o: { env?: Record<string, string>; media?: Media; slides?: (f: string) => Promise<{ n: number; text: string }[]>;
-  realPlans?: boolean; plans?: (p: Config["plans"]) => void; payments?: boolean; links?: boolean } = {}): TestServer {
+  realPlans?: boolean; plans?: (p: Config["plans"]) => void; payments?: boolean | Payments; links?: boolean } = {}): TestServer {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sidenote-test-"));
   const config = loadConfig({ DATA_DIR: dir, WEB_DIR: "", ...o.env });
   if (!o.realPlans) openPlans(config.plans);
   if (o.plans) o.plans(config.plans);
   const store = new Store(path.join(dir, "test.db"));
   store.addInviteCode("CODE-A", "Ann"); store.addInviteCode("CODE-B", "Ben");
-  const files = new LocalFileStore(dir), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
+  const files = createFileStore(config, store), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
   const slides = o.slides || (async () => [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }]);
   const links = new StubLinks(), linksOn = o.links !== false;
   const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides, links: linksOn ? links : null });
   const live = new LiveTranscriber({ config, store, files, media, stt }), catchUp = new StubCatchUp(), packs = new ReviewPacks({ config, store, notes });
   const payments = new StubPayments(), mailer = new StubMailer();
-  const billing = new Billing({ config, store, payments: o.payments === false ? null : payments });
+  const billing = new Billing({ config, store, payments: o.payments === false ? null : typeof o.payments === "object" ? o.payments : payments });
   const app = createApp({ config, store, files, media, jobs: pipeline, live, catchUp, packs, billing, mailer, links: linksOn ? links : null });
   const call: TestServer["call"] = async (method, p, c = {}) => {
     const headers: Record<string, string> = { ...(c.headers || {}) };
@@ -332,11 +328,16 @@ export function fileForm(content: string | Uint8Array, filename: string, field =
   const f = new FormData(); f.append(field, new Blob([content]), filename); return f;
 }
 
+/* A fake recording that is a different file each time, as two students' recordings of a class are: the same file
+   would reuse the transcript of the first (dedupe.ts). dedupe.test.ts passes the same bytes on purpose. */
+let recordings = 0;
+export const anotherRecording = () => `${FAKE_AUDIO}-bytes-${++recordings}`;
+
 /* Creates a course and an upload lecture, uploads a fake recording (and slides), and returns the lecture id. */
-export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string; title?: string; autoTitle?: boolean } = {}) {
+export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string; title?: string; autoTitle?: boolean; bytes?: string } = {}) {
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: o.title ?? "Week 9", language: o.language || "en-yue", source: "upload", ...(o.autoTitle !== undefined ? { autoTitle: o.autoTitle } : {}) } })).body;
-  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
+  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(o.bytes ?? anotherRecording(), "lecture.mp3") });
   if (up.status !== 204) throw new Error("upload failed: " + up.text);
   if (o.slides) { const sl = await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") }); if (sl.status !== 204) throw new Error("slides failed: " + sl.text); }
   return lec.id as string;
@@ -372,7 +373,7 @@ export async function linkLecture(s: TestServer, token: string, url = "https://w
 export async function readyLecture(s: TestServer, token: string, o: { courseId?: string; title?: string; slides?: boolean } = {}) {
   const courseId = o.courseId ?? (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body.id;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId, title: o.title || "Week 9", language: "en-yue", source: "upload" } })).body;
-  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
+  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(anotherRecording(), "lecture.mp3") });
   if (up.status !== 204) throw new Error("upload failed: " + up.text);
   if (o.slides) await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") });
   await s.call("POST", `/lectures/${lec.id}/finish`, { token, json: { duration: 600 } });

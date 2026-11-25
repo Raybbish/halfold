@@ -6,12 +6,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../src/config";
 import { Store, type CostRow } from "../src/db";
+import { classStats } from "../src/dedupe";
 
 const config = loadConfig();
 const file = path.join(config.dataDir, "sidenote.db");
 if (!fs.existsSync(file)) { console.log("No database yet: nothing has been processed."); process.exit(0); }
 const store = new Store(file);
-const rows = store.costs();
+const rows = store.costs(), classes = classStats(store.classRecordings());
 store.close();
 
 interface Lecture {
@@ -101,4 +102,17 @@ if (packRows.length) {
   const made = packRows.filter(r => meta(r).attempt === 1), total = sum(packRows.map(r => r.usd ?? 0));
   const lectures = sum(made.map(r => meta(r).lectures ?? 0)) / (made.length || 1);
   console.log(`复习包：每次 ${usd(total / (made.length || 1))}（${made.length} 次，平均每次 ${lectures.toFixed(1)} 堂课，共 ${usd(total)}）`);
+}
+
+/* The same class recorded by several students (handoff items 3 and 8, server/src/dedupe.ts): one row per lecture whose
+   notes were written, kept after it is deleted. A merged lecture copied another's transcript (and its notes, unless it
+   had slides of its own) and logged no cost above. */
+if (classes.lectures) {
+  const pct = (n: number, of: number) => of ? `${(n / of * 100).toFixed(1)}%` : "-";
+  console.log("\n同一堂课去重\n");
+  console.log(`有笔记的课 ${classes.lectures} 堂，合并 ${classes.merged} 堂，合并率 ${pct(classes.merged, classes.lectures)}` +
+    `（能比对的上传和 YouTube 链接 ${classes.matchable} 堂，其中合并率 ${pct(classes.merged, classes.matchable)}）`);
+  console.log(`合并的课里，转写和笔记都复用 ${classes.notesCopied} 堂，只复用转写 ${classes.merged - classes.notesCopied} 堂（自己带了课件）`);
+  console.log(`每堂课的录音份数：${classes.classes} 堂课，平均 ${(classes.lectures / classes.classes).toFixed(2)} 份；` +
+    classes.sizes.map(([n, c]) => `${n} 份的 ${c} 堂`).join("，"));
 }

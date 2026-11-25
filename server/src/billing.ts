@@ -1,37 +1,37 @@
-/* Plans and payment (phase 4, DESIGN.md 第四阶段). Which plan a student is on, what it lets them do this month, the cards
-   of the settings page (GET /plans), sending them to Stripe Checkout (POST /checkout), and what Stripe tells us back.
+/* Plans and payment (phase 4, DESIGN.md 第四阶段; one-time payments and refunds from 2026-11-24, DESIGN.md 一次付清和退款).
+   Which plan a student is on, what it lets them do this month, the cards of the settings page (GET /plans), sending them
+   to Stripe Checkout (POST /checkout), and what Stripe tells us back.
 
-   A student is on a paid plan while a monthly subscription is active, or while a pass runs; otherwise on the free plan
-   (the first in plans.json). When paid time ends (cancelled, a payment failed, a pass ran out) they are back on the free
-   plan straight away and keep everything; recordings then follow the free plan's audioDays, counted from the day the paid
-   time ended (audio.ts keptUntil).
+   Every paid card is a pass: paid once for a number of days, never renewed. A student is on a paid plan while their paid
+   time runs; otherwise on the free plan (the first in plans.json). When it ends (it ran out, or a refund ended it) they
+   are back on the free plan straight away and keep everything; recordings then follow the free plan's audioDays,
+   counted from the day the paid time ended (audio.ts keptUntil). Buying a pass of the plan the student already has adds
+   its days after the ones they have.
+
+   A refund takes back paid time in proportion to the money given back: a full refund all the days that payment bought,
+   half the money half the days. They come off the end of the paid time, and at the earliest it ends now (recordings
+   are never deleted because of a refund). A dispute the student wins at their bank counts as a full refund.
 
    What Stripe says comes from the webhook (POST /api/stripe/webhook). So that a missed webhook does not leave a student
    who paid on the free plan, GET /home and GET /plans also ask Stripe about the student's Checkouts of the last day that
-   are still open, and about a subscription whose paid period has passed (refresh). */
+   are still open (refresh). */
 import type { Plans } from "../../src/types";
 import type { Config } from "./config";
-import type { Store, SubscriptionRow, UserRow } from "./db";
+import type { CheckoutRow, Store, UserRow } from "./db";
 import { fail } from "./http/errors";
 import { cardById, cards, freeTier, minorUnits, money, nextTier, tierById, type Card, type Tier } from "./plans";
 import type { CheckoutInfo, PaymentEvent, Payments } from "./pay/stripe";
-import { readCheckout, readSubscription } from "./pay/stripe";
+import { readCharge, readCheckout, readDispute } from "./pay/stripe";
 import { localDate, monthOf, shortDate } from "./time";
 
-/* Stripe statuses in which the student has paid for the current period. past_due (a renewal payment failed and Stripe is
-   trying again), unpaid, incomplete and canceled are not: the student is on the free plan until it is paid. */
-const PAID = new Set(["active", "trialing"]);
-/* An active subscription whose period ended this long ago without news from Stripe still counts (the renewal is usually
-   paid within the hour); refresh() asks Stripe before then. */
-const STALE_MS = 2 * 86400_000;
-const RECHECK_MS = 10 * 60_000;
 const OPEN_CHECKOUT_MS = 86400_000;   // a Stripe Checkout link works for 24 hours
+const DAY = 86400_000;
+const days = (n: number) => n === 1 ? "1 day" : `${n} days`;
 
 export interface Entitlement {
   tier: Tier;                 // what the student may do now
   current: string;            // the card shown as "Your plan"
-  until: string | null;       // ISO: the paid period renews or ends (subscription), or the pass ends
-  renews: boolean;            // a subscription that will renew
+  until: string | null;       // ISO: when the paid time ends
   paidEnd: string | null;     // ISO, on the free plan: when paid time last ended
 }
 
@@ -42,17 +42,12 @@ export class Billing {
   private paidTier(planId: string) { return tierById(this.book, planId) ?? this.book.plans[1] ?? freeTier(this.book); }
 
   entitlement(userId: string, at = new Date()): Entitlement {
-    const { store } = this.d, now = at.getTime(), sub = store.subscription(userId), pass = store.pass(userId);
-    if (sub && PAID.has(sub.status) && Date.parse(sub.period_end) + STALE_MS > now) {
-      const tier = this.paidTier(sub.plan);
-      return { tier, current: tier.monthly ? tier.id : tier.pass?.id ?? tier.id, until: sub.period_end, renews: !sub.cancel_at_end, paidEnd: null };
+    const pass = this.d.store.pass(userId);
+    if (pass && Date.parse(pass.until) > at.getTime()) {
+      const tier = this.paidTier(pass.plan), card = pass.card ? cardById(this.book, pass.card) : undefined;
+      return { tier, current: card && card.tier.id === tier.id ? card.id : tier.passes?.[0]?.id ?? tier.id, until: pass.until, paidEnd: null };
     }
-    if (pass && Date.parse(pass.until) > now) {
-      const tier = this.paidTier(pass.plan);
-      return { tier, current: tier.pass?.id ?? tier.id, until: pass.until, renews: false, paidEnd: null };
-    }
-    const ends = [sub ? sub.ended_at ?? sub.period_end : null, pass?.until ?? null].filter((x): x is string => !!x && Date.parse(x) <= now).sort();
-    return { tier: freeTier(this.book), current: freeTier(this.book).id, until: null, renews: false, paidEnd: ends.length ? ends[ends.length - 1] : null };
+    return { tier: freeTier(this.book), current: freeTier(this.book).id, until: null, paidEnd: pass?.until ?? null };
   }
 
   /* ---------- what the plan allows ---------- */
@@ -94,31 +89,30 @@ export class Billing {
     ];
   }
   plans(userId: string, at = new Date()): Plans {
-    const ent = this.entitlement(userId, at), cur = this.book.currency, tz = this.d.config.timezone;
+    const ent = this.entitlement(userId, at), cur = this.book.currency;
+    const day = ent.until ? shortDate(localDate(new Date(ent.until), this.d.config.timezone), true) : "";
     const plans = cards(this.book).map(c => {
       const f = this.features(c.tier);
-      if (c.kind === "monthly") f.push("Pay by card, Apple Pay or Google Pay. Renews every month; cancel any time.");
-      if (c.kind === "pass") f.push(`Pay once by card, Alipay or WeChat Pay. Does not renew.`);
-      if (c.id === ent.current && ent.until) {
-        const day = shortDate(localDate(new Date(ent.until), tz), true);
-        f.unshift(c.kind === "pass" ? `Paid until ${day}` : ent.renews ? `Renews on ${day}` : `Ends on ${day}`);
-      }
-      const priceText = c.kind === "free" ? "Free" : c.kind === "monthly" ? `${money(cur, c.tier.monthly!)} / month` : `${money(cur, c.tier.pass!.price)} for ${c.tier.pass!.days} days`;
-      return { id: c.id, name: c.kind === "pass" ? c.tier.pass!.name : c.tier.name, priceText, features: f };
+      if (c.kind === "free") return { id: c.id, name: c.tier.name, priceText: "Free", features: f };
+      f.push("Pay once by card, Alipay or WeChat Pay. Does not renew.");
+      /* The paid time running: on the card last bought, and on the other passes of that plan, which add to it. */
+      if (ent.until && c.id === ent.current) f.unshift(`Paid until ${day}`);
+      else if (ent.until && c.tier.id === ent.tier.id) f.unshift(`Adds ${days(c.pass.days)} after ${day}`);
+      return { id: c.id, name: c.pass.name, priceText: `${money(cur, c.pass.price)} for ${days(c.pass.days)}`, features: f };
     });
     return { plans, current: ent.current };
   }
 
   /* ---------- POST /checkout ---------- */
-  /* -> the Stripe page to send the student to; null when payments are not set up (the front end then says checkout is
-     not connected yet). Choosing the free plan while paying every month opens Stripe's billing page, where the
-     subscription is cancelled (it runs to the end of the period paid for); a pass simply runs out. */
+  /* -> the Stripe Checkout page to send the student to; null when payments are not set up (the front end then says
+     checkout is not connected yet). Nothing renews, so there is nothing to cancel: choosing the free plan while paid
+     time runs only says when it ends. */
   async checkout(user: UserRow, cardId: string, webBase: string, at = new Date()): Promise<string | null> {
     const card = cardById(this.book, cardId) ?? fail(404, "This plan does not exist. Reload the page to see the plans.");
     const { store } = this.d, pay = this.payments;
     /* The student's earlier Checkouts that are still open (another tab, a second click) are closed first, so only the
-       latest choice can be paid: two monthly plans would both renew. One that was paid meanwhile is applied instead, and
-       the rules below see it. */
+       latest choice can be paid, not two by mistake. One that was paid meanwhile is applied instead, and the rules below
+       see it. */
     if (pay) for (const old of store.openCheckouts(user.id, new Date(at.getTime() - OPEN_CHECKOUT_MS).toISOString())) {
       try { await pay.expireCheckout(old.id); store.closeCheckout(old.id, "expired"); }
       catch (e) {
@@ -126,98 +120,89 @@ export class Billing {
         try { await this.applyCheckout(await pay.checkout(old.id)); } catch { /* refresh() tries again later */ }
       }
     }
-    const ent = this.entitlement(user.id, at), sub = store.subscription(user.id);
-    const tz = this.d.config.timezone, day = (iso: string) => shortDate(localDate(new Date(iso), tz), true);
-    const back = webBase + "/#/settings";
-    const portal = async (s: SubscriptionRow) => {
-      if (!pay || !s.customer) return null;
-      try { return await pay.billingPortal(s.customer, back); }
-      catch (e) { console.warn(`[billing] billing page for ${user.id}: ${(e as Error).message}`); fail(502, "Halfold could not open the billing page just now. Try again in a moment."); }
-      return null;
-    };
-    if (card.id === ent.current) fail(409, `${card.kind === "pass" ? card.tier.pass!.name : card.tier.name} is already your plan.`);
-    const subPaid = !!sub && PAID.has(sub.status) && ent.until === sub.period_end;
+    const ent = this.entitlement(user.id, at);
+    const day = (iso: string) => shortDate(localDate(new Date(iso), this.d.config.timezone), true);
     if (card.kind === "free") {
-      if (subPaid) return portal(sub!);
-      fail(409, `Your ${ent.tier.pass?.name ?? ent.tier.name} runs until ${day(ent.until!)} and does not renew. You are back on ${card.tier.name} after that day.`);
+      if (!ent.until) fail(409, `${card.tier.name} is already your plan.`);
+      const now = cardById(this.book, ent.current), name = now?.kind === "pass" ? now.pass.name : ent.tier.name;
+      fail(409, `Your ${name} runs until ${day(ent.until!)} and does not renew. You are back on ${card.tier.name} after that day.`);
     }
-    /* A renewal payment failed: the billing page is where the card is changed (or the plan cancelled). */
-    if (sub && (sub.status === "past_due" || sub.status === "unpaid")) return portal(sub);
-    if (card.kind === "monthly") {
-      if (subPaid) return portal(sub!);   // another monthly plan: changed on the billing page
-      if (ent.until) fail(409, `You have ${ent.tier.name} until ${day(ent.until)} from your ${ent.tier.pass?.name ?? "pass"}. Choose the monthly plan after that day.`);
-    }
-    if (card.kind === "pass" && subPaid) fail(409, `You already pay for ${ent.tier.name} every month. To pay for a semester instead, choose ${freeTier(this.book).name} to cancel the monthly plan, then come back when it ends.`);
+    if (card.kind !== "pass") return null;
+    /* Paid time of another plan runs: one plan at a time, so no day already paid for is lost. (Only with two paid plans.) */
+    if (ent.until && ent.tier.id !== card.tier.id) fail(409, `You have ${ent.tier.name} until ${day(ent.until)}. You can choose ${card.pass.name} after that day.`);
     if (!pay) return null;
-    return this.startCheckout(user, card, back, sub);
+    return this.startCheckout(user, card, webBase + "/#/settings");
   }
-  private async startCheckout(user: UserRow, card: Card, back: string, sub: SubscriptionRow | undefined) {
-    const t = card.tier, monthly = card.kind === "monthly", { store } = this.d;
+  private async startCheckout(user: UserRow, card: Extract<Card, { kind: "pass" }>, back: string) {
+    const { pass, tier } = card;
     const r = await this.payments!.createCheckout({
-      mode: monthly ? "subscription" : "payment",
-      productName: monthly ? `Halfold ${t.name}, monthly` : `Halfold ${t.pass!.name}, ${t.pass!.days} days`,
-      currency: this.book.currency.toLowerCase(), amount: minorUnits(monthly ? t.monthly! : t.pass!.price),
-      successUrl: back, cancelUrl: back, userId: user.id,
-      customer: user.stripe_customer ?? sub?.customer ?? null, email: user.email,
-      metadata: { user: user.id, plan: t.id, card: card.id }
+      productName: `Halfold ${pass.name}, ${days(pass.days)}`,
+      currency: this.book.currency.toLowerCase(), amount: minorUnits(pass.price),
+      successUrl: back, cancelUrl: back, userId: user.id, email: user.email,
+      metadata: { user: user.id, plan: tier.id, card: card.id, days: String(pass.days) }
     }).catch(e => { console.warn(`[billing] checkout for ${user.id}: ${(e as Error).message}`); return fail(502, "Halfold could not start the payment just now. Try again in a moment."); });
-    store.addCheckout({ id: r.id, user_id: user.id, card: card.id, mode: monthly ? "subscription" : "payment" });
+    this.d.store.addCheckout({ id: r.id, user_id: user.id, card: card.id, plan: tier.id, days: pass.days });
     return r.url;
   }
 
   /* ---------- what Stripe tells us ---------- */
+  /* What a Checkout bought: fixed when it was made, so a price or length changed in plans.json since does not change it.
+     A Checkout made before 2026-11-24 has neither: from its card, else 30 days of the first paid plan. */
+  private bought(row: CheckoutRow) {
+    const card = cardById(this.book, row.card);
+    return { plan: row.plan ?? card?.tier.id ?? this.paidTier("").id, days: row.days ?? (card?.kind === "pass" ? card.pass.days : 30) };
+  }
+
   /* A Checkout, from the webhook or from asking Stripe. Each one is applied once, however often the news comes. */
   async applyCheckout(c: CheckoutInfo, failed = false) {
     const { store } = this.d;
     let row = store.checkout(c.id);
     if (!row) {
-      /* Started on another copy of the database, or the row was lost: the metadata says whose it is. */
-      const uid = c.metadata.user, card = c.metadata.card;
-      if (!uid || !store.user(uid) || !card) return;
-      store.addCheckout({ id: c.id, user_id: uid, card, mode: c.mode === "subscription" ? "subscription" : "payment" });
+      /* Started on another copy of the database, or the row was lost: the metadata says whose it is and what it bought. */
+      const uid = c.metadata.user, cardId = c.metadata.card;
+      if (!uid || !store.user(uid) || !cardId) return;
+      const card = cardById(this.book, cardId), n = Number(c.metadata.days);
+      store.addCheckout({ id: c.id, user_id: uid, card: cardId, plan: c.metadata.plan || card?.tier.id || null,
+        days: Number.isInteger(n) && n > 0 ? n : card?.kind === "pass" ? card.pass.days : null });
       row = store.checkout(c.id)!;
     }
     if (row.status !== "open") return;
     if (c.status === "expired") { store.closeCheckout(c.id, "expired"); return; }
     if (c.status !== "complete") return;
-    if (row.mode === "subscription") {
-      if (c.subscription) await this.syncSubscription(c.subscription, row.user_id);
-      store.closeCheckout(c.id, "complete");
-      return;
-    }
-    /* A pass. Alipay and WeChat Pay are paid at once; a payment still on its way (paymentStatus "unpaid") waits for
+    /* Cards, Alipay and WeChat Pay are paid at once; a payment still on its way (paymentStatus "unpaid") waits for
        checkout.session.async_payment_succeeded, or fails. */
     if (c.paymentStatus === "paid" || c.paymentStatus === "no_payment_required") {
-      const card = cardById(this.book, row.card), tier = card?.tier ?? this.paidTier(c.metadata.plan || "");
-      const days = card?.kind === "pass" ? tier.pass!.days : tier.pass?.days ?? 30;
-      store.closeCheckout(c.id, "complete", () => { store.extendPass(row!.user_id, tier.id, days); });
+      const { plan, days: n } = this.bought(row), r = row;
+      store.closeCheckout(c.id, "complete", () => { store.extendPass(r.user_id, plan, n, new Date(), r.card); store.setPayment(c.id, c.paymentIntent); });
     } else if (failed) store.closeCheckout(c.id, "failed");
   }
 
-  /* The subscription as Stripe has it now (events can arrive out of order, so the event's copy is not trusted). */
-  async syncSubscription(subId: string, userHint?: string) {
-    const { store } = this.d, s = await this.payments!.subscription(subId);
-    const byMeta = s.metadata.user && store.user(s.metadata.user) ? s.metadata.user : null;
-    const userId = byMeta ?? store.userBySubscription(s.id)?.user_id ?? (s.customer ? store.userByCustomer(s.customer)?.id : undefined) ?? userHint;
-    if (!userId) { console.warn(`[billing] subscription ${s.id} belongs to no student here`); return; }
-    const old = store.subscription(userId);
-    /* News about an older subscription does not replace a newer one that is paid. */
-    if (old && old.sub_id !== s.id && PAID.has(old.status) && !PAID.has(s.status)) return;
-    if (old && old.sub_id !== s.id && PAID.has(old.status) && PAID.has(s.status))
-      console.warn(`[billing] student ${userId} now has two paid subscriptions (${old.sub_id} and ${s.id}): cancel one in the Stripe Dashboard and refund it`);
-    store.saveSubscription({
-      user_id: userId, sub_id: s.id, customer: s.customer, plan: s.metadata.plan || old?.plan || this.paidTier("").id, status: s.status,
-      period_end: s.periodEnd, cancel_at_end: s.cancelAtEnd ? 1 : 0, ended_at: s.endedAt, checked_at: new Date().toISOString()
-    });
+  /* Money given back for a payment (share: the part given back in all, 0 to 1): a refund made in the Stripe Dashboard, in
+     full or in part, or a dispute lost. The same share of the days it bought comes off (Store.takeBack). */
+  async moneyBack(paymentIntent: string | null, share: number, what: string) {
+    if (!paymentIntent) return;
+    const { store } = this.d;
+    let row = store.checkoutByPayment(paymentIntent);
+    /* Paid, but this server never heard (the webhook was missed and the student did not come back): the Checkout is
+       applied first, so the days it bought are there to take back, and a later look at it gives nothing. */
+    if (!row && this.payments) {
+      const c = await this.payments.checkoutOfPayment(paymentIntent);
+      if (c) { await this.applyCheckout(c); row = store.checkoutByPayment(paymentIntent); }
+    }
+    if (!row) { console.warn(`[billing] ${what} for payment ${paymentIntent}, which paid for no plan here`); return; }
+    const { plan, days: n } = this.bought(row), r = store.takeBack(row.id, share, plan, n);
+    if (r) console.log(`[billing] ${what}: student ${row.user_id}, ${row.card}, ${Math.round(Math.min(1, share) * 100)}% given back; ${(r.taken / DAY).toFixed(1)} days taken off, paid until ${r.until ?? "never"}`);
   }
 
   async handle(e: PaymentEvent) {
     if (e.type.startsWith("checkout.session.")) return this.applyCheckout(readCheckout(e.object), e.type === "checkout.session.async_payment_failed");
-    if (e.type.startsWith("customer.subscription.")) return this.syncSubscription(readSubscription(e.object).id);
+    /* Sent for every refund, in full or in part, with all that has been given back so far. */
+    if (e.type === "charge.refunded") { const ch = readCharge(e.object); return this.moneyBack(ch.paymentIntent, ch.amount > 0 ? ch.refunded / ch.amount : 0, "refund"); }
+    if (e.type === "charge.dispute.closed") { const d = readDispute(e.object); if (d.status === "lost") return this.moneyBack(d.paymentIntent, 1, "dispute lost"); }
   }
 
-  /* GET /home and GET /plans: open Checkouts of the last day, and a paid period that has passed. Never fails: when
-     Stripe cannot be reached, the student sees what the database has. */
+  /* GET /home and GET /plans: the student's open Checkouts of the last day. Never fails: when Stripe cannot be reached,
+     the student sees what the database has. */
   async refresh(userId: string, at = new Date()) {
     const pay = this.payments, { store } = this.d;
     if (!pay) return;
@@ -225,11 +210,6 @@ export class Billing {
     for (const c of store.openCheckouts(userId, new Date(at.getTime() - OPEN_CHECKOUT_MS).toISOString()).slice(-3)) {
       try { await this.applyCheckout(await pay.checkout(c.id)); }
       catch (e) { console.warn(`[billing] checking checkout ${c.id}: ${(e as Error).message}`); }
-    }
-    const sub = store.subscription(userId);
-    if (sub && PAID.has(sub.status) && Date.parse(sub.period_end) <= at.getTime() && at.getTime() - Date.parse(sub.checked_at) > RECHECK_MS) {
-      try { await this.syncSubscription(sub.sub_id, userId); }
-      catch (e) { console.warn(`[billing] checking subscription ${sub.sub_id}: ${(e as Error).message}`); store.subscriptionChecked(userId); }
     }
   }
 }

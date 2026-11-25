@@ -25,8 +25,8 @@ const check = (name, ok, detail) => { results.push(ok); console.log(`${ok ? 'PAS
   const landing = await text('body');
   check('the landing page has Help in the top bar and Help and Privacy in the footer', navHelp && footHelp && footPrivacy, { navHelp, footHelp, footPrivacy });
 
-  check('the privacy page says what kind of service handles the data and where, without naming them', ['speech-to-text service', 'in the United States', 'AI model service', 'in mainland China', 'payment service', 'email delivery service'].every(n => privacy.includes(n))
-    && !['ElevenLabs', 'Deepgram', 'DeepSeek', 'Stripe', 'Resend', 'Tencent'].some(n => privacy.includes(n)), privacy.slice(0, 200));
+  check('the privacy page says what kind of service handles the data and where, without naming them', ['speech-to-text service', 'in the United States', 'AI model service', 'in mainland China', 'payment service', 'email delivery service', 'cloud storage service', 'Asia-Pacific'].every(n => privacy.includes(n))
+    && !['ElevenLabs', 'Deepgram', 'DeepSeek', 'Stripe', 'Resend', 'Tencent', 'Cloudflare', 'R2'].some(n => privacy.includes(n)), privacy.slice(0, 200));
   check('the privacy page says where the server is and marks the contact email still to be decided', privacy.includes('[Contact email: to be decided]') && !privacy.includes('[Where the server is') && privacy.includes('The Halfold server is at a cloud provider in Singapore.'));
 
   await page.goto(ORIGIN + '/#/help'); await page.waitForTimeout(400);
