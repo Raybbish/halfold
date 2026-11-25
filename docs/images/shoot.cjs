@@ -33,13 +33,11 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   };
   const shot = async (page, name, opts = {}) => { await wait(400); await page.screenshot({ path: path.join(OUT, name), ...opts }); console.log('wrote', name); };
 
-  // Desktop: the landing page and a lecture's notes.
+  // Desktop: the landing page and a lecture's notes under its slides.
   let { ctx, page } = await open({ width: 1280, height: 800 });
   await page.goto(ORIGIN + '/#/'); await page.waitForSelector('.hero');
   await shot(page, 'landing.png');
   await signIn(page);
-  await page.goto(ORIGIN + '/#/home'); await page.waitForSelector('.shell');
-  await shot(page, 'home.png');
   await tab(page, 'Slides');
   await shot(page, 'lecture.png');
   await ctx.close();
