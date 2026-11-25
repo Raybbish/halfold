@@ -27,7 +27,7 @@ test("ready: transcript from the words, notes from the model, both Chinese scrip
   assert.deepEqual(d.alerts, [{ t: 18, kind: "Midterm", text: "Midterm on 26 November, chapters 1 to 5." }]);
   /* What the model was given. */
   const input = s.notes.calls[0].input;
-  assert.equal(input.zh, "hant"); assert.equal(input.language, "en-yue"); assert.equal(input.courseCode, "ECON 1001");
+  assert.equal(input.zh, true); assert.equal(input.language, "en-yue"); assert.equal(input.courseCode, "ECON 1001");
   assert.match(input.date, /^[A-Z][a-z]+day \d{4}-\d{2}-\d{2}$/);
   assert.equal(input.lines.length, 3); assert.deepEqual(input.slides, []);
   /* The cost of each step. */
@@ -47,17 +47,17 @@ test("with slides: points keep their slide numbers and 'off'; section slide labe
   assert.deepEqual(d.slides, [{ n: 1, title: "Course admin", image: null }, { n: 2, title: "Opportunity cost", image: null }]);
   assert.deepEqual(d.sections.map(x => x.slides), ["Slide 1", "Slide 2"]);
   assert.equal(d.sections[0].points[0].off, true); assert.equal(d.sections[0].points[0].slide, 1);
-  assert.equal(s.notes.calls[0].input.zh, "hans");
+  assert.equal(s.notes.calls[0].input.zh, true);
   assert.equal(s.notes.calls[0].input.slides.length, 2);
-  /* en-zh is written in Simplified; the Traditional form is converted. */
-  assert.equal(d.sections[1].points[0].zhHans, "機會成本是你放棄的次佳選擇。");
+  /* Both forms as the model wrote them, whatever the class language. */
+  assert.deepEqual([d.sections[1].points[0].zhHans, d.sections[1].points[0].zhHant], ["机会成本是你放弃的次佳选择。", "機會成本是你放棄的次佳選擇。"]);
 });
 
 test("ZH_EXPLANATIONS=off: no Chinese explanations are asked for or kept", async t => {
   const s = setup({ env: { ZH_EXPLANATIONS: "off" } }); t.after(() => s.close());
   const token = await s.signIn(), id = await uploadedLecture(s, token);
   await finish(s, token, id); await s.pipeline.idle();
-  assert.equal(s.notes.calls[0].input.zh, null);
+  assert.equal(s.notes.calls[0].input.zh, false);
   const p = s.store.detail(id)!.sections[0].points[0];
   assert.equal(p.zhHant, undefined); assert.equal(p.zhHans, undefined);
 });

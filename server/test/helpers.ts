@@ -128,8 +128,8 @@ export class StubAsk implements AskWriter {
 export function goodNotes(withSlides = false) {
   return {
     sections: [
-      { title: "Admin", start: 0, end: 200, points: [{ t: 18, text: "The midterm is on 26 November.", zh: "期中考試在十一月二十六日。", slide: withSlides ? 1 : null, off: true }] },
-      { title: "Opportunity cost", start: 200, end: 600, points: [{ t: 252, text: "Opportunity cost is the next best thing you give up.", zh: "機會成本是你放棄的次佳選擇。", slide: withSlides ? 2 : null, off: false }] }
+      { title: "Admin", start: 0, end: 200, points: [{ t: 18, text: "The midterm is on 26 November.", zhHans: "期中考试在十一月二十六日。", zhHant: "期中考試在十一月二十六日。", slide: withSlides ? 1 : null, off: true }] },
+      { title: "Opportunity cost", start: 200, end: 600, points: [{ t: 252, text: "Opportunity cost is the next best thing you give up.", zhHans: "机会成本是你放弃的次佳选择。", zhHant: "機會成本是你放棄的次佳選擇。", slide: withSlides ? 2 : null, off: false }] }
     ],
     slides: withSlides ? [{ n: 1, title: "Course admin" }, { n: 2, title: "Opportunity cost" }] : [],
     alerts: [{ t: 18, kind: "midterm", text: "Midterm on 26 November, chapters 1 to 5.", date: "2099-11-26" }],

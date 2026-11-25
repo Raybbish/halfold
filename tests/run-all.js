@@ -3,7 +3,7 @@
 //   2. the check scripts, all on the build: real5.js, zhscript.js, real3.js, zhcheck.js, upload.js, backend-text.js, courses.js,
 //      slides-later.js, search.js, sharing.js, signin.js, course-picker.js, failed-reason.js, brand.js, zh-hans.js and
 //      background-notes.js, stuck-lecture.js, quick-record.js, lecture-page.js, live-meta.js, help-privacy.js, kept.js, limits.js, formulas.js, review-pack.js,
-//      marks.js, ask.js and review.js
+//      retest.js, marks.js, ask.js and review.js
 //      (counts in EXPECT below)
 //   3. overflow5.js (no sideways scrolling at 8 widths, English and Chinese) and printcheck.js (print view)
 //   4. shots5.js on the build (animations off): it only has to finish without console or page errors; the screenshots are kept
@@ -22,6 +22,8 @@ const want = n => !ONLY || ONLY.includes(n);
 const EXPECT = { real5: 65, zhscript: 17, real3: 11, zhcheck: 10, upload: 27, 'backend-text': 13, courses: 18, 'slides-later': 17, search: 20, sharing: 7, signin: 14, 'course-picker': 9, 'failed-reason': 7, brand: 19, 'zh-hans': 21, 'background-notes': 16, 'stuck-lecture': 19, 'quick-record': 17, 'lecture-page': 21, 'live-meta': 11, 'help-privacy': 12, kept: 9, limits: 16, formulas: 7, 'review-pack': 7, marks: 17, ask: 18, review: 23 };
 const SCRIPTS = ['real5', 'zhscript', 'real3', 'zhcheck', 'upload', 'backend-text', 'courses', 'slides-later', 'search', 'sharing', 'signin', 'course-picker', 'failed-reason', 'brand', 'zh-hans', 'background-notes', 'stuck-lecture', 'quick-record', 'lecture-page', 'live-meta', 'help-privacy', 'kept', 'limits', 'formulas', 'review-pack', 'marks', 'ask', 'review'];
 
+// The retest of 2026-11-23 (retest.js), on a line of its own.
+EXPECT.retest = 18; SCRIPTS.push('retest');
 // profile.js (the profile and consents asked once after signing in, and in Settings), added on its own lines.
 EXPECT.profile = 18; SCRIPTS.splice(SCRIPTS.indexOf('signin') + 1, 0, 'profile');
 

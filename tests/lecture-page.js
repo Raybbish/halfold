@@ -15,7 +15,8 @@ function wav(seconds) {
 }
 const WAV = wav(300);
 
-const pt = (t, text) => ({ t, text, off: false, slide: null });
+/* Each point has its 中文解釋, as our backend writes them (the switch is only offered when the notes have them). */
+const pt = (t, text) => ({ t, text, zhHant: '說明：' + text, zhHans: '说明：' + text, off: false, slide: null });
 const DETAIL1 = () => ({ alerts: [], slides: [], flashcards: [{ q: 'q', a: 'a' }], quiz: [],
   sections: [
     { title: 'Opportunity cost', start: 200, end: 640, points: [pt(252, 'Cost is what you give up'), pt(300, 'Trade-offs everywhere'), pt(400, 'Example with coffee')] },

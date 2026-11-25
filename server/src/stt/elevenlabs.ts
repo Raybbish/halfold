@@ -9,6 +9,8 @@ import { ProviderError, slowAgent, withRetry, type Transcriber, type Transcript,
 /* Primary language and the languages mixed into it. ISO 639-1 or 639-3 codes (zho = Mandarin, yue = Cantonese). */
 const LANGUAGES: Record<ClassLanguage, { primary?: string; also: string[] }> = {
   en: { primary: "en", also: [] },
+  zh: { primary: "zho", also: ["en"] },
+  yue: { primary: "yue", also: ["en"] },
   "en-yue": { primary: "yue", also: ["en"] },
   "en-zh": { primary: "zho", also: ["en"] },
   auto: { also: [] }

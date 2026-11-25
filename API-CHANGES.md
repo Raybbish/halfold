@@ -515,7 +515,33 @@
 - `cd server && npm run signups`：最近 30 天每天注册数（按 `APP_TIMEZONE`），存过资料、跳过了还没存、两样都还没有的人数，以及两个同意各占回答过的人多少、同意后又取消的人数。`-- --days=90` 换天数，`-- --json` 出 JSON。
 - 注册时间是邮箱绑定到账户的时间（`users.signed_up_at`）。2026-11-24 之前注册的账户没有这个时间，单独计数。
 
-## 15. 课上标记、向课堂提问、跨课复习（2026-11-24）
+## 15. 11 月 23 日重测还在的问题（2026-11-24）
+
+交接文档 2026-11-23 第 6 项。标记、提问、跨课复习三个功能不在这一节。
+
+### 后端
+
+- **失败的课不占额度：现场录音的分钟数。** 第 12 节已经让失败的课不算本月课堂数，但现场录音（`record`、`tab`）失败后，它的分钟数还算在当天的录音分钟里（`usage.minutesToday`，也挡新的录音）。现在 `failed` 的课两样都不算；`retry` 再做笔记时又算上。
+- **中文解释两种写法都由模型写。** 以前模型只写一种（英文夹普通话的课写简体，其余写香港繁体），另一种用 OpenCC 转字，所以简体里留着香港用词（联储局、货品、实质本地生产总值）。现在提示词要模型每个要点写两次：`zhHans` 用内地的写法和用词（美联储、商品、实际 GDP），`zhHant` 用香港的写法和用词，不许拿一种转字得到另一种。`detail` 的 `zhHans`、`zhHant` 字段不变。模型只给了一种（或旧的单个 `zh`）时，另一种照旧由 OpenCC 转。已经写好的笔记不会自己变，要重新生成才会是新的写法。
+- **上课语言多了两种：** `zh`（普通话授课）和 `yue`（粤语授课），`createLecture` 的 `language` 和 `updateSettings` 的 `classLanguage` 都收。转写：Deepgram 用 `multi`（老师常夹英文术语），ElevenLabs 用 `zho`、`yue` 加英文。粤语课的逐字稿和 `en-yue` 一样转成繁体。笔记正文仍然是英文，中文解释照常。
+- **中文解释默认打开：** 新账户的 `settings.zhDefault` 是 `true`。以前建的账户在新版本第一次启动时统一改成 `true` 一次（数据库 `meta` 里记 `zh_default_on`），之后学生自己关掉就一直是关的。
+- **示例笔记：** `GET /shared/econ-w9` 在数据库里没有这个分享 id 时，回服务器自带的示例（ECON 1001 第 9 周，数据就是前端示例模式那堂课，搬到了 `src/api/sample.ts`，由 `server/src/example.ts` 读出），多一个字段 `example: true`。`POST /shared/econ-w9/save` 对它回 409：“These are example notes, so they cannot be saved. ...”。`EXAMPLE_SHARE_ID` 不设或留空就是 `econ-w9`；设成 `off` 不显示 “Example notes”；设成别的 id 就打开那堂真正分享的课（和以前一样）。
+- **考试雷达可以手动加日期：**
+  - `POST /upcoming` `{course, date, kind, text}`：`course` 是课程 id（必须是自己的，否则 404）；`date` 是 `YYYY-MM-DD`，今天或以后（否则 400）；`kind` 是 `Midterm`、`Final`、`Quiz`、`Deadline`、`Exam hint` 之一（和老师说的日期用同一套词，前端照常翻译）；`text` 可以空，最长 200 字。回这一条，和 `GET /home` 的 `upcoming` 里的样子一样，多一个 `id`，`lecture` 和 `t` 是 `null`。
+  - `DELETE /upcoming/:id`：只删自己加的，回 204；不存在或是别人的回 404。老师说的日期跟着课堂走，不能这样删。
+  - `GET /home` 的 `upcoming` 两种混在一起按日期排。课程删掉时它的日期也删掉。
+
+### 前端
+
+- 中文界面里课堂的日期（后端给的 “Wed 18 Nov”）显示成 11月18日（週三），简体是（周三）。
+- 中文解释的开关放在工具栏第一个，打开时是蓝色的，旁边是繁/简；标签跟读者选的写法走。课堂没有中文解释时不显示这个开关。没有课件的课不再显示 “Only what is not on the slides”。
+- 上课语言的选项：English、Mandarin、Cantonese、English with Mandarin、English with Cantonese、Detect automatically（简体界面是英文、普通话、粤语、英文夹杂普通话、英文夹杂粤语、自动侦测）。
+- 还没有笔记的课（上传中、写笔记中、失败、没录完）页面上方有课堂标题和课程那一行，和有笔记时一样。
+- 帮助页的 “Signing in” 改成 “How to sign in”（中文以前被翻成“登入中”），按这台服务器的 `SIGN_IN` 说明：邮箱验证码，第一次还要邀请码；或者只用邀请码。去掉了 “Some servers use an invite code instead.”。
+- 主页考试雷达标题旁有 “Add a date”：选课程、类型、日期，可以写一句备注。自己加的日期显示 “Added by you” 和 “Remove”，老师说的仍然是 “Said at”。
+- 示例笔记页（`example: true`）不显示 “Save to my lectures”。
+
+## 16. 课上标记、向课堂提问、跨课复习（2026-11-24）
 
 设计师稿（`halfold.html` 2026-11-20，`INTEGRATION.md` 2026-11-19 第 0.1 节）里早就有、线上还没合进来的三样。接口名照设计师的建议，已经写进 `reference/INTEGRATION.md` 第 2 节和 3.1、3.2。设计和取舍见 `docs/superpowers/specs/2026-11-24-marks-ask-review-design.md`。
 

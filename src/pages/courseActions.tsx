@@ -19,7 +19,9 @@ export function editCourseModal(id: string) { const c = course(id); if (!c) retu
 
 function saveCourse(id: string, f: HTMLFormElement) { const code = val(f, "code").trim(), name = val(f, "name").trim(); if (!code) return;
   act(async () => { await api.updateCourse(id, code, name); const c = course(id);
-    if (c) { const ids = new Set(S.lectures.filter(l => l.course === id).map(l => l.id)); S.upcoming.forEach(u => { if (ids.has(u.lecture)) u.course = code; }); c.code = code; c.name = name; }
+    /* Dates added by hand carry only the course code: the ones with the old code follow it now, and the home data is read
+       again (two courses may share a code). */
+    if (c) { const ids = new Set(S.lectures.filter(l => l.course === id).map(l => l.id)); S.upcoming.forEach(u => { if (u.lecture ? ids.has(u.lecture) : u.course === c.code) u.course = code; }); c.code = code; c.name = name; S.homeLoaded = false; }
     closeModal(); toast("Course saved"); bump(); }); }
 
 function deleteCourseModal(id: string) { const c = course(id); if (!c) return;
@@ -31,6 +33,7 @@ function deleteCourseModal(id: string) { const c = course(id); if (!c) return;
 
 function doDeleteCourse(id: string) { act(async () => { await api.deleteCourse(id);
   const gone = new Set(S.lectures.filter(l => l.course === id).map(l => l.id));
-  S.courses = S.courses.filter(c => c.id !== id); S.lectures = S.lectures.filter(l => !gone.has(l.id)); S.upcoming = S.upcoming.filter(u => !gone.has(u.lecture));
+  const code = course(id)?.code; S.homeLoaded = false;   // dates added by hand go with the course; the home data is read again
+  S.courses = S.courses.filter(c => c.id !== id); S.lectures = S.lectures.filter(l => !gone.has(l.id)); S.upcoming = S.upcoming.filter(u => u.lecture ? !gone.has(u.lecture) : u.course !== code);
   gone.forEach(x => delete S.detail[x]); delete S.pack[id]; if (nf.courseId === id) nf.courseId = null;
   closeModal(); toast("Course deleted"); location.hash = "#/home"; }); }

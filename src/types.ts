@@ -2,7 +2,7 @@
 
 export type LectureStatus = "recording" | "processing" | "ready" | "failed";
 export type ZhScript = "hant" | "hans";
-export type Source = "record" | "tab" | "upload" | "link";   // language is "en" | "en-yue" | "en-zh" | "auto" (state/app.ts LANGS)
+export type Source = "record" | "tab" | "upload" | "link";   // language is "en" | "zh" | "yue" | "en-zh" | "en-yue" | "auto" (state/app.ts LANGS)
 
 /* 3.1 GET /home */
 /* profile: the student's profile and consents (API-CHANGES.md 14), null until saved once; left out by a server that does not
@@ -22,7 +22,9 @@ export interface Lecture {
   source?: Source;           // how the lecture was made; not on the shared page (API-CHANGES.md 10)
   error?: string;            // why a failed lecture failed, in a sentence for the student, when the backend knows (API-CHANGES.md 9)
 }
-export interface Upcoming { date: string; kind: string; text: string; course: string; lecture: string; t: number }
+/* A date on the exam radar. lecture and t: where the lecturer said it. id: a date the student added by hand
+   (POST /upcoming); it has no lecture or time (null) and can be removed (DELETE /upcoming/:id). */
+export interface Upcoming { date: string; kind: string; text: string; course: string; lecture: string | null; t: number | null; id?: string }
 export interface Week { lectures: number; known: number; quiz: number; days?: number[] }
 export interface Settings { classLanguage: string; zhDefault: boolean; zhScript?: ZhScript }
 /* lecturesThisMonth / lecturesLimit: lectures counted this month and the plan's limit; missing when the plan has none. */
@@ -108,7 +110,8 @@ export interface Plans { plans: Plan[]; current: string | null }
 /* Replies listed in section 2 */
 export interface SessionReply { token: string; user: User }
 export interface LectureReply { lecture: Lecture; detail: Detail | null }
-export interface SharedReply { lecture: Lecture; course?: Course; detail: Detail; sharedBy: string }
+/* example: the built-in example notes ("Example notes" on the public pages), which cannot be saved to one's own lectures. */
+export interface SharedReply { lecture: Lecture; course?: Course; detail: Detail; sharedBy: string; example?: boolean }
 export interface ChunkReply { segments: Line[]; alerts: Alert[] }
 export interface StatusReply { status: LectureStatus }
 export interface CatchUpReply { points: string[] }
