@@ -36,7 +36,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   // Desktop: the landing page and a lecture's notes under its slides.
   let { ctx, page } = await open({ width: 1280, height: 800 });
   await page.goto(ORIGIN + '/#/'); await page.waitForSelector('.hero');
-  await shot(page, 'landing.png');
+  await wait(400); await page.locator('.dots').screenshot({ path: path.join(OUT, 'landing.png') }); console.log('wrote landing.png');   // the hero only
   await signIn(page);
   await tab(page, 'Slides');
   await shot(page, 'lecture.png');

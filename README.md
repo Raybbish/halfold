@@ -64,16 +64,9 @@ No recording at all? Add the slide deck on its own and get a **study pack**: exp
 
 ## How it works
 
-```mermaid
-flowchart LR
-  B["Browser<br/>React app"] -- "audio every 15 s,<br/>uploads, slide PDFs" --> S["Halfold server<br/>Node + Hono"]
-  S --> STT["Speech to text<br/>Deepgram (default),<br/>ElevenLabs, Soniox, AssemblyAI"]
-  S --> LLM["DeepSeek<br/>notes, cards, quiz,<br/>review packs, answers"]
-  S --> DB[("SQLite")]
-  S --> R2[("Cloudflare R2<br/>recordings, backups")]
-  S --> Pay["Stripe<br/>plans"]
-  S --> Mail["Resend<br/>sign-in codes"]
-```
+<p align="center">
+  <img src="docs/images/architecture.svg" alt="The browser sends audio to the Halfold server, which uses speech to text, DeepSeek, SQLite, Cloudflare R2, Stripe and Resend" width="900">
+</p>
 
 1. **Recording.** The browser records in 15-second pieces and sends each one as it goes, so a dropped connection or a closed tab loses at most a few seconds. Unsent audio waits in IndexedDB until it can be sent.
 2. **Transcript.** Each piece is transcribed as it arrives, which is the live transcript. When the class ends only the last few seconds are left, and the notes are written from those same lines. Uploads and links are transcribed in one go.

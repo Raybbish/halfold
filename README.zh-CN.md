@@ -60,16 +60,9 @@ Halfold 在浏览器里用，电脑和手机都行，不用安装。学生录下
 
 ## 怎么做到的
 
-```mermaid
-flowchart LR
-  B["浏览器<br/>React 前端"] -- "每 15 秒一段录音、<br/>上传文件、课件 PDF" --> S["Halfold 后端<br/>Node + Hono"]
-  S --> STT["转写<br/>Deepgram（默认）、<br/>ElevenLabs、Soniox、AssemblyAI"]
-  S --> LLM["DeepSeek<br/>笔记、闪卡、测验、<br/>复习包、回答"]
-  S --> DB[("SQLite")]
-  S --> R2[("Cloudflare R2<br/>录音、备份")]
-  S --> Pay["Stripe<br/>方案"]
-  S --> Mail["Resend<br/>登录验证码"]
-```
+<p align="center">
+  <img src="docs/images/architecture.zh-CN.svg" alt="浏览器把录音传给 Halfold 后端，后端用转写服务、DeepSeek、SQLite、Cloudflare R2、Stripe 和 Resend" width="900">
+</p>
 
 1. **录音。** 浏览器每 15 秒切一段，录一段传一段，断网或不小心关掉页面最多丢几秒。没传出去的录音存在 IndexedDB 里，等能传的时候再传。
 2. **转写。** 每段一到就转写，这就是实时字幕。下课时只剩最后几秒要转，笔记就用这些转好的句子写。上传的录音和链接一次转完。
