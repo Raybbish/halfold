@@ -32,9 +32,17 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      # retest.js runs the server's own example notes (server/src/example.ts), which needs the server's packages.
+      - name: Install the server's dependencies
+        run: npm ci
+        working-directory: server
 
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
