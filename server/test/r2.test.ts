@@ -143,7 +143,7 @@ test("with R2: once the notes are written, audio.m4a and slides.pdf are in the b
   assert.equal(f.objects.get(`kept/${id}/slides.pdf`)!.type, "application/pdf");
   assert.equal(f.objects.get(`kept/${id}/slides.pdf`)!.body.toString(), "%PDF-1.4 fake");
   const audio = f.objects.get(`kept/${id}/audio.m4a`)!.body;
-  assert.equal(audio.toString(), FAKE_AUDIO + "-bytes");
+  assert.match(audio.toString(), new RegExp(`^${FAKE_AUDIO}-bytes-\\d+$`));   // the upload as it came (helpers.ts anotherRecording numbers each one)
   /* Nothing kept is left here; the original went with the notes, as without R2. */
   for (const name of ["audio.m4a", "slides.pdf", "recording"]) assert.equal(local(s, id, name), false, name);
   assert.equal(s.files.where(id, "audio.m4a"), "remote"); assert.equal(s.files.exists(id, "slides.pdf"), true);
@@ -276,6 +276,8 @@ test("npm run move-to-r2: moves what was kept here before R2, checks each upload
   const f = await fakeR2();
   t.after(async () => { fs.rmSync(s.dir, { recursive: true, force: true }); await f.close(); });
   fs.writeFileSync(path.join(s.dir, "tmp", "upload-in-progress.part"), "x");
+  /* What the three kept files weigh, read here: each test upload has bytes of its own (helpers.ts anotherRecording). */
+  const keptBytes = ([[a, "audio.m4a"], [a, "slides.pdf"], [b, "audio.m4a"]] as const).reduce((n, [id, name]) => n + fs.statSync(path.join(s.dir, "lectures", id, name)).size, 0);
   const run = (...args: string[]) => new Promise<{ code: number; out: string }>(resolve => {
     execFile(process.execPath, ["--disable-warning=ExperimentalWarning", "--import", "tsx", "scripts/move-to-r2.ts", ...args],
       { cwd: SERVER_DIR, env: { ...process.env, DATA_DIR: s.dir, WEB_DIR: "", ...r2Env(f) } },
@@ -311,5 +313,5 @@ test("npm run move-to-r2: moves what was kept here before R2, checks each upload
 
   const store = new Store(path.join(s.dir, "sidenote.db"));
   t.after(() => store.close());
-  assert.deepEqual(store.remoteTotals(), { files: 3, bytes: 2 * (FAKE_AUDIO + "-bytes").length + "%PDF-1.4 fake".length });
+  assert.deepEqual(store.remoteTotals(), { files: 3, bytes: keptBytes });
 });
