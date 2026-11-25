@@ -15,8 +15,10 @@ const HANT = '機會成本是你放棄的「最好的那一個」選項的價值
   console.log('=== sample build ===');
   { const ctx = await browser.newContext({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true, locale: 'en-US' }); const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));
     await signIn(page, FILE); await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs');
-    check('switch is hidden until 中文解釋 is turned on', (await page.locator('.seg2').count()) === 0);
-    await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
+    /* 中文解釋 is on by default since the retest of 2026-11-23: turned off, the explanations and the switch go. */
+    await page.locator('.tools input[name=zh]').uncheck(); await page.waitForTimeout(200);
+    check('switch is hidden while 中文解釋 is turned off', (await page.locator('.seg2').count()) === 0 && (await page.locator('.pt .zh').count()) === 0);
+    await page.locator('.tools input[name=zh]').check(); await page.waitForTimeout(200);
     check('an English-language browser starts with Traditional', (await first(page)) === HANT && (await page.locator('.seg2 button.on').innerText()) === '繁', await first(page));
     const all = await page.locator('.pt .zh').allInnerTexts();
     check('all 16 sample explanations convert cleanly (no Simplified-only character left)', all.length === 16 && !/[机会弃个选项价来隐读学费没赚资样响决无论么应虑门钱经较边际单额时产现术两种组横轴递内济长绝对优势题国师强调见错误贸条间换双获试类讲给与课“”]/.test(all.join('')), all.slice(0, 3));
@@ -25,12 +27,12 @@ const HANT = '機會成本是你放棄的「最好的那一個」選項的價值
     check('tapping 简 switches every explanation to Simplified', (await first(page)) === HANS && (await page.locator('.pt .zh').first().getAttribute('lang')) === 'zh-Hans');
     await page.screenshot({ path: 'shots6/m-hans.png' });
     const md = await page.evaluate(() => notesMarkdown()); check('Markdown export follows the choice', md.includes(HANS) && !md.includes(HANT));
-    await page.reload(); await page.waitForSelector('.tabs'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
+    await page.reload(); await page.waitForSelector('.tabs'); await page.locator('.tools input[name=zh]').check(); await page.waitForTimeout(200);
     check('the choice is remembered after a reload', (await first(page)) === HANS);
     await page.goto(FILE + '#/settings'); await page.waitForSelector('select[name=zs]');
     check('Settings shows the same choice', (await page.locator('select[name=zs]').inputValue()) === 'hans'); await page.screenshot({ path: 'shots6/m-settings.png' });
     await page.selectOption('select[name=zs]', 'hant'); await page.click('form button.btn.primary'); await page.waitForSelector('.toast');
-    await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
+    await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await page.locator('.tools input[name=zh]').check(); await page.waitForTimeout(200);
     check('changing it in Settings changes the lecture page', (await first(page)) === HANT);
     await page.selectOption('.mtop .lang', 'zh-Hant'); await page.goto(FILE + '#/settings'); await page.waitForSelector('select[name=zs]');
     check('the Settings label has a Chinese version', (await page.locator('label.field', { has: page.locator('select[name=zs]') }).locator('span').innerText()) === '中文解釋顯示為');
@@ -38,12 +40,12 @@ const HANT = '機會成本是你放棄的「最好的那一個」選項的價值
 
   /* Nothing chosen yet: the interface language decides, so a 简体 interface does not show 繁體 explanations (test of 2026-11-18). */
   { const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'en-GB' }); const page = await ctx.newPage();
-    await signIn(page, FILE); await page.evaluate(() => window.__sidenote.setLang('zh-Hans')); await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
+    await signIn(page, FILE); await page.evaluate(() => window.__sidenote.setLang('zh-Hans')); await page.goto(FILE + '#/lecture/econ-w9'); await page.waitForSelector('.tabs'); await page.locator('.tools input[name=zh]').check(); await page.waitForTimeout(200);
     check('with no choice made, an English browser with the interface in 简体 shows the explanations in Simplified', (await first(page)) === HANS && (await page.locator('.seg2 button.on').innerText()) === '简', await first(page));
     await ctx.close(); }
 
   { const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'zh-CN' }); const page = await ctx.newPage();
-    await page.goto(FILE + '#/s/econ-w9'); await page.waitForSelector('.shared-bar'); await page.locator('.tools input[type=checkbox]').nth(1).check(); await page.waitForTimeout(200);
+    await page.goto(FILE + '#/s/econ-w9'); await page.waitForSelector('.shared-bar'); await page.locator('.tools input[name=zh]').check(); await page.waitForTimeout(200);
     check('a browser set to Simplified Chinese starts with Simplified, on a shared page without signing in', (await first(page)) === HANS && (await page.locator('.seg2 button.on').innerText()) === '简');
     await page.locator('.seg2 button', { hasText: '繁' }).click(); await page.waitForTimeout(200);
     check('a reader who is not signed in can switch too', (await first(page)) === HANT); await page.screenshot({ path: 'shots6/d-shared.png' }); await ctx.close(); }

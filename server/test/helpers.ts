@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { loadConfig, type Config } from "../src/config";
 import { Store } from "../src/db";
-import { LocalFileStore } from "../src/files";
+import { createFileStore, type FileStore } from "../src/files";
 import type { CutOptions, Media, MediaInfo, SpeechOptions } from "../src/media";
 import { Pipeline } from "../src/pipeline";
 import { createApp } from "../src/app";
@@ -111,8 +111,8 @@ export class StubCatchUp implements CatchUpWriter {
 export function goodNotes(withSlides = false) {
   return {
     sections: [
-      { title: "Admin", start: 0, end: 200, points: [{ t: 18, text: "The midterm is on 26 November.", zh: "期中考試在十一月二十六日。", slide: withSlides ? 1 : null, off: true }] },
-      { title: "Opportunity cost", start: 200, end: 600, points: [{ t: 252, text: "Opportunity cost is the next best thing you give up.", zh: "機會成本是你放棄的次佳選擇。", slide: withSlides ? 2 : null, off: false }] }
+      { title: "Admin", start: 0, end: 200, points: [{ t: 18, text: "The midterm is on 26 November.", zhHans: "期中考试在十一月二十六日。", zhHant: "期中考試在十一月二十六日。", slide: withSlides ? 1 : null, off: true }] },
+      { title: "Opportunity cost", start: 200, end: 600, points: [{ t: 252, text: "Opportunity cost is the next best thing you give up.", zhHans: "机会成本是你放弃的次佳选择。", zhHant: "機會成本是你放棄的次佳選擇。", slide: withSlides ? 2 : null, off: false }] }
     ],
     slides: withSlides ? [{ n: 1, title: "Course admin" }, { n: 2, title: "Opportunity cost" }] : [],
     alerts: [{ t: 18, kind: "midterm", text: "Midterm on 26 November, chapters 1 to 5.", date: "2099-11-26" }],
@@ -250,7 +250,7 @@ export class StubPayments implements Payments {
 }
 
 export interface TestServer {
-  dir: string; config: Config; store: Store; files: LocalFileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
+  dir: string; config: Config; store: Store; files: FileStore; media: StubMedia | Media; stt: StubStt; notes: StubNotes; pipeline: Pipeline;
   live: LiveTranscriber; catchUp: StubCatchUp; packs: ReviewPacks; billing: Billing; mailer: StubMailer; payments: StubPayments;
   links: StubLinks;
   app: ReturnType<typeof createApp>;
@@ -274,7 +274,7 @@ export function setup(o: { env?: Record<string, string>; media?: Media; slides?:
   if (o.plans) o.plans(config.plans);
   const store = new Store(path.join(dir, "test.db"));
   store.addInviteCode("CODE-A", "Ann"); store.addInviteCode("CODE-B", "Ben");
-  const files = new LocalFileStore(dir), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
+  const files = createFileStore(config, store), media = o.media || new StubMedia(), stt = new StubStt(), notes = new StubNotes();
   const slides = o.slides || (async () => [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }]);
   const links = new StubLinks(), linksOn = o.links !== false;
   const pipeline = new Pipeline({ config, store, files, media, stt, notes, slides, links: linksOn ? links : null });
@@ -307,11 +307,16 @@ export function fileForm(content: string | Uint8Array, filename: string, field =
   const f = new FormData(); f.append(field, new Blob([content]), filename); return f;
 }
 
+/* A fake recording that is a different file each time, as two students' recordings of a class are: the same file
+   would reuse the transcript of the first (dedupe.ts). dedupe.test.ts passes the same bytes on purpose. */
+let recordings = 0;
+export const anotherRecording = () => `${FAKE_AUDIO}-bytes-${++recordings}`;
+
 /* Creates a course and an upload lecture, uploads a fake recording (and slides), and returns the lecture id. */
-export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string; title?: string; autoTitle?: boolean } = {}) {
+export async function uploadedLecture(s: TestServer, token: string, o: { slides?: boolean; language?: string; title?: string; autoTitle?: boolean; bytes?: string } = {}) {
   const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: o.title ?? "Week 9", language: o.language || "en-yue", source: "upload", ...(o.autoTitle !== undefined ? { autoTitle: o.autoTitle } : {}) } })).body;
-  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
+  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(o.bytes ?? anotherRecording(), "lecture.mp3") });
   if (up.status !== 204) throw new Error("upload failed: " + up.text);
   if (o.slides) { const sl = await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") }); if (sl.status !== 204) throw new Error("slides failed: " + sl.text); }
   return lec.id as string;
@@ -347,7 +352,7 @@ export async function linkLecture(s: TestServer, token: string, url = "https://w
 export async function readyLecture(s: TestServer, token: string, o: { courseId?: string; title?: string; slides?: boolean } = {}) {
   const courseId = o.courseId ?? (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body.id;
   const lec = (await s.call("POST", "/lectures", { token, json: { courseId, title: o.title || "Week 9", language: "en-yue", source: "upload" } })).body;
-  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-bytes", "lecture.mp3") });
+  const up = await s.call("POST", `/lectures/${lec.id}/recording`, { token, body: fileForm(anotherRecording(), "lecture.mp3") });
   if (up.status !== 204) throw new Error("upload failed: " + up.text);
   if (o.slides) await s.call("POST", `/lectures/${lec.id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") });
   await s.call("POST", `/lectures/${lec.id}/finish`, { token, json: { duration: 600 } });

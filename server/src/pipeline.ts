@@ -21,6 +21,7 @@ import { DetailSchema } from "./shapes";
 import { readSlides } from "./slides";
 import { promptDate } from "./time";
 import { LinkError, STUDENT_MESSAGE, type LinkDownloader } from "./links/ytdlp";
+import { matchKey, sameLength, SameRecording } from "./dedupe";
 
 export interface PipelineDeps {
   config: Config; store: Store; files: FileStore; media: Media; stt: Transcriber; notes: NotesWriter;
@@ -37,7 +38,7 @@ class Gone extends Error {}
 
 /* A Cantonese class reads in Traditional characters, as students in Hong Kong write. */
 const traditionalForCantonese = (l: LectureRow, lines: Line[], detected?: string) =>
-  l.language === "en-yue" || (l.language === "auto" && detected === "yue") ? lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) })) : lines;
+  l.language === "en-yue" || l.language === "yue" || (l.language === "auto" && detected === "yue") ? lines.map(x => ({ ...x, text: cantoneseTraditional(x.text) })) : lines;
 
 /* Two lanes. A link lecture whose file is not here yet is downloaded first, at most LINK_CONCURRENCY at a time, and
    queued again for the rest once the file is in: a slow download (up to LINK_DOWNLOAD_MINUTES) never holds up the notes
@@ -46,16 +47,21 @@ export class Pipeline implements Jobs {
   private queue: string[] = [];
   private running = new Map<string, AbortController>();    // both lanes
   private downloading = new Set<string>();                  // the ones in `running` that are downloading their link
+  private again = new Set<string>();                        // queued while running (slides sent while the kept files move to R2): run again after
   private waiters: (() => void)[] = [];
+  private same = new SameRecording();                       // lectures of the same recording waiting for the one transcribing it (dedupe.ts)
   constructor(private readonly d: PipelineDeps) {}
 
-  enqueue(id: string) { if (!this.running.has(id) && !this.queue.includes(id)) { this.queue.push(id); this.pump(); } }
-  cancel(id: string) { this.queue = this.queue.filter(x => x !== id); this.running.get(id)?.abort(); }
+  enqueue(id: string) {
+    if (this.running.has(id)) this.again.add(id);
+    else if (!this.queue.includes(id)) { this.queue.push(id); this.pump(); }
+  }
+  cancel(id: string) { this.queue = this.queue.filter(x => x !== id); this.again.delete(id); this.running.get(id)?.abort(); this.same.forget(id); }
   /* After a restart: lectures left in "processing" are queued again. */
   resume() { for (const l of this.d.store.lecturesWithStatus("processing")) this.enqueue(l.id); }
   /* Resolves when nothing is queued or running (tests, shutdown). */
   idle() { return this.running.size || this.queue.length ? new Promise<void>(r => this.waiters.push(r)) : Promise.resolve(); }
-  stopAll() { this.queue = []; for (const c of this.running.values()) c.abort(); }
+  stopAll() { this.queue = []; this.again.clear(); for (const c of this.running.values()) c.abort(); }
 
   private needsDownload(id: string) {
     const l = this.d.store.lecture(id);
@@ -74,7 +80,7 @@ export class Pipeline implements Jobs {
       if (download) this.downloading.add(id);
       (download ? this.download(id, ctl.signal) : this.run(id, ctl.signal).then(() => false)).then(next => {
         this.running.delete(id); this.downloading.delete(id);
-        if (next) this.queue.push(id);
+        if ((this.again.delete(id) || next) && !this.queue.includes(id)) this.queue.push(id);
         this.pump();
         if (!this.running.size && !this.queue.length) this.waiters.splice(0).forEach(w => w());
       });
@@ -126,7 +132,7 @@ export class Pipeline implements Jobs {
   private check(id: string, signal: AbortSignal) { if (signal.aborted || !this.d.store.lecture(id)) throw new Gone(); }
 
   private async process(l: LectureRow, signal: AbortSignal) {
-    const { store, files, media, stt, config } = this.d, id = l.id;
+    const { store, files, media } = this.d, id = l.id;
     /* 0. A live recording: the pieces the browser sent, joined in order into one file. */
     if (!l.recording_file && isLive(l)) { await this.assemble(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
     /* 0. A video link: the file behind it. Kept until the notes are written (step 6), so a retry after a later step failed does not download again. */
@@ -145,36 +151,62 @@ export class Pipeline implements Jobs {
     store.setDuration(id, info.duration);
     this.check(id, signal);
 
-    /* 2. Transcript, kept so that a retry does not pay for it again. */
+    /* The same recording as another lecture's (dedupe.ts): while that one is being transcribed, this one waits for it,
+       still processing, and runs again when that run ends. */
+    const key = matchKey(l);
+    if (key && !this.same.claim(key, id)) return;
+    try { await this.write(l, audio, info.duration, signal); }
+    finally { if (key) for (const next of this.same.release(key, id)) this.enqueue(next); }
+  }
+
+  /* Steps 2 to 6: the transcript, the notes, and the original file deleted once they are written. */
+  private async write(l: LectureRow, audio: string, duration: number, signal: AbortSignal) {
+    const { store, files, stt, config } = this.d, id = l.id;
+    /* Other lectures of the same recording already transcribed, that this one can copy from (dedupe.ts). */
+    const same = () => l.content_key ? store.sameRecording(l.content_key, l.language, id).filter(x => sameLength(x.duration, duration)) : [];
+
+    /* 2. Transcript, kept so that a retry does not pay for it again; copied from the same recording when there is one. */
     let lines = store.transcript(id);
+    if (!lines) { const from = same()[0]; if (from) { lines = store.reuseTranscript(id, from.id); this.check(id, signal); } }
     if (!lines) {
-      lines = isLive(l) ? await this.transcribeLive(l, audio, info.duration, signal) : await this.transcribeWhole(l, audio, info.duration, signal);
+      lines = isLive(l) ? await this.transcribeLive(l, audio, duration, signal) : await this.transcribeWhole(l, audio, duration, signal);
       if (!lines.length) throw new Error("no speech was recognised in the recording");
       store.saveTranscript(id, stt.provider, stt.model, lines);
     }
 
     /* 3. Slide text. */
     let slidePages: { n: number; text: string }[] = [];
-    if (l.has_slides && files.exists(id, "slides.pdf")) {
+    if (l.has_slides && files.where(id, "slides.pdf") === "local") {
       /* Slides that cannot be read (password, damaged file) are left out rather than failing the lecture. */
       try { slidePages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
       catch (e) { console.warn(`[pipeline] ${id} slides could not be read, writing the notes without them: ${(e as Error).message}`); }
     }
     this.check(id, signal);
 
-    /* 4. Notes. A reply that cannot be used is shown back to the model once to be corrected. */
+    /* 4. Notes. Without slides, the notes of the same recording as the model wrote them, when there are some; otherwise
+       written for this lecture. A reply that cannot be used is shown back to the model once to be corrected.
+       The explanations come in both scripts, each written by the model in its own usage (notes/prompt.ts), whatever the
+       class language: the reader picks 简 or 繁 (retest of 2026-11-23: Simplified converted from Hong Kong Traditional
+       kept Hong Kong terms such as 联储局 and 货品). Notes kept before that (one script) do not match and are written anew. */
+    const zh = config.zhExplanations;
+    if (l.content_key && !slidePages.length) for (const from of same()) {
+      const original = from.has_original ? store.originalNotes(from.id) : null;
+      if (!original || original.zh !== zh) continue;
+      this.check(id, signal);
+      store.saveNotes(id, original.detail, original.dated, original.title, { original, notesFrom: from.id });
+      return this.afterNotes(l, signal);
+    }
     const course = store.course(l.user_id, l.course_id);
-    const zh = config.zhExplanations ? (l.language === "en-zh" ? "hans" : "hant") : null;
     const input: NotesInput = {
       courseCode: course?.code || "", courseName: course?.name || "", title: l.title, date: promptDate(new Date(l.created_at), config.timezone),
-      language: l.language, duration: info.duration, lines, slides: slidePages, zh
+      language: l.language, duration, lines, slides: slidePages, zh
     };
     let detailOut: ReturnType<typeof buildDetail> | null = null, repair: { reply: string; problem: string } | undefined, problem = "";
     for (let attempt = 1; attempt <= NOTES_ATTEMPTS && !detailOut; attempt++) {
       const call = await this.callNotes(l, input, attempt, slidePages.length, signal, repair);
       this.check(id, signal);
       try {
-        const out = buildDetail(parseModelNotes(call.text), { duration: info.duration, lines, slidePages, zh });
+        const out = buildDetail(parseModelNotes(call.text), { duration, lines, slidePages, zh });
         const checked = DetailSchema.safeParse(out.detail);
         if (!checked.success) throw new Error("the notes break these rules: " + checked.error.issues.slice(0, 8).map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
         detailOut = out;
@@ -186,14 +218,29 @@ export class Pipeline implements Jobs {
     }
     if (!detailOut) throw new Error("the notes model did not write usable notes: " + problem);
 
-    /* 5. Save; does nothing if the lecture was deleted meanwhile. */
+    /* 5. Save; does nothing if the lecture was deleted meanwhile. Notes written without slides for a recording that can be
+       matched are kept as written too, for the next lecture of the same recording (dedupe.ts). */
     this.check(id, signal);
-    store.saveNotes(id, detailOut.detail, detailOut.dated, detailOut.title);
+    const { detail, dated, title } = detailOut;
+    store.saveNotes(id, detail, dated, title, { original: l.content_key && !slidePages.length ? { detail, dated, title, zh } : null });
+    await this.afterNotes(l, signal);
+  }
 
-    /* 6. The original file was only read to make audio.m4a, which is what is played, downloaded and kept: deleted now that
-       the notes are written (it is about twice the size). A lecture that failed keeps it, so a retry can convert it again.
-       If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way. */
-    if (files.exists(id, AUDIO)) await files.remove(id, l.recording_file).catch(e => console.warn(`[pipeline] ${id} original not deleted: ${(e as Error).message}`));
+  /* 6. The original file was only read to make audio.m4a, which is what is played, downloaded and kept: deleted now that
+     the notes are written (it is about twice the size). A lecture that failed keeps it, so a retry can convert it again.
+     If it cannot be deleted now, sweepOriginals (audio.ts) does it later; the notes are written either way.
+     7. With R2 set, the files kept from now on (audio.m4a, slides.pdf) move there (files.ts). If that fails they stay
+     here and are played from here, and sweepKept (audio.ts) tries again; the notes are written either way.
+     Both after notes written here and after notes reused from the same recording (dedupe.ts): each lecture keeps its own
+     recording. */
+  private async afterNotes(l: LectureRow, signal: AbortSignal) {
+    const { files } = this.d, id = l.id;
+    if (files.exists(id, AUDIO) && l.recording_file) await files.remove(id, l.recording_file).catch(e => console.warn(`[pipeline] ${id} original not deleted: ${(e as Error).message}`));
+    await this.archive(id, signal);
+  }
+
+  private async archive(id: string, signal: AbortSignal) {
+    await this.d.files.archive(id, signal).catch(e => { if (!signal.aborted) console.warn(`[pipeline] ${id} kept files not moved to R2 yet: ${(e as Error).message}`); });
   }
 
   /* An upload or a video link: the whole recording in one request. */
@@ -275,6 +322,7 @@ export class Pipeline implements Jobs {
     if (!out) throw new Error("the notes model did not place the points under the slides: " + problem);
     this.check(id, signal);
     store.saveRefiled(id, out);
+    await this.archive(id, signal);
   }
 
   /* Joins the chunks of a live recording in the order they were recorded (seq) into the file "recording", then drops the

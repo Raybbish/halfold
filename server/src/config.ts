@@ -2,6 +2,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPlans, type PlanBook } from "./plans";
+import type { R2Settings } from "./r2";
 import { ASSEMBLYAI_PRICES } from "./stt/assemblyai";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -11,8 +12,11 @@ export const STT_PROVIDERS = ["elevenlabs", "deepgram", "soniox", "assemblyai"] 
 export type SttProviderName = typeof STT_PROVIDERS[number];
 /* email: a code sent to the student's address, and an invite code the first time (phase 4). invite: the invite code alone (phases 1 to 3). */
 export type SignInMode = "email" | "invite";
-export type ClassLanguage = "en" | "en-yue" | "en-zh" | "auto";
-export const CLASS_LANGUAGES: ClassLanguage[] = ["en", "en-yue", "en-zh", "auto"];
+/* The language spoken in class: English, Mandarin or Cantonese, English mixed with one of them, or not known. "zh" and "yue"
+   (a class taught in Mandarin or Cantonese) were added at the retest of 2026-11-23: Halfold is for every Chinese-speaking
+   student, not only English-taught classes in Hong Kong. */
+export type ClassLanguage = "en" | "zh" | "yue" | "en-zh" | "en-yue" | "auto";
+export const CLASS_LANGUAGES: ClassLanguage[] = ["en", "zh", "yue", "en-zh", "en-yue", "auto"];
 
 /* DeepSeek list prices in US dollars per million tokens at peak time; off-peak is half (api-docs.deepseek.com/quick_start/pricing, 2026-11). */
 export interface TokenPrices { inputCacheHit: number; inputCacheMiss: number; output: number }
@@ -28,7 +32,7 @@ export interface Config {
   host: string | undefined;           // the address to listen on, e.g. 127.0.0.1 behind a reverse proxy; undefined = every address
   publicUrl: string;                  // where students reach the server, e.g. https://sidenote.example.com; empty = links relative to the page
   webUrl: string;                     // where the front end is, for shared links (#/s/:id); empty = the page that asked
-  exampleShareId: string | null;      // the shared lecture behind "Example notes" on the public pages; null hides those links
+  exampleShareId: string | null;      // the shared lecture behind "Example notes" on the public pages (by default the built-in example); null hides those links
   contactEmail: string | null;        // where students write (the Privacy page) and how the server names itself to sites that ask (Wikimedia); null = not set
   dataDir: string;
   webDir: string | null;              // the built front end to serve at "/", or null to serve only the API
@@ -42,6 +46,7 @@ export interface Config {
     concurrency: number;              // live transcription rounds running at once, all lectures together
   };
   audioLinkHours: number;             // how long a playback link works
+  r2: R2Settings | null;              // where recordings are kept once their notes are written (files.ts); null = this disk
   inviteCodes: string[];
   signIn: SignInMode;
   login: {
@@ -75,6 +80,15 @@ function num(v: string | undefined, d: number) { const n = Number(v); return v !
 function onOff(v: string | undefined, d: boolean) { if (v === undefined || v.trim() === "") return d; return /^(1|on|true|yes)$/i.test(v.trim()); }
 function list(v: string | undefined) { return (v || "").split(",").map(s => s.trim()).filter(Boolean); }
 
+/* EXAMPLE_SHARE_ID: not set or empty = the built-in example notes (example.ts, "econ-w9"); "off" = no "Example notes" links;
+   otherwise the id at the end of a shared lecture's link. */
+function exampleShare(v: string | undefined) {
+  const s = (v || "").trim();
+  if (!s) return "econ-w9";
+  if (s.toLowerCase() === "off") return null;
+  return /^[A-Za-z0-9_-]+$/.test(s) ? s : null;
+}
+
 /* "en:en,en-yue:zh-HK" -> map, falling back to the defaults for languages not listed. */
 function languageMap(v: string | undefined, d: Record<ClassLanguage, string>): Record<ClassLanguage, string> {
   const out = { ...d };
@@ -97,6 +111,20 @@ function signInMode(v: string | undefined): SignInMode {
   return m;
 }
 
+/* Cloudflare R2: all four settings, or none (recordings stay on this disk). R2_ENDPOINT is only needed for a bucket in
+   the EU jurisdiction (https://<account>.eu.r2.cloudflarestorage.com) or a stand-in in tests. */
+const R2_KEYS = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"] as const;
+function r2Settings(env: NodeJS.ProcessEnv): R2Settings | null {
+  const v = (k: string) => (env[k] || "").trim(), missing = R2_KEYS.filter(k => !v(k));
+  if (missing.length === R2_KEYS.length) return null;
+  if (missing.length) throw new Error(`R2 needs all of ${R2_KEYS.join(", ")}; ${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set`);
+  const accountId = v("R2_ACCOUNT_ID");
+  return {
+    accountId, accessKeyId: v("R2_ACCESS_KEY_ID"), secretAccessKey: v("R2_SECRET_ACCESS_KEY"), bucket: v("R2_BUCKET"),
+    endpoint: (v("R2_ENDPOINT") || `https://${accountId}.r2.cloudflarestorage.com`).replace(/\/+$/, "")
+  };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const deepseekModel = env.DEEPSEEK_MODEL || "deepseek-v4-pro", catchUpModel = env.CATCHUP_MODEL || "deepseek-flash";
   const deepseekKey = env.DEEPSEEK_API_KEY || "", deepseekBase = (env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
@@ -109,7 +137,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     host: (env.HOST || "").trim() || undefined,
     publicUrl: (env.PUBLIC_URL || "").trim().replace(/\/+$/, ""),
     webUrl: (env.WEB_URL || "").trim().replace(/\/+$/, ""),
-    exampleShareId: /^[A-Za-z0-9_-]+$/.test((env.EXAMPLE_SHARE_ID || "").trim()) ? env.EXAMPLE_SHARE_ID!.trim() : null,
+    exampleShareId: exampleShare(env.EXAMPLE_SHARE_ID),
     contactEmail: /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test((env.CONTACT_EMAIL || "").trim()) ? env.CONTACT_EMAIL!.trim() : null,
     dataDir: path.resolve(SERVER_DIR, env.DATA_DIR || "data"),
     webDir: web,
@@ -123,6 +151,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       concurrency: Math.max(1, num(env.LIVE_CONCURRENCY, 4))
     },
     audioLinkHours: Math.max(1, num(env.AUDIO_LINK_HOURS, 12)),
+    r2: r2Settings(env),
     inviteCodes: list(env.INVITE_CODES),
     signIn: signInMode(env.SIGN_IN),
     login: {
@@ -149,8 +178,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       elevenlabs: { apiKey: env.ELEVENLABS_API_KEY || "", model: env.ELEVENLABS_MODEL || "scribe_v3", usdPerHour: num(env.ELEVENLABS_USD_PER_HOUR, 0.2) },
       deepgram: {
         apiKey: env.DEEPGRAM_API_KEY || "", model: env.DEEPGRAM_MODEL || "nova-3",
-        /* Mixed classes go to "multi": monolingual zh-HK or zh drops most of the English (README.md "对比转写服务"). */
-        languages: languageMap(env.DEEPGRAM_LANGUAGES, { en: "en", "en-yue": "multi", "en-zh": "multi", auto: "multi" }),
+        /* Mixed classes go to "multi": monolingual zh-HK or zh drops most of the English (README.md "对比转写服务"). Classes
+           taught in Mandarin or Cantonese go there too, since lecturers keep the English terms. */
+        languages: languageMap(env.DEEPGRAM_LANGUAGES, { en: "en", zh: "multi", yue: "multi", "en-zh": "multi", "en-yue": "multi", auto: "multi" }),
         usdPerHourMono: num(env.DEEPGRAM_USD_PER_HOUR, 0.258), usdPerHourMulti: num(env.DEEPGRAM_USD_PER_HOUR_MULTI, 0.312)
       },
       /* Being compared (README.md "对比转写服务"): not used by the app until STT_PROVIDER names them. */

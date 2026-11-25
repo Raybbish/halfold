@@ -103,13 +103,48 @@ deploy/server/push.sh ubuntu@<IP>
 | `halfold costs` | 每堂课的成本，同 `npm run costs` |
 | `halfold feedback` | 学生的反馈，同 `npm run feedback` |
 | `halfold backup` | 马上备份一次，看结果 |
+| `halfold move-to-r2 --dry-run` / `move-to-r2` | 设好 R2 后，把还在硬盘上的录音搬过去，同 `npm run move-to-r2`（见“录音存到 R2”） |
+
+## 录音存到 R2
+
+硬盘只够十来个用户的录音。设好 R2 后，每堂课写好笔记时，录音（`audio.m4a`）和课件搬到 R2，播放和下载直接从 R2 走，不占服务器带宽。写笔记过程中的文件还在硬盘上。细节见 `server/README.md` 的“录音存到 R2”。
+
+1. Cloudflare 后台 → R2 → 建一个 bucket，比如 `halfold-recordings`，位置（Location）选 Provide a location hint → Asia-Pacific (APAC)。也可以直接用备份的 bucket（录音在 `kept/`，备份只动 `db/` 和 `lectures/`，不会互相删），分开更清楚。
+2. R2 → API 令牌（Manage API tokens）→ 建一个令牌，权限选 Object Read & Write，只给这个 bucket。记下 Access Key ID、Secret Access Key 和账户 ID（Account ID）。
+3. 填进服务器的设置，存盘后自动重启：
+
+   ```bash
+   halfold env
+   ```
+
+   ```
+   R2_ACCOUNT_ID=<账户 ID>
+   R2_ACCESS_KEY_ID=<Access Key ID>
+   R2_SECRET_ACCESS_KEY=<Secret Access Key>
+   R2_BUCKET=halfold-recordings
+   ```
+
+4. `halfold status` 的日志里，启动那行应该有 `recordings: R2 bucket halfold-recordings`，并且没有 `R2 does not work with the R2_* settings` 这一行（有的话括号里是原因，多半是 key 或 bucket 名抄错了）。之后新写好的课就存到 R2 了。
+5. 已经在硬盘上的录音搬一次。先看要搬什么，再搬（每个文件传完、从 R2 读回对上了才删硬盘上的；可以重复跑，服务器不用停）：
+
+   ```bash
+   halfold move-to-r2 --dry-run
+   ```
+
+   ```bash
+   halfold move-to-r2
+   ```
+
+   有搬不过去的会列出来（留在硬盘上，照常能放），过一会儿再跑一次。不跑的话，服务器每六小时也会慢慢搬。
+
+R2 的设置填好后不要再删：存在 R2 的录音要靠它们播放和删除（删掉的话启动时会提醒）。
 
 ## 备份
 
 每天 04:30（香港时间）：
 
 1. 用 sqlite3 的 `.backup` 拷一份数据库（服务器不用停），检查完整性后压缩，放在 `/var/backups/halfold`，留最近 7 份。
-2. 设好 R2 的话：这份数据库传到 R2 的 `db/`（留 30 天），录音目录同步到 R2 的 `lectures/`。同步是镜像：学生删掉的、过了保留期的录音，R2 上也删掉。
+2. 设好 R2 的话：这份数据库传到 R2 的 `db/`（留 30 天），录音目录同步到 R2 的 `lectures/`。同步是镜像：学生删掉的、过了保留期的录音，R2 上也删掉。录音存到 R2（上面一节）之后，搬过去的录音不在硬盘上，也就不在备份的 `lectures/` 里，只有 `kept/` 那一份。
 
 只有第 1 步的话，硬盘坏了或服务器被删就没了。**接 R2**（10 GB 以内免费）：
 
@@ -166,6 +201,8 @@ sudo chown -R halfold: /srv/halfold/server/data
 sudo systemctl start halfold
 ```
 
+存到 R2 的录音（`kept/`）不用恢复，原地就在；`halfold env` 里的 `R2_*` 填回原来的，就能播放。
+
 ## 把自己电脑上的数据搬上去
 
 先停掉本机的服务器（这样数据库是完整的），然后在仓库根目录：
@@ -183,6 +220,6 @@ ssh -t ubuntu@<IP> 'D=/srv/halfold/server/data && sudo systemctl stop halfold &&
 ## 说明
 
 - **只能从 Caddy 进来**：`halfold.service` 设了 `HOST=127.0.0.1`，8787 端口从外面连不上。
-- **磁盘**：回放录音每小时 21.5 MB，90 分钟的课约 32 MB。Plus 的录音一直保留，`df -h /` 看剩多少。快满了的话，加一块数据盘挂到 `/srv/halfold/server/data`，或者把录音改存 R2（`server/src/files.ts` 留好了换存储的接口）。
+- **磁盘**：回放录音每小时 21.5 MB，90 分钟的课约 32 MB。Plus 的录音一直保留，`df -h /` 看剩多少。设了 R2（“录音存到 R2”）之后，硬盘上只剩还没写好笔记的课的文件，和转写服务的原始返回（比录音小得多）；R2 存储 10 GB 以内免费，之后每 GB 每月 0.015 美元，下载不收流量费。
 - **yt-dlp** 每天自动更新（`/etc/cron.daily/yt-dlp-update`）。YouTube 常挡数据中心的 IP，所以在服务器上贴 YouTube 链接比在自己电脑上更容易失败；学生会看到原因，可以下载后上传。
 - **系统更新**：Ubuntu 默认自动装安全更新。偶尔 `sudo apt upgrade` 并重启机器，服务器和 Caddy 会自己起来。

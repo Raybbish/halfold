@@ -15,6 +15,7 @@ halfold invite new|add|list invite codes          (npm run invite)
 halfold plan list|show|give plans and usage        (npm run plan)
 halfold costs               cost of every lecture  (npm run costs)
 halfold feedback            students' feedback     (npm run feedback)
+halfold move-to-r2 [--dry-run]  recordings on this disk to R2, once R2 is set up (npm run move-to-r2)
 halfold backup              back up now and show how it went
 EOF
   exit "${1:-0}"
@@ -31,7 +32,7 @@ case "${1:-}" in
   logs)     exec sudo journalctl -u halfold -n 100 -f ;;
   restart)  sudo systemctl restart halfold && echo "restarted" ;;
   env)      sudoedit "$SETTINGS" && sudo systemctl restart halfold && echo "saved and restarted" ;;
-  invite|plan|costs|feedback) script "$@" ;;
+  invite|plan|costs|feedback|move-to-r2) script "$@" ;;
   backup)   ok=0; sudo systemctl start halfold-backup || ok=$?
             sudo journalctl -u halfold-backup -n 20 --no-pager -o cat; exit "$ok" ;;
   ""|-h|--help|help) usage ;;

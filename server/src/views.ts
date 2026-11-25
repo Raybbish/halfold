@@ -1,7 +1,7 @@
 /* Database rows -> the shapes the front end reads (src/types.ts). */
-import type { Course, Home, Lecture } from "../../src/types";
+import type { Course, Home, Lecture, Upcoming } from "../../src/types";
 import type { Config } from "./config";
-import type { CourseRow, LectureRow, Store, UserRow } from "./db";
+import type { CourseRow, LectureRow, Store, UpcomingRow, UserRow } from "./db";
 import type { Billing } from "./billing";
 import { displayDate, localDate } from "./time";
 import { userProfile } from "./profile";
@@ -31,6 +31,11 @@ export function liveMinutesToday(store: Store, userId: string, timeZone: string,
   return Math.round(liveSecondsToday(store, userId, timeZone, now) / 60);
 }
 
+/* A date on the exam radar. One added by hand has its id and no lecture or time. */
+export function upcomingView(u: UpcomingRow): Upcoming {
+  return { date: u.date, kind: u.kind, text: u.text, course: u.course_code, lecture: u.lecture_id, t: u.t, ...(u.id ? { id: u.id } : {}) };
+}
+
 export function homeView(d: { store: Store; config: Config; billing: Billing }, user: UserRow, now = new Date()): Home {
   const { store, config } = d, today = localDate(now, config.timezone), tier = d.billing.entitlement(user.id, now).tier, lectures = d.billing.lectureUsage(user.id, now);
   const profile = store.profile(user.id), guess = profile?.school ? null : schoolGuess(user.email);
@@ -38,7 +43,7 @@ export function homeView(d: { store: Store; config: Config; billing: Billing }, 
     user: { name: user.name, ...userProfile(profile) },   // the profile and consents (profile.ts, API-CHANGES.md 14)
     courses: store.courses(user.id).map(courseView),
     lectures: store.lectures(user.id).map(l => lectureView(l, config.timezone, now)),
-    upcoming: store.upcoming(user.id, today).map(u => ({ date: u.date, kind: u.kind, text: u.text, course: u.course_code, lecture: u.lecture_id, t: u.t })),
+    upcoming: store.upcoming(user.id, today).map(upcomingView),
     settings: { classLanguage: user.class_language, zhDefault: !!user.zh_default, ...(user.zh_script === "hant" || user.zh_script === "hans" ? { zhScript: user.zh_script } : {}) },
     usage: { minutesToday: liveMinutesToday(store, user.id, config.timezone, now), minutesLimit: tier.dailyLiveMinutes,
       ...(tier.audioDays !== null ? { audioDays: tier.audioDays } : {}),

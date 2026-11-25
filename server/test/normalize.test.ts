@@ -6,7 +6,7 @@ import { studyCounts, systemPrompt } from "../src/notes/prompt";
 import { joinTokens, wordsToLines } from "../src/stt/lines";
 import { DetailSchema } from "../src/shapes";
 
-const ctx = { duration: 600.4, lines: [{ t: 30, text: "b" }, { t: 5, text: "a" }, { t: 40, text: "  " }], slidePages: [{ n: 1, text: "Intro\nWelcome" }, { n: 2, text: "" }], zh: "hant" as const };
+const ctx = { duration: 600.4, lines: [{ t: 30, text: "b" }, { t: 5, text: "a" }, { t: 40, text: "  " }], slidePages: [{ n: 1, text: "Intro\nWelcome" }, { n: 2, text: "" }], zh: true };
 
 test("parseModelNotes: accepts fenced JSON and numbers as strings; explains what is wrong otherwise", () => {
   const m = parseModelNotes('```json\n{"sections":[{"title":"A","start":"0","end":"10","points":[{"t":"3","text":" x "}]}]}\n```');
@@ -135,7 +135,7 @@ test("cantoneseTraditional: Simplified Cantonese from speech-to-text becomes Hon
 test("flashcards and questions follow the length: at most about one card per 6 minutes and one question per 10, asked for and kept", () => {
   assert.deepEqual([60, 1200, 3600, 5400, 3 * 3600].map(x => studyCounts(x)), [
     { cards: 2, quiz: 1 }, { cards: 3, quiz: 2 }, { cards: 10, quiz: 6 }, { cards: 15, quiz: 9 }, { cards: 15, quiz: 10 }]);
-  const input = { courseCode: "ECON 1001", courseName: "", title: "t", date: "Fri 20 Nov 2026", language: "en" as const, duration: 60, lines: [], slides: [], zh: null };
+  const input = { courseCode: "ECON 1001", courseName: "", title: "t", date: "Fri 20 Nov 2026", language: "en" as const, duration: 60, lines: [], slides: [], zh: false };
   const short = systemPrompt(input), long = systemPrompt({ ...input, duration: 5400 });
   assert.match(short, /Up to 2 flashcards and up to 1 multiple-choice question with 4 options/);
   assert.match(long, /Up to 15 flashcards and up to 9 multiple-choice questions with 4 options/);

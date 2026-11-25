@@ -18,3 +18,18 @@ export function bothScripts(text: string, written: "hant" | "hans") {
   toHant ??= OpenCC.Converter({ from: "cn", to: "hk" });
   return { zhHant: toHant(text), zhHans: text };
 }
+
+/* Traditional when OpenCC would change it into Simplified. */
+function isTraditional(text: string) { toHans ??= OpenCC.Converter({ from: "hk", to: "cn" }); return toHans(text) !== text; }
+
+/* A point's explanation in both scripts. The model writes both, each in its own usage (notes/prompt.ts): converting one
+   into the other keeps the wrong words (联储局 for 美联储). When it gave only one, or the single "zh" of older replies,
+   OpenCC writes the other. Nothing given: none. */
+export function zhForms(p: { zhHans?: string | null; zhHant?: string | null; zh?: string | null }): { zhHant?: string; zhHans?: string } {
+  const hans = p.zhHans?.trim(), hant = p.zhHant?.trim(), one = p.zh?.trim();
+  if (hans && hant) return { zhHant: hant, zhHans: hans };
+  if (hans) return bothScripts(hans, "hans");
+  if (hant) return bothScripts(hant, "hant");
+  if (one) return bothScripts(one, isTraditional(one) ? "hant" : "hans");
+  return {};
+}

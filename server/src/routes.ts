@@ -23,6 +23,7 @@ import type { Mailer } from "./mail";
 import type { CatchUpReply, ChunkReply, Source, StatusReply } from "../../src/types";
 import { linkProblem } from "./links/guard";
 import type { LinkDownloader } from "./links/ytdlp";
+import { fileKey, linkKey } from "./dedupe";
 
 export interface Jobs { enqueue(lectureId: string): void; cancel(lectureId: string): void }
 /* links: yt-dlp, or null when it is not on this machine (link lectures are then refused). */
@@ -75,12 +76,19 @@ export function publicRoutes(deps: Deps) {
   r.on(["GET", "HEAD"], "/lectures/:id/audio", async c => {
     const id = c.req.param("id");
     if (!linkIsValid(deps.store, id, c.req.query("exp"), c.req.query("sig"))) fail(403, "This link to the recording has expired. Open the lecture again.");
-    const l = deps.store.lecture(id);
-    if (!l || l.audio_expired || !deps.files.exists(id, AUDIO)) fail(404, "This recording is no longer kept.");
+    const l = deps.store.lecture(id), where = l && !l.audio_expired ? deps.files.where(id, AUDIO) : null;
+    if (!where) fail(404, "This recording is no longer kept.");
     const name = (l!.title.replace(/[\\/:*?"<>|\x00-\x1f]+/g, " ").trim() || "recording").slice(0, 80) + ".m4a";
-    return sendFile(c.req.raw, deps.files.path(id, AUDIO), "audio/mp4", {
-      "Cache-Control": "private, max-age=3600", "Content-Disposition": `inline; filename="recording.m4a"; filename*=UTF-8''${encodeURIComponent(name)}`
+    const disposition = (how: string) => `${how}; filename="recording.m4a"; filename*=UTF-8''${encodeURIComponent(name)}`;
+    if (where === "local") return sendFile(c.req.raw, deps.files.path(id, AUDIO), "audio/mp4", { "Cache-Control": "private, max-age=3600", "Content-Disposition": disposition("inline") });
+    /* In R2 (files.ts): sent there with a presigned link that works as long as this one. R2 answers Range and HEAD
+       itself. attachment, not inline: "Download recording" is <a download>, which a browser no longer honours once the
+       link leads to another site, so the reply itself has to say "save this". <audio> pays no attention to it. */
+    const url = deps.files.link(id, AUDIO, {
+      method: c.req.method === "HEAD" ? "HEAD" : "GET", until: Number(c.req.query("exp")),
+      type: "audio/mp4", disposition: disposition("attachment"), cacheControl: "private, max-age=3600"
     });
+    return new Response(null, { status: 302, headers: { Location: url, "Cache-Control": "no-store" } });
   });
 
   return r;
@@ -137,6 +145,7 @@ export function privateRoutes(deps: Deps) {
          file name such as x.m3u8 cannot make ffmpeg treat it as a playlist of other files. */
       await files.commit(got.tempPath, id, "recording");
       store.setRecording(id, "recording");
+      store.setContentKey(id, fileKey(got.sha256));
     } finally { await files.discard(got.tempPath); }
     /* Deleted between the check above and the move: the move recreated its folder. */
     if (!store.lecture(id)) await files.removeLecture(id);
@@ -151,7 +160,7 @@ export function privateRoutes(deps: Deps) {
     if (l.status !== "recording") fail(409, "The notes for this lecture have already been started from its link.");
     const url = typeof b.url === "string" ? b.url : "", problem = linkProblem(url);
     if (problem) fail(400, problem);
-    store.setLink(id, url.trim());
+    store.setLink(id, url.trim(), linkKey(url));
     return c.body(null, 204);
   });
 

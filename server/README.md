@@ -27,10 +27,11 @@ npm start                 # http://localhost:8787
 | `npm test` | 类型检查和全部测试（转写服务和 DeepSeek 用假实现，不花钱） |
 | `npm run invite -- add <code> [名字]` / `new` / `list` | 管理邀请码。一个码就是一个账号；邮箱第一次登录时用一次，绑定后用邮箱登录 |
 | `npm run plan -- list` / `show <邮箱或邀请码>` / `give <邮箱或邀请码> <天数>` | 看每个学生的方案和本月用量；手动给几天 Plus（测试的人，用 FPS、PayMe 转账的人，或补回退款扣掉的天数），不经过 Stripe |
-| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本 |
+| `npm run costs` | 每堂课的成本，以及 INTEGRATION.md 第 10 节要的数字；补传课件和复习包的成本；同一堂课去重的合并率和每堂课的录音份数 |
 | `npm run feedback` | 学生在课堂页 “What is wrong in these notes?” 里写的反馈，新的在前（`-- --all` 看全部） |
 | `npm run signups` | 每天注册数，填了资料的人数，两个同意各占多少（交接文档第 8 项；`-- --days=90`、`-- --json`，见 API-CHANGES.md 第 14 节） |
 | `npm run compare-stt -- --language en-yue a.m4a b.mp3` | 同一批录音跑几家转写服务对比，结果在 `compare-out/`。加 `--chunks 15` 再按现场录音的做法（每 15 秒一轮）转写一遍，和整段比 |
+| `npm run move-to-r2 -- --dry-run` / `npm run move-to-r2` | 设好 R2 之后，把还在这台机器上的录音和课件搬到 R2（见下面“录音存到 R2”）。`--dry-run` 只列出要搬什么、多大 |
 
 ## 视频链接
 
@@ -136,11 +137,44 @@ Deepgram 只给英文（`en`）加标点，`multi` 和中文都没有标点，�
 
 现场录音只转写一次（2026-11-19 起）：笔记直接用录音时实时转写的逐字稿，结束后只补转实时没转到的部分（最后几秒、服务商长时间出错时跳过的那段），所以转写费约是上传录音的 1.13 倍（每轮会把上一轮最后 2 秒再送一次）。之前是结束后再整段转写一次，约 2.12 倍，见 DESIGN.md“现场录只转写一次”。`npm run costs` 会列出实测的倍数和 Catch me up 每次的成本。
 
+## 录音存到 R2
+
+服务器硬盘只够十来个用户的录音，所以录音可以存到 Cloudflare R2。四个设置都填上就开，都空着就和以前一样全在本机（开发和测试都是这样）：
+
+| 设置 | 说明 |
+|---|---|
+| `R2_ACCOUNT_ID` | Cloudflare 的账户 ID |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | R2 的 API 令牌（Object Read & Write，只给这个 bucket） |
+| `R2_BUCKET` | bucket 名，比如 `halfold-recordings` |
+| `R2_ENDPOINT` | 一般不用填。bucket 建在欧盟辖区时填 `https://<账户 ID>.eu.r2.cloudflarestorage.com` |
+
+只填了一部分时启动会报错，说缺哪个。启动那行会写 `recordings: R2 bucket ...` 或 `recordings: this disk`。启动时还会试一次能不能用这些设置连上 bucket，不行的话日志里有一行 `R2 does not work with the R2_* settings (...)`，括号里是原因；这时录音照常留在本机。
+
+怎么用：
+
+- 所有文件还是先写在本机：上传的原始文件、现场录音的分段、转码出来的 `audio.m4a`，转写和写笔记都读本机的文件（ffmpeg 要文件）。
+- 笔记写好的那一刻，`audio.m4a` 和 `slides.pdf` 传到 R2 的 `kept/<课堂 id>/`。传完先从 R2 读回大小和 MD5（ETag）对一遍，对上了才记进数据库（`remote_files`）、删掉本机的。传失败的留在本机照常播放，启动时和之后每六小时再试。原始文件和分段照旧在本机删。转写服务的原始返回留在本机。
+- 失败和没写完笔记的课，文件都在本机，重试照旧。课后补传的课件放进笔记之后也传上去。
+- 回放链接 `detail.audio.url` 不变，还是 `/api/lectures/:id/audio?exp=…&sig=…`。录音在 R2 时，这个地址回 302，跳到 R2 的预签名地址，有效到原链接过期为止（`AUDIO_LINK_HOURS`）。拖动进度（Range）由 R2 直接回 206，录音不经过服务器。为什么这样做见 DESIGN.md“录音存在 R2”。
+- 删课、删课程、录音过了保留期，R2 上的也删。R2 一时删不了的记在数据库（`remote_deletes`），每六小时再删，删课本身不受影响。
+- 没设 R2 但数据库里有存在 R2 的录音时，启动会提醒：这些录音放不了，也删不了，要把设置填回去。
+
+已经在本机的录音，设好 R2 后搬一次（服务器上是 `halfold move-to-r2`）：
+
+```bash
+npm run move-to-r2 -- --dry-run
+npm run move-to-r2
+```
+
+每个文件都是传完、从 R2 读回对上了才删本机的；对不上的留在本机，最后会列出来，退出码是 1。可以重复跑，已经搬过的跳过；服务器开着也可以跑。不搬的话，服务器的六小时检查也会一堂一堂慢慢搬。
+
+R2 和每天的备份（`deploy/server/backup.sh`）可以用同一个 bucket：备份只动 `db/` 和 `lectures/`，录音在 `kept/`。备份是把本机的 `lectures/` 镜像过去，所以搬到 R2 的录音会从备份的 `lectures/` 里消失，录音只有 `kept/` 这一份（R2 本身多副本存放）。
+
 ## 分享的设置
 
 学生点 Share 得到的链接是前端的 `#/s/<随机 id>`，地址按顺序取：`WEB_URL`；没设就用学生当时打开的页面的地址；再没有就用 `PUBLIC_URL`。前端放在某个路径下（如 `https://uni.example.com/sidenote/`）时要设 `WEB_URL`。
 
-`EXAMPLE_SHARE_ID`：公开页面（首页、登录页）上 “Example notes” 打开的分享课堂，填分享链接最后那串 id。不设就不显示这个入口。
+`EXAMPLE_SHARE_ID`：公开页面（首页、登录页）上 “Example notes” 打开的分享课堂，填分享链接最后那串 id。不设（或留空）就用服务器自带的示例笔记（ECON 1001 第 9 周，数据在 `src/api/sample.ts`，`server/src/example.ts` 读出），数据库里不用有这堂课；设成 `off` 就不显示这个入口。设成 `econ-w9` 和不设一样。
 
 分享页不带录音（INTEGRATION.md 4.3），也不带学习进度。
 
@@ -267,18 +301,19 @@ src/
   packs.ts         复习包：每门课一次一个，重启后接着做
   shapes.ts        回复的 zod schema，和 ../src/types.ts 绑定
   db.ts            SQLite（node:sqlite）
-  files.ts         课堂文件（本地磁盘）
+  files.ts         课堂文件：本地磁盘；设了 R2 时，写好笔记的课的录音和课件搬到 R2
+  r2.ts            R2 的 S3 接口：上传、读回、删除、预签名链接（手写的 SigV4 签名）
   http/upload.ts   流式接收上传，中断不留文件
   media.ts         ffprobe / ffmpeg
   pipeline.ts      录音 -> 笔记的队列（现场录音先把分段拼起来）；课后补传的课件放进已有的笔记
   live/            现场录音：每轮转写 transcriber.ts、切窗口 windows.ts、考试提示 alerts.ts
-  audio.ts         回放：签名链接、Range、保留期限
+  audio.ts         回放：签名链接、Range（录音在 R2 时跳过去）、保留期限；没搬成的录音再搬一次
   stt/             转写服务：elevenlabs.ts、deepgram.ts、切句 lines.ts、对比打分 compare.ts
   notes/           DeepSeek：提示词 prompt.ts、调用 deepseek.ts、整理和校验 normalize.ts、繁简 zh.ts、Catch me up catchup.ts、
                    补传课件 slides.ts、复习包 pack.ts
   slides.ts        PDF 每页的文字
   links/           视频链接：yt-dlp 下载和失败原因 ytdlp.ts、只连公网地址的代理 guard.ts
-scripts/           invite、plan、costs、compare-stt、feedback
+scripts/           invite、plan、costs、compare-stt、feedback、move-to-r2
 plans.json         方案、价格和每个方案的限制
 test/              契约、上传、流程、整理、服务商请求、ffmpeg 和网页；现场录音（模拟浏览器）、真实分段、回放；
                    编辑和课程、分享、复习包、搜索、补传课件；登录、方案和付款（含退款）、设置、Stripe 和 Resend 的请求；
@@ -286,7 +321,7 @@ test/              契约、上传、流程、整理、服务商请求、ffmpeg 
 test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的 README
 ```
 
-数据在 `data/`（gitignore）：`sidenote.db`，以及 `lectures/<课堂 id>/` 下的 `audio.m4a`（转码后，用于转写、回放和下载）、`slides.pdf`、转写服务的原始返回。原始录音（上传的文件、拼好的现场录音）存成 `recording`，只用来转出 `audio.m4a`：笔记写好后就删掉（大约是 `audio.m4a` 的两倍大，视频更大）；失败的课留着，好让重试再转一次。这一改动之前的课，启动时（之后每六小时）检查一次并删掉。现场录音结束前，分段在 `chunks/` 里。
+数据在 `data/`（gitignore）：`sidenote.db`，以及 `lectures/<课堂 id>/` 下的 `audio.m4a`（转码后，用于转写、回放和下载）、`slides.pdf`、转写服务的原始返回。原始录音（上传的文件、拼好的现场录音）存成 `recording`，只用来转出 `audio.m4a`：笔记写好后就删掉（大约是 `audio.m4a` 的两倍大，视频更大）；失败的课留着，好让重试再转一次。这一改动之前的课，启动时（之后每六小时）检查一次并删掉。现场录音结束前，分段在 `chunks/` 里。设了 R2 时，写好笔记的课的 `audio.m4a` 和 `slides.pdf` 不在这里，在 R2 的 `kept/<课堂 id>/`（见“录音存到 R2”）。
 
 ## 还没做的
 
@@ -299,3 +334,4 @@ test/fixtures/     Chrome 录下的真实分段（webm 和 MP4），见其中的
 - 首页的本周统计（`week`）：学习进度和测验分数已经存了，但“本周”“已掌握的闪卡”“平均分”怎么算还没定，不给时前端不显示这一栏。
 - 分享页的录音（4.3）：默认不带，要带是产品和合规上的决定。
 - 搜索逐字稿和中文解释（API-CHANGES.md 第 4 节说以后再考虑）。
+- 同一堂课去重的第 2、3 步（比对文字稿、现场录音），等《同一堂课去重》的详细规则；第 1 步（同一文件、同一个 YouTube 视频）见 DESIGN.md 最后一节。

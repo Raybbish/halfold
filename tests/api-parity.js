@@ -51,6 +51,9 @@ async function run(target) {
      which the sample build shows in Settings. Everything else must still match. */
   if (b.data) delete b.data.profile;
   if (b.getHome && b.getHome.user) delete b.getHome.user.profile;
+  /* Changed on purpose after the migration: Chinese explanations are on by default (retest of 2026-11-23, handoff item
+     6), where sidenote.html had them off. Compared as sidenote.html had it; everything else in settings still counts. */
+  for (const s of [b.data && b.data.settings, b.getHome && b.getHome.settings]) if (s && s.zhDefault === true) s.zhDefault = false;
   let pass = 0, total = 0;
   for (const k of Object.keys(a)) {
     total++; const ok = JSON.stringify(a[k]) === JSON.stringify(b[k]);
