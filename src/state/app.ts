@@ -16,7 +16,7 @@ export interface Store {
   _up?: Upcoming[];
 }
 
-export const S: Store = { token: null, user: null, courses: [], lectures: [], upcoming: [], week: null, settings: { classLanguage: "en", zhDefault: false }, usage: null, today: null, detail: {}, shared: {}, pack: {}, plans: null, orphan: null, homeLoaded: false, error: null, next: null, schoolGuess: null };
+export const S: Store = { token: null, user: null, courses: [], lectures: [], upcoming: [], week: null, settings: { classLanguage: "en", zhDefault: true }, usage: null, today: null, detail: {}, shared: {}, pack: {}, plans: null, orphan: null, homeLoaded: false, error: null, next: null, schoolGuess: null };
 export const course = (id: string | null | undefined) => S.courses.find(c => c.id === id);
 export const lecture = (id: string) => S.lectures.find(l => l.id === id);
 export const colorOf = (c: Course | undefined) => (c && c.color) || PALETTE[Math.max(0, S.courses.indexOf(c!)) % PALETTE.length];
@@ -31,7 +31,7 @@ export const exHref = () => CONFIG.EXAMPLE_SHARE_ID ? "#/s/" + encodeURIComponen
 export const session = {
   load() { try { const s = JSON.parse(localStorage.getItem("sidenote.session") || "null"); if (s) { S.token = s.token; S.user = s.user; } } catch (e) {} },
   save() { try { localStorage.setItem("sidenote.session", JSON.stringify({ token: S.token, user: S.user })); } catch (e) {} },
-  clear() { S.token = null; S.user = null; S.homeLoaded = false; S.detail = {}; S.pack = {}; S.plans = null; S.settings = { classLanguage: "en", zhDefault: false }; S.schoolGuess = null; try { localStorage.removeItem("sidenote.session"); localStorage.removeItem("sidenote.welcomed"); } catch (e) {} }
+  clear() { S.token = null; S.user = null; S.homeLoaded = false; S.detail = {}; S.pack = {}; S.plans = null; S.settings = { classLanguage: "en", zhDefault: true }; S.schoolGuess = null; try { localStorage.removeItem("sidenote.session"); localStorage.removeItem("sidenote.welcomed"); } catch (e) {} }
 };
 
 /* ---------- screen state ---------- */
@@ -70,4 +70,6 @@ export const auth = { err: "", busy: false, code: "", name: "",
 
 /* New lecture form. */
 export const nf = { mode: "record" as Source, courseId: null as string | null, title: "", lang: null as string | null, file: null as File | null, slides: null as File | null, link: "", err: "", busy: false };
-export const LANGS = [["en", "English"], ["en-yue", "English with Cantonese"], ["en-zh", "English with Mandarin"], ["auto", "Detect automatically"]] as const;
+/* The language spoken in class. Taught in English, Mandarin or Cantonese, or a mix with English (retest of 2026-11-23: the
+   options were all "English with ...", as if only English-taught classes in Hong Kong used Halfold). */
+export const LANGS = [["en", "English"], ["zh", "Mandarin"], ["yue", "Cantonese"], ["en-zh", "English with Mandarin"], ["en-yue", "English with Cantonese"], ["auto", "Detect automatically"]] as const;

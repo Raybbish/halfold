@@ -65,15 +65,18 @@ export interface LectureRow {
 /* A dated alert of the notes (the upcoming table). */
 export interface Dated { date: string; kind: string; text: string; t: number }
 /* The notes as the model wrote them, kept next to the notes the student edits, so that the next student with the same
-   recording gets these and not this student's edits (dedupe.ts). zh: the Chinese script they were written with. */
-export interface OriginalNotes { detail: Detail; dated: Dated[]; title: string | null; zh: string | null }
+   recording gets these and not this student's edits (dedupe.ts). zh: whether they have Chinese explanations (both
+   scripts since the retest of 2026-11-23); notes kept before that hold the one script's name ("hans", "hant", or null),
+   so they no longer match and are written anew. */
+export interface OriginalNotes { detail: Detail; dated: Dated[]; title: string | null; zh: boolean | string | null }
 /* class_recordings: one row per lecture whose notes were written, kept after the lecture is deleted (npm run costs).
    class_id: the lecture that was transcribed for this class (the lecture itself when nothing was reused); match_on:
    "file", "link" or null (a live recording, or a link that is never matched); reused: what was copied. */
 export interface ClassRecordingRow {
   lecture_id: string; user_id: string; class_id: string; match_on: string | null; reused: "none" | "transcript" | "notes"; created_at: string;
 }
-export interface UpcomingRow { lecture_id: string; date: string; kind: string; text: string; t: number; course_code: string }
+/* A date on the exam radar: one the lecturer said (lecture_id, t), or one the student added by hand (id; lecture_id and t null). */
+export interface UpcomingRow { lecture_id: string | null; date: string; kind: string; text: string; t: number | null; course_code: string; id: string | null }
 export interface PackRow { course_id: string; status: "processing" | "ready" | "failed"; lecture_ids: string; pack_json: string | null; error: string | null; updated_at: string }
 export interface FeedbackRow { id: number; lecture_id: string; user_id: string; text: string; created_at: string; title: string; course_code: string; user_name: string }
 /* stage "slides": matching slides sent later to the notes; "pack": a review pack, logged with the course id in lecture_id. */
@@ -142,6 +145,10 @@ CREATE TABLE IF NOT EXISTS checkouts (
 CREATE TABLE IF NOT EXISTS quota (
   kind TEXT NOT NULL, ref TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (kind, ref));
 CREATE INDEX IF NOT EXISTS quota_user ON quota(user_id, kind, created_at);
+CREATE TABLE IF NOT EXISTS radar_dates (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  date TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS radar_dates_user ON radar_dates(user_id, date);
 CREATE TABLE IF NOT EXISTS profiles (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, school TEXT, major TEXT, year_of_study TEXT, grad_year INTEGER, origin TEXT,
   consent_marketing INTEGER, consent_marketing_at TEXT, consent_survey INTEGER, consent_survey_at TEXT, saved_at TEXT, skipped_at TEXT, updated_at TEXT NOT NULL);
@@ -198,6 +205,13 @@ export class Store {
     }
     this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS lectures_share ON lectures(share_id)");
     this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email)");
+    /* 中文解釋 is shown by default (retest of 2026-11-23: a core feature, on unless the student turns it off). Students
+       who were made before had it off only because that was the default then: turned on once, then theirs to change. */
+    this.tx(() => {
+      if (this.db.prepare("SELECT 1 FROM meta WHERE key = 'zh_default_on'").get()) return;
+      this.db.exec("UPDATE users SET zh_default = 1");
+      this.db.prepare("INSERT INTO meta (key, value) VALUES ('zh_default_on', ?)").run(now());
+    });
     this.db.exec("CREATE INDEX IF NOT EXISTS lectures_content ON lectures(content_key) WHERE content_key IS NOT NULL");
   }
   close() { this.db.close(); }
@@ -226,7 +240,7 @@ export class Store {
   /* ---- users and sessions ---- */
   addInviteCode(code: string, name = ""): UserRow {
     const c = normCode(code); if (!c) throw new Error("empty invite code");
-    this.db.prepare("INSERT OR IGNORE INTO users (id, invite_code, name, created_at) VALUES (?, ?, ?, ?)").run("u" + randomId(12), c, name, now());
+    this.db.prepare("INSERT OR IGNORE INTO users (id, invite_code, name, zh_default, created_at) VALUES (?, ?, ?, 1, ?)").run("u" + randomId(12), c, name, now());
     return this.userByCode(c)!;
   }
   userByCode(code: string) { return this.db.prepare("SELECT * FROM users WHERE invite_code = ?").get(normCode(code)) as UserRow | undefined; }
@@ -435,9 +449,10 @@ export class Store {
     });
   }
   deleteLecture(id: string) { this.db.prepare("DELETE FROM lectures WHERE id = ?").run(id); }
-  /* Live recordings (record, tab) started since a time, for the daily limit. */
+  /* Live recordings (record, tab) started since a time, for the daily limit. A failed one is left out, as it is from the
+     month's lectures (setFailed): the student got no notes from it (retest of 2026-11-23). Try again counts it again. */
   liveLecturesSince(userId: string, sinceIso: string) {
-    return this.db.prepare("SELECT * FROM lectures WHERE user_id = ? AND source IN ('record', 'tab') AND created_at >= ?").all(userId, sinceIso) as unknown as LectureRow[];
+    return this.db.prepare("SELECT * FROM lectures WHERE user_id = ? AND source IN ('record', 'tab') AND status != 'failed' AND created_at >= ?").all(userId, sinceIso) as unknown as LectureRow[];
   }
 
   /* ---- sharing ---- */
@@ -622,9 +637,22 @@ export class Store {
       FROM lectures JOIN details ON details.lecture_id = lectures.id, json_each(details.detail_json, '$.sections') AS s, json_each(s.value, '$.points') AS p
       WHERE lectures.user_id = ? ORDER BY lectures.created_at DESC, lectures.rowid DESC, s.key, p.key`).all(userId) as unknown as { lecture: string; text: string | null; t: number | null }[];
   }
+  /* The exam radar from a day on: dates said in the student's lectures and dates they added by hand (radar_dates), by date. */
   upcoming(userId: string, fromDate: string) {
-    return this.db.prepare(`SELECT upcoming.*, courses.code AS course_code FROM upcoming JOIN lectures ON lectures.id = upcoming.lecture_id
-      JOIN courses ON courses.id = lectures.course_id WHERE lectures.user_id = ? AND upcoming.date >= ? ORDER BY upcoming.date, upcoming.t`).all(userId, fromDate) as unknown as UpcomingRow[];
+    return this.db.prepare(`SELECT * FROM (
+      SELECT upcoming.lecture_id, upcoming.date, upcoming.kind, upcoming.text, upcoming.t, courses.code AS course_code, NULL AS id, lectures.created_at AS made
+        FROM upcoming JOIN lectures ON lectures.id = upcoming.lecture_id JOIN courses ON courses.id = lectures.course_id WHERE lectures.user_id = ? AND upcoming.date >= ?
+      UNION ALL
+      SELECT NULL, radar_dates.date, radar_dates.kind, radar_dates.text, NULL, courses.code, radar_dates.id, radar_dates.created_at
+        FROM radar_dates JOIN courses ON courses.id = radar_dates.course_id WHERE radar_dates.user_id = ? AND radar_dates.date >= ?)
+      ORDER BY date, made, t`).all(userId, fromDate, userId, fromDate).map(r => { const { made: _m, ...row } = r as unknown as UpcomingRow & { made: string }; return row; });
+  }
+  /* Exam radar dates added by hand (retest of 2026-11-23: the radar only had what lecturers said). */
+  addRadarDate(d: { id: string; userId: string; courseId: string; date: string; kind: string; text: string }) {
+    this.db.prepare("INSERT INTO radar_dates (id, user_id, course_id, date, kind, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(d.id, d.userId, d.courseId, d.date, d.kind, d.text, now());
+  }
+  deleteRadarDate(userId: string, id: string) {
+    return Number(this.db.prepare("DELETE FROM radar_dates WHERE id = ? AND user_id = ?").run(id, userId).changes) > 0;
   }
 
   /* ---- study progress and feedback ---- */

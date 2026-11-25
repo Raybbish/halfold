@@ -69,20 +69,33 @@ function Unfinished() { const { l } = cur!, src = l.source;
     <input type="file" id="fRe" accept="audio/*,video/*" hidden onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) reupload(f); }} />
     <div className="brow">{rec ? finish : src === "link" ? (l.link ? <button className="btn primary" onClick={() => retryNotes(true)}>{t("Make notes from the link")}</button> : null) : send}<button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div></div></div>; }
 
+/* What the lecture page shows while there are no notes: the upload, notes being written, why they failed, a recording in
+   progress or never finished. */
+function Waiting() { const { l, shared } = cur!;
+  if (!shared && up.id === l.id) return up.state === "failed" ? <UploadFailed /> : <Uploading />;
+  /* lecture.error: why it failed, from the backend (a video link that needs a sign-in, ...), shown as it is, or in
+     Chinese when it is one of our server's own sentences (serverText). */
+  if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{serverText(l.error)}</span> : "Your recording is safe. Hal can try again from it."} btn={<div className="brow"><button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button><button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div>} />;
+  if (l.status === "recording") return live.active && live.id === l.id
+    ? <Box mood="wow" h={t("This lecture is being recorded")} p="The notes are written when you end the recording." btn={<a className="btn primary" href="#/live">{t("Return to the recording")}</a>} />
+    : <Unfinished />;
+  if (CONFIG.USE_MOCK && l.status !== "processing") return <Box mood="plain" h={<span data-notr="">{l.title}</span>} p="The sample data has full notes for one lecture, ECON 1001 week 9. Every lecture uses this same page." btn={<a className="btn primary" href="#/lecture/econ-w9">{t("Open ECON 1001 week 9")}</a>} />;
+  return <Writing id={l.id} />;
+}
+
+/* The lecture's title and course line, with Rename on the student's own lecture. Also above a lecture whose notes are not
+   there yet (uploading, being written, failed, never finished): that page had no title (retest of 2026-11-23). */
+const Title = ({ actions }: { actions?: ReactNode }) => { const { l, c, shared } = cur!;
+  return <div className="page-h" style={css("margin-bottom:10px")}><div><h1 data-notr="">{l.title}</h1><p className="muted num" style={css("margin-top:6px")}>{t(meta(l, c))}{shared ? null : <> <button className="ts" style={css("margin-left:8px")} onClick={detailsModal}>{t("Rename")}</button></>}</p></div>{actions}</div>; };
+
 export function LectureBody() {
   /* The audio object lives in player.ts. After each draw it is loaded for this lecture, or stopped when there is none. */
   useLayoutEffect(() => { if (!cur || !cur.d) return; if (hasAudio()) plLoad(); else plStop(); });
-  const { l, c, d, shared } = cur!;
+  const { l, d, shared } = cur!;
   if (!d) {
-    if (!shared && up.id === l.id) return up.state === "failed" ? <UploadFailed /> : <Uploading />;
-    /* lecture.error: why it failed, from the backend (a video link that needs a sign-in, ...), shown as it is, or in
-       Chinese when it is one of our server's own sentences (serverText). */
-    if (l.status === "failed") return <Box mood="sad" h={t("These notes could not be written")} p={l.error ? <span data-notr="">{serverText(l.error)}</span> : "Your recording is safe. Hal can try again from it."} btn={<div className="brow"><button className="btn primary" onClick={() => retryNotes(false)}>{t("Try again")}</button><button className="btn plain" onClick={deleteModal}>{t("Delete lecture")}</button></div>} />;
-    if (l.status === "recording") return live.active && live.id === l.id
-      ? <Box mood="wow" h={t("This lecture is being recorded")} p="The notes are written when you end the recording." btn={<a className="btn primary" href="#/live">{t("Return to the recording")}</a>} />
-      : <Unfinished />;
-    if (CONFIG.USE_MOCK && l.status !== "processing") return <Box mood="plain" h={<span data-notr="">{l.title}</span>} p="The sample data has full notes for one lecture, ECON 1001 week 9. Every lecture uses this same page." btn={<a className="btn primary" href="#/lecture/econ-w9">{t("Open ECON 1001 week 9")}</a>} />;
-    return <Writing id={l.id} />;
+    /* The sample build's other lectures (the sample data has no notes for them) are named in their own box already. */
+    const sample = CONFIG.USE_MOCK && up.id !== l.id && (!l.status || l.status === "ready");
+    return sample ? <Waiting /> : <><Title /><Waiting /></>;
   }
   const audio = hasAudio();
   /* How long a recording is kept depends on the student's plan. The backend may send audio.keptUntil (a date) or
@@ -97,8 +110,7 @@ export function LectureBody() {
   if (!tabs.some(x => x[0] === state.tab)) state.tab = "notes";
   const Body = state.tab === "notes" ? Notes : state.tab === "slides" ? Slides : state.tab === "transcript" ? Transcript : state.tab === "cards" ? Cards : Quiz;
   return <>
-    <div className="page-h" style={css("margin-bottom:10px")}><div><h1 data-notr="">{l.title}</h1><p className="muted num" style={css("margin-top:6px")}>{t(meta(l, c))}{shared ? null : <> <button className="ts" style={css("margin-left:8px")} onClick={detailsModal}>{t("Rename")}</button></>}</p></div>
-      {shared ? null : <div style={css("display:flex;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={moreMenu}>{t("More")}</button><button className="btn primary" onClick={share}>{t("Share with class")}</button></div>}</div>
+    <Title actions={shared ? null : <div style={css("display:flex;gap:10px;flex-wrap:wrap")}><button className="btn plain" onClick={moreMenu}>{t("More")}</button><button className="btn primary" onClick={share}>{t("Share with class")}</button></div>} />
     {keep}{!shared && isFiling(l.id) ? <div className="alert noprint" role="status"><span className="tag grey">{t("Slides")}</span><span>{t("Hal is putting your notes under the slides. This takes a minute or two, and you can keep reading.")}</span></div> : null}
     <Timeline d={d} dur={l.duration} pos={state.pos} />
     <div id="tabtop"></div>

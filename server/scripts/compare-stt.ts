@@ -38,7 +38,7 @@ const outRoot = path.resolve(opt("--out") || path.join(SERVER_DIR, "compare-out"
 const chunkSeconds = Number(opt("--chunks") || 0);
 const withNotes = flag("--notes");
 if (!CLASS_LANGUAGES.includes(language) || !args.length) {
-  console.log("npm run compare-stt -- [--language en|en-yue|en-zh|auto] [--providers soniox,assemblyai:universal-2] [--chunks 15] [--notes] file|lecture-id ...");
+  console.log("npm run compare-stt -- [--language en|zh|yue|en-yue|en-zh|auto] [--providers soniox,assemblyai:universal-2] [--chunks 15] [--notes] file|lecture-id ...");
   process.exit(1);
 }
 
@@ -90,7 +90,7 @@ const counts = (d: Pick<Detail, "alerts" | "sections">) => ({ points: (d.section
 /* Notes from these lines with the app's prompt, as for a lecture without slides: like the app (pipeline.ts), an unusable
    reply is shown back to the model once. */
 async function writeNotes(dir: string, label: string, title: string, lines: Line[], duration: number, lang: ClassLanguage) {
-  const zh = config.zhExplanations ? (lang === "en-zh" ? "hans" : "hant") : null;
+  const zh = config.zhExplanations;   // both scripts, as the app writes them (pipeline.ts)
   const input: NotesInput = { courseCode: "", courseName: "", title, date: promptDate(new Date(), config.timezone), language: lang, duration, lines, slides: [], zh };
   let usd = 0, repair: { reply: string; problem: string } | undefined;
   for (let attempt = 1; attempt <= 2; attempt++) {

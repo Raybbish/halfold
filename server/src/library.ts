@@ -3,19 +3,24 @@
    and save a copy of someone's shared notes; edit and delete a course; review packs; search the notes. Slides sent after
    the notes are in routes.ts (POST /lectures/:id/slides) and pipeline.ts. Paths are under /api. */
 import { Hono, type Context } from "hono";
-import type { Lecture, Point, SearchReply, SharedReply, UrlReply } from "../../src/types";
+import type { Lecture, Point, SearchReply, SharedReply, Upcoming, UrlReply } from "../../src/types";
 import { randomId, type LectureRow } from "./db";
 import { fail, jsonBody } from "./http/errors";
 import { courseFields, newCourse, str, type AppEnv, type Deps } from "./routes";
-import { courseView, lectureView } from "./views";
+import { courseView, lectureView, upcomingView } from "./views";
+import { localDate } from "./time";
 import { lectureKey, notedLectures } from "./packs";
 import type { StoredPack } from "./notes/pack";
 import { mixQuiz } from "./notes/mix";
 import { webBase } from "./account";
+import { EXAMPLE_ID, EXAMPLE_NOT_SAVED, exampleNotes } from "./example";
 
 const NOT_SHARED = "This link is no longer shared.";
 const NO_NOTE = "This note is no longer there. Open the lecture again to see the latest notes.";
-const MAX_NOTE = 2000, MAX_FEEDBACK = 4000, MAX_RESULTS = 20;
+const MAX_NOTE = 2000, MAX_FEEDBACK = 4000, MAX_RESULTS = 20, MAX_RADAR_TEXT = 200;
+/* What a date added by hand is for: the kinds of the lecturer's dates (notes/normalize.ts KINDS). */
+const RADAR_KINDS = ["Midterm", "Final", "Quiz", "Deadline", "Exam hint"];
+const realDate = (s: string) => { const d = new Date(s + "T00:00:00Z"); return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s; };
 /* A live recording that sent a piece of audio this recently is still going (pieces come every 15 seconds). */
 const RECORDING_NOW_MS = 2 * 60_000;
 
@@ -25,6 +30,8 @@ export function sharedRoutes(deps: Deps) {
   const r = new Hono<AppEnv>();
   r.get("/shared/:id", c => {
     const id = c.req.param("id"), l = store.lectureByShare(id), detail = l && store.detail(l.id);
+    /* The built-in example (example.ts), unless a real shared lecture has that id. */
+    if ((!l || !detail) && id === EXAMPLE_ID) return c.json<SharedReply>(exampleNotes());
     if (!l || !detail) fail(404, NOT_SHARED);
     const course = store.courseById(l!.course_id), owner = store.user(l!.user_id);
     /* No recording (INTEGRATION.md 4.3: the shared page plays none), nor the video link it came from, and not the owner's
@@ -135,6 +142,7 @@ export function libraryRoutes(deps: Deps) {
      your own shared lecture gives the lecture itself. */
   r.post("/shared/:id/save", c => {
     const user = c.get("user"), src = store.lectureByShare(c.req.param("id")), detail = src && store.detail(src.id);
+    if ((!src || !detail) && c.req.param("id") === EXAMPLE_ID) fail(409, EXAMPLE_NOT_SAVED);
     if (!src || !detail) fail(404, NOT_SHARED);
     if (src!.user_id === user.id) return c.json<Lecture>(view(src!));
     const have = store.copyOf(user.id, src!.id);
@@ -160,6 +168,28 @@ export function libraryRoutes(deps: Deps) {
     store.deleteCourse(course.id);
     packs.cancel(course.id);
     for (const id of ids) { jobs.cancel(id); live.stop(id); await files.removeLecture(id); }
+    return c.body(null, 204);
+  });
+
+  /* ---------- exam radar dates added by hand ----------
+     {course, date, kind, text}: a date in one of the student's courses, from today on (GET /home shows the radar from
+     today). kind is one of the words the lecturer's dates use, so the front end translates it; text may be empty.
+     -> the date as GET /home lists it, with its id. Deleted with its course. */
+  r.post("/upcoming", async c => {
+    const user = c.get("user"), b = await jsonBody(c);
+    const course = store.course(user.id, str(b.course)) ?? fail(404, "That course does not exist.");
+    const date = str(b.date), kind = str(b.kind), text = str(b.text).replace(/\s+/g, " ");
+    if (!realDate(date)) fail(400, "Choose the date.");
+    if (date < localDate(new Date(), config.timezone)) fail(400, "Choose a date from today on.");
+    if (!RADAR_KINDS.includes(kind)) fail(400, "Choose what the date is for.");
+    if (text.length > MAX_RADAR_TEXT) fail(400, `The note can be at most ${MAX_RADAR_TEXT} characters.`);
+    const id = "rd-" + randomId(12);
+    store.addRadarDate({ id, userId: user.id, courseId: course.id, date, kind, text });
+    return c.json<Upcoming>(upcomingView({ id, lecture_id: null, t: null, date, kind, text, course_code: course.code }));
+  });
+  /* Only a date added by hand; the ones the lecturer said go with their lecture. */
+  r.delete("/upcoming/:id", c => {
+    if (!store.deleteRadarDate(c.get("user").id, c.req.param("id"))) fail(404, "This date is no longer on the radar.");
     return c.body(null, 204);
   });
 

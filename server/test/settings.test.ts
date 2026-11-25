@@ -11,7 +11,7 @@ test("PUT /settings saves the name, the class language and the 中文解釋 sett
   const token = await s.signIn(), other = await s.signIn("CODE-B");
   const put = (json: unknown) => s.call("PUT", "/settings", { token, json });
   const home = async (tk = token) => HomeSchema.parse((await s.call("GET", "/home", { token: tk })).body);
-  assert.deepEqual((await home()).settings, { classLanguage: "en", zhDefault: false });   // never chosen: no zhScript
+  assert.deepEqual((await home()).settings, { classLanguage: "en", zhDefault: true });   // 中文解釋 on by default; never chosen: no zhScript
 
   const r = await put({ name: " Jasper Lee ", classLanguage: "en-yue", zhDefault: true, zhScript: "hans" });
   assert.equal(r.status, 204); assert.equal(r.text, "");
@@ -21,7 +21,7 @@ test("PUT /settings saves the name, the class language and the 中文解釋 sett
   assert.equal((await put({ name: "Jasper", classLanguage: "auto", zhDefault: false })).status, 204);
   assert.deepEqual((await home()).settings, { classLanguage: "auto", zhDefault: false, zhScript: "hans" });
   /* Only the student's own account. */
-  assert.deepEqual((await home(other)).settings, { classLanguage: "en", zhDefault: false });
+  assert.deepEqual((await home(other)).settings, { classLanguage: "en", zhDefault: true });
   assert.equal((await home(other)).user.name, "Ben");
 
   for (const [json, msg] of [
