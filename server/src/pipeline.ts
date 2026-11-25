@@ -140,8 +140,9 @@ export class Pipeline implements Jobs {
     if (!l.recording_file && l.source === "link") { await this.fetchLink(l, signal); l = store.lecture(id) ?? (() => { throw new Gone(); })(); }
     if (!l.recording_file) throw new Error("no recording");
 
-    /* 1. One seekable speech file from whatever was uploaded. Written to a temp path first: a half-made file never counts. */
-    if (!files.exists(id, AUDIO)) {
+    /* 1. One seekable speech file from whatever was uploaded. Written to a temp path first: a half-made file never counts.
+       One made before and moved to R2 since (the lecture is made again) is brought back here to be read (files.ts fetch). */
+    if (!(await files.fetch(id, AUDIO, signal))) {
       const tmp = files.tempPath() + ".m4a";
       try { await media.toSpeechAudio(files.path(id, l.recording_file), tmp, { signal, fillGaps: isLive(l) }); this.check(id, signal); await files.commit(tmp, id, AUDIO); }
       finally { await files.discard(tmp); }
@@ -177,7 +178,9 @@ export class Pipeline implements Jobs {
 
     /* 3. Slide text. */
     let slidePages: { n: number; text: string }[] = [];
-    if (l.has_slides && files.where(id, "slides.pdf") === "local") {
+    /* Slides moved to R2 (a study pack's, when its recording comes) are brought back first. If R2 fails, so does this
+       run, and Try again fetches them again: better than notes written without the slides they were given. */
+    if (l.has_slides && await files.fetch(id, "slides.pdf", signal)) {
       /* Slides that cannot be read (password, damaged file) are left out rather than failing the lecture. */
       try { slidePages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
       catch (e) { console.warn(`[pipeline] ${id} slides could not be read, writing the notes without them: ${(e as Error).message}`); }
@@ -294,7 +297,7 @@ export class Pipeline implements Jobs {
      recording added later makes the lecture an upload (routes.ts), and process() then writes the notes with the slides. */
   private async slidesPack(l: LectureRow, signal: AbortSignal) {
     const { store, files, config } = this.d, id = l.id;
-    if (!files.exists(id, "slides.pdf")) throw new Error("no slides");
+    if (!(await files.fetch(id, "slides.pdf", signal))) throw new Error("no slides");
     let pages: { n: number; text: string }[];
     try { pages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
     catch (e) { throw new Error("the slides could not be read: " + (e as Error).message); }
@@ -321,6 +324,9 @@ export class Pipeline implements Jobs {
     if (!out) throw new Error("the notes model did not write a usable study pack: " + problem);
     this.check(id, signal);
     store.saveNotes(id, out.detail, [], out.title);
+    /* With R2 set, the deck moves there now, as a lecture's files do once its notes are written (afterNotes); it comes
+       back (files.fetch) when a recording turns the pack into a lecture. */
+    await this.archive(id, signal);
   }
 
   /* Slides sent after the notes were written (API-CHANGES.md section 3): each point the lecturer said is placed under
@@ -330,6 +336,7 @@ export class Pipeline implements Jobs {
     const { store, files } = this.d, id = l.id;
     const detail = store.detail(id);
     if (!detail) throw new Error("the lecture has no notes");
+    if (!(await files.fetch(id, "slides.pdf", signal))) throw new Error("no slides");
     let pages: { n: number; text: string }[];
     try { pages = await (this.d.slides || readSlides)(files.path(id, "slides.pdf")); }
     catch (e) { throw new Error("the slides could not be read: " + (e as Error).message); }

@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -314,4 +315,72 @@ test("npm run move-to-r2: moves what was kept here before R2, checks each upload
   const store = new Store(path.join(s.dir, "sidenote.db"));
   t.after(() => store.close());
   assert.deepEqual(store.remoteTotals(), { files: 3, bytes: keptBytes });
+});
+
+/* Fetching kept files back from R2 (files.ts fetch), for a step that reads them again. */
+test("R2 get: downloads an object and checks its size and MD5; a wrong or missing one leaves no file behind", async t => {
+  const f = await fakeR2(); t.after(() => f.close());
+  const r2 = new R2(loadConfig(r2Env(f)).r2!), dir = fs.mkdtempSync(path.join(os.tmpdir(), "sn-r2get-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const src = path.join(dir, "deck.pdf"), out = path.join(dir, "back.pdf");
+  fs.writeFileSync(src, "%PDF-1.4 the deck");
+  await r2.put("kept/lec-1/slides.pdf", src, "application/pdf");
+  const got = await r2.get("kept/lec-1/slides.pdf", out);
+  assert.equal(fs.readFileSync(out, "utf8"), "%PDF-1.4 the deck");
+  assert.deepEqual(got, { size: 17, md5: createHash("md5").update("%PDF-1.4 the deck").digest("hex") });
+  /* R2 says it has other bytes than it sends: refused, and the file is not there (nor a part file). */
+  fs.rmSync(out);
+  f.lie = () => ({ etag: "0".repeat(32) });
+  await assert.rejects(r2.get("kept/lec-1/slides.pdf", out), /R2 sent 17 bytes .* not the 17 bytes \(ETag 0{32}\)/);
+  f.lie = null;
+  await assert.rejects(r2.get("kept/lec-1/none.pdf", out), /R2 has no kept\/lec-1\/none.pdf/);
+  assert.deepEqual(fs.readdirSync(dir), ["deck.pdf"]);
+});
+
+/* A slide reader that needs the PDF on this disk, as the real one does (the default stub does not read the file). */
+const readsPdf = async (file: string) => {
+  if (!fs.readFileSync(file, "utf8").startsWith("%PDF")) throw new Error("not a PDF");
+  return [{ n: 1, text: "Course admin\nMidterm" }, { n: 2, text: "Opportunity cost\nThe value of the next best alternative" }];
+};
+async function packInR2(s: TestServer, f: Fake, token: string) {
+  const course = (await s.call("POST", "/courses", { token, json: { code: "ECON 1001", name: "Microeconomics" } })).body;
+  const id = (await s.call("POST", "/lectures", { token, json: { courseId: course.id, title: "Week 10", language: "en", source: "slides" } })).body.id as string;
+  assert.equal((await s.call("POST", `/lectures/${id}/slides`, { token, body: fileForm("%PDF-1.4 fake", "slides.pdf") })).status, 204);
+  await s.call("POST", `/lectures/${id}/finish`, { token, json: { duration: 0 } }); await s.pipeline.idle();
+  /* The pack is written and its deck moved to R2, like any lecture's files once it has notes. */
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(f.keys(), [`kept/${id}/slides.pdf`]); assert.equal(local(s, id, "slides.pdf"), false);
+  return id;
+}
+
+test("with R2: a study pack's deck, moved to R2, comes back when its recording does; the notes are written with the slides, then both files go to R2", async t => {
+  const { f, s } = await withR2(t, { slides: readsPdf });
+  const token = await s.signIn(), id = await packInR2(s, f, token);
+  const up = await s.call("POST", `/lectures/${id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-the-pack-recording", "week10.mp3") });
+  assert.equal(up.status, 204, up.text); await s.pipeline.idle();
+  const l = s.store.lecture(id)!;
+  assert.equal(l.status, "ready"); assert.equal(l.source, "upload");
+  /* Written with the slides: before, the deck was only in R2 and the notes were written without it. */
+  assert.deepEqual(s.notes.calls.at(-1)!.input.slides.map(p => p.n), [1, 2]);
+  assert.ok(f.seen.some(x => x.method === "GET" && x.key === `kept/${id}/slides.pdf` && !x.url.includes("X-Amz-Signature")), "the deck was fetched from R2");
+  assert.deepEqual(f.keys(), [`kept/${id}/audio.m4a`, `kept/${id}/slides.pdf`]);
+  assert.equal(f.objects.get(`kept/${id}/slides.pdf`)!.body.toString(), "%PDF-1.4 fake");
+  for (const name of ["audio.m4a", "slides.pdf"]) assert.equal(local(s, id, name), false, name);
+});
+
+test("with R2: when the deck cannot be fetched back, the notes are not written without it; Try again fetches it", async t => {
+  const { f, s } = await withR2(t, { slides: readsPdf });
+  const token = await s.signIn(), id = await packInR2(s, f, token);
+  f.fail = x => x.method === "GET" && x.key === `kept/${id}/slides.pdf` ? 500 : null;
+  assert.equal((await s.call("POST", `/lectures/${id}/recording`, { token, body: fileForm(FAKE_AUDIO + "-another-pack-recording", "week10.mp3") })).status, 204);
+  await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "failed");
+  assert.equal(s.notes.calls.length, 0);   // no notes written without the slides
+  assert.equal(local(s, id, "slides.pdf"), false); assert.ok(f.objects.has(`kept/${id}/slides.pdf`), "the deck is still in R2");
+  f.fail = null;
+  assert.equal((await s.call("POST", `/lectures/${id}/retry`, { token })).status, 200);
+  await s.pipeline.idle();
+  assert.equal(s.store.lecture(id)!.status, "ready");
+  assert.deepEqual(s.notes.calls.at(-1)!.input.slides.map(p => p.n), [1, 2]);
+  assert.equal(local(s, id, "slides.pdf"), false);
 });

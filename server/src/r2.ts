@@ -4,6 +4,7 @@
    is checked against AWS's own published examples (test/r2.test.ts).
    Requests go to <endpoint>/<bucket>/<key> (path style), region "auto" as R2 asks. */
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import { createHash, createHmac } from "node:crypto";
 
 export interface R2Settings {
@@ -141,6 +142,32 @@ export class R2 {
     if (r.status === 404) return null;
     if (!r.ok) await this.failed(r, "check");
     return { size: Number(r.headers.get("content-length")), etag: (r.headers.get("etag") || "").replace(/"/g, "") };
+  }
+
+  /* Downloads an object to a file, for a step that reads it again (files.ts fetch). Written beside the file first and
+     renamed once the bytes check out against the size and MD5 (the ETag of a single upload) that R2 gives, so a cut-off
+     or wrong download never counts. Throws when R2 has no such object, fails, or the bytes do not match. */
+  async get(key: string, file: string, signal?: AbortSignal) {
+    const want = await this.head(key, signal);
+    if (!want) throw new R2Error(404, "NoSuchKey", `R2 has no ${key}`);
+    /* As for uploads: at least 2 minutes, and 100 KB/s. */
+    const r = await this.send("GET", key, { signal, timeoutMs: Math.max(120_000, want.size / 100) });
+    if (!r.ok || !r.body) await this.failed(r, "download");
+    const part = `${file}.part-${process.pid}-${Date.now().toString(36)}`, md5 = createHash("md5");
+    let size = 0;
+    try {
+      const out = fs.createWriteStream(part);
+      for await (const chunk of r.body as unknown as AsyncIterable<Uint8Array>) {
+        md5.update(chunk); size += chunk.length;
+        if (!out.write(chunk)) await new Promise<void>(res => out.once("drain", () => res()));
+      }
+      await new Promise<void>((res, rej) => out.end((e?: Error | null) => e ? rej(e) : res()));
+      const got = md5.digest("hex");
+      if (size !== want.size || (/^[0-9a-f]{32}$/.test(want.etag) && got !== want.etag))
+        throw new Error(`R2 sent ${size} bytes (MD5 ${got}) for ${key}, not the ${want.size} bytes (ETag ${want.etag}) it has`);
+      await fsp.rename(part, file);
+      return { size, md5: got };
+    } finally { await fsp.rm(part, { force: true }); }
   }
 
   /* Deleting what is not there is not an error (S3 answers 204 either way). */

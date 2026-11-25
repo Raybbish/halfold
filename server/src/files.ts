@@ -33,6 +33,10 @@ export interface FileStore {
   exists(lectureId: string, name: string): boolean;
   /* "local": read it at path(). "remote": in R2, send the browser to link(). null: neither. */
   where(lectureId: string, name: string): "local" | "remote" | null;
+  /* The file on this disk again, for a step that reads it once more: a study pack's slides when its recording comes, a
+     lecture made again. Downloaded from R2 when it is only there; it stays recorded there, and archive() moves it back
+     once the lecture has its notes. true: at path() now. false: neither here nor in R2. Throws when R2 fails. */
+  fetch(lectureId: string, name: string, signal?: AbortSignal): Promise<boolean>;
   link(lectureId: string, name: string, o: LinkOptions): string;
   /* Deletes the file here and, for a kept file, in R2. */
   remove(lectureId: string, name: string): Promise<void>;
@@ -80,6 +84,7 @@ export class LocalFileStore implements FileStore {
   protected here(lectureId: string, name: string) { return fs.existsSync(this.path(lectureId, name)); }
   exists(lectureId: string, name: string) { return this.here(lectureId, name); }
   where(lectureId: string, name: string): "local" | "remote" | null { return this.here(lectureId, name) ? "local" : null; }
+  async fetch(lectureId: string, name: string, _signal?: AbortSignal) { return this.here(lectureId, name); }
   link(lectureId: string, name: string, _o: LinkOptions): string { throw new Error(`${lectureId}/${name} is not in R2`); }
   async remove(lectureId: string, name: string) { await fsp.rm(this.path(lectureId, name), { force: true }); }
   async removeLecture(lectureId: string) { await fsp.rm(path.join(this.root, lectureId), { force: true, recursive: true }); }
@@ -112,6 +117,14 @@ export class R2FileStore extends LocalFileStore {
 
   override exists(lectureId: string, name: string) { return this.here(lectureId, name) || this.store.isRemote(lectureId, name); }
   override where(lectureId: string, name: string) { return this.here(lectureId, name) ? "local" : this.store.isRemote(lectureId, name) ? "remote" : null; }
+  override async fetch(lectureId: string, name: string, signal?: AbortSignal) {
+    if (this.here(lectureId, name)) return true;
+    if (!isKept(name) || !this.store.isRemote(lectureId, name)) return false;
+    const file = this.path(lectureId, name);
+    await fsp.mkdir(path.dirname(file), { recursive: true });
+    await this.r2.get(this.key(lectureId, name), file, signal);
+    return true;
+  }
   override link(lectureId: string, name: string, o: LinkOptions) {
     if (!this.store.isRemote(lectureId, name)) throw new Error(`${lectureId}/${name} is not in R2`);
     return this.r2.presign(this.key(lectureId, name), { ...o, seconds: Math.max(60, o.until - Date.now() / 1000) });
